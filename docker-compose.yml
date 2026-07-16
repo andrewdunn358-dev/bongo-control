@@ -1,0 +1,28 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      VANOS_ENVIRONMENT: production
+      VANOS_SIMULATION_MODE: "true"
+      VANOS_DATABASE_URL: sqlite:///./data/vanos.db
+      VANOS_CORS_ORIGINS: '["http://localhost:8080"]'
+    volumes:
+      - vanos-data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  vanos-data:
