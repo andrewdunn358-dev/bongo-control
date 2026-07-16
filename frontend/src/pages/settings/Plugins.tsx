@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Settings2 } from "lucide-react";
 import Card from "../../components/Cards/Card";
 import { api, type PluginHealth } from "../../services/api";
@@ -19,6 +20,12 @@ const statusDot: Record<string, string> = {
   stopped: "bg-white/20",
   disabled: "bg-white/20",
   error: "bg-alert",
+};
+
+// Plugins with a real configuration surface, and where it lives.
+// Simulation has nothing to configure, so it's absent here.
+const CONFIG_ROUTES: Record<string, string> = {
+  victron_mppt: "/settings/hardware",
 };
 
 export default function Plugins() {
@@ -66,38 +73,52 @@ export default function Plugins() {
 
   return (
     <div className="space-y-4">
-      {plugins.map((plugin, i) => (
-        <Card key={plugin.name} label={plugin.display_name} accent={plugin.status === "error" ? "alert" : "neutral"} index={i}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className={`h-2 w-2 rounded-full ${statusDot[plugin.status] ?? "bg-white/20"}`} />
-              <span className="text-sm text-text-primary capitalize">{plugin.status}</span>
-              <span className="text-sm text-text-muted">· v{plugin.version}</span>
-              <span className="text-sm text-text-muted">· last update {relativeTime(plugin.last_heartbeat)}</span>
+      {plugins.map((plugin, i) => {
+        const configRoute = CONFIG_ROUTES[plugin.name];
+        return (
+          <Card key={plugin.name} label={plugin.display_name} accent={plugin.status === "error" ? "alert" : "neutral"} index={i}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className={`h-2 w-2 rounded-full ${statusDot[plugin.status] ?? "bg-white/20"}`} />
+                <span className="text-sm text-text-primary capitalize">{plugin.status}</span>
+                <span className="text-sm text-text-muted">· v{plugin.version}</span>
+                <span className="text-sm text-text-muted">· last update {relativeTime(plugin.last_heartbeat)}</span>
+                {plugin.device_name && <span className="text-sm text-text-muted">· {plugin.device_name}</span>}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => toggle(plugin)}
+                  disabled={busy === plugin.name}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-opacity disabled:opacity-50 ${
+                    plugin.enabled ? "bg-white/10 text-text-primary hover:bg-white/15" : "bg-solar text-black hover:opacity-90"
+                  }`}
+                >
+                  {plugin.enabled ? "Disable" : "Enable"}
+                </button>
+                {configRoute ? (
+                  <Link
+                    to={configRoute}
+                    className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-sm text-text-primary hover:bg-white/15"
+                  >
+                    <Settings2 size={14} />
+                    Configure
+                  </Link>
+                ) : (
+                  <button
+                    disabled
+                    title="Nothing to configure for this plugin"
+                    className="flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-sm text-text-muted opacity-50"
+                  >
+                    <Settings2 size={14} />
+                    Configure
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => toggle(plugin)}
-                disabled={busy === plugin.name}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-opacity disabled:opacity-50 ${
-                  plugin.enabled ? "bg-white/10 text-text-primary hover:bg-white/15" : "bg-solar text-black hover:opacity-90"
-                }`}
-              >
-                {plugin.enabled ? "Disable" : "Enable"}
-              </button>
-              <button
-                disabled
-                title="Per-plugin configuration lands once a plugin has real settings to configure"
-                className="flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-sm text-text-muted opacity-50"
-              >
-                <Settings2 size={14} />
-                Configure
-              </button>
-            </div>
-          </div>
-          {plugin.last_error && <div className="mt-2 text-sm text-alert">{plugin.last_error}</div>}
-        </Card>
-      ))}
+            {plugin.last_error && <div className="mt-2 text-sm text-alert">{plugin.last_error}</div>}
+          </Card>
+        );
+      })}
     </div>
   );
 }

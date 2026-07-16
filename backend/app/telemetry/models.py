@@ -40,11 +40,12 @@ class TelemetryDomain(str, Enum):
 
 class TelemetrySource(str, Enum):
     """Which plugin produced this reading. Real hardware plugins get
-    added here as they're implemented (VICTRON, BATTERY_SHUNT, GPS, ...).
+    added here as they're implemented.
     """
 
     SIMULATION = "simulation"
     SYSTEM = "system"
+    VICTRON_MPPT = "victron_mppt"
 
 
 class TelemetryMessage(BaseModel):

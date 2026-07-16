@@ -1,12 +1,16 @@
 """
-Plugin Manager API — powers the Plugin Status page.
+Plugin management API — powers the Plugin Status page.
 """
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from app.plugins.manager import PluginManager
+from app.services.configuration_service import configuration_service
 
 router = APIRouter(prefix="/api/plugins", tags=["plugins"])
 
@@ -33,6 +37,10 @@ def _get_manager() -> PluginManager:
     return _manager
 
 
+class PluginConfigUpdate(BaseModel):
+    config: dict[str, Any]
+
+
 @router.get("")
 async def list_plugins() -> list[dict]:
     return _get_manager().health()
@@ -52,3 +60,22 @@ async def disable_plugin(name: str) -> dict:
     if not ok:
         raise HTTPException(status_code=404, detail=f"Unknown plugin '{name}'")
     return {"name": name, "enabled": False}
+
+
+@router.get("/{name}/config")
+async def get_plugin_config(name: str) -> dict:
+    if _get_manager().get(name) is None:
+        raise HTTPException(status_code=404, detail=f"Unknown plugin '{name}'")
+    return configuration_service.get_plugin_config(name)
+
+
+@router.put("/{name}/config")
+async def update_plugin_config(name: str, body: PluginConfigUpdate) -> dict:
+    """Merges into the plugin's config (e.g. mac_address, encryption_key
+    for victron_mppt) without wiping the enabled flag or other fields.
+    Does not itself start/stop the plugin — call enable/disable after
+    updating config for it to take effect.
+    """
+    if _get_manager().get(name) is None:
+        raise HTTPException(status_code=404, detail=f"Unknown plugin '{name}'")
+    return configuration_service.update_plugin_config(name, body.config)

@@ -24,7 +24,14 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "general": {},
     "appearance": {},
     "hardware": {},
-    "plugins": {},  # plugin_name -> {"enabled": bool, **plugin-specific config}
+    # Simulation is on by default (nothing to configure); Victron starts
+    # disabled until an encryption_key is set - see docs/victron_ble_integration.md.
+    # This is also how switching between them works with zero code
+    # changes: disable one, configure + enable the other.
+    "plugins": {
+        "simulation": {"enabled": True},
+        "victron_mppt": {"enabled": False},
+    },
     "notifications": {"enabled": True},
     "developer": {},
 }
@@ -76,6 +83,18 @@ class ConfigurationService:
             plugin_conf = plugins.setdefault(plugin_name, {})
             plugin_conf["enabled"] = enabled
             self._save()
+
+    def update_plugin_config(self, plugin_name: str, partial: dict[str, Any]) -> dict[str, Any]:
+        """Merges `partial` into the plugin's existing config rather than
+        replacing it wholesale - so setting e.g. encryption_key doesn't
+        accidentally clobber the enabled flag or other fields.
+        """
+        with self._lock:
+            plugins = self._data.setdefault("plugins", {})
+            plugin_conf = plugins.setdefault(plugin_name, {})
+            plugin_conf.update(partial)
+            self._save()
+            return dict(plugin_conf)
 
 
 configuration_service = ConfigurationService()

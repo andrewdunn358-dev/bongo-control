@@ -13,7 +13,7 @@ export type TelemetryDomain =
   | "system"
   | "notification";
 
-export type TelemetrySource = "simulation" | "system";
+export type TelemetrySource = "simulation" | "system" | "victron_mppt";
 
 export interface TelemetryMessage<T = Record<string, unknown>> {
   domain: TelemetryDomain;
@@ -30,15 +30,24 @@ export interface EnergyPayload {
 }
 
 export interface BatteryPayload {
-  soc_pct: number;
+  // Null when no SmartShunt is present (an MPPT alone can't measure
+  // state of charge, only voltage) — shown as "—" rather than faked.
+  soc_pct: number | null;
   voltage: number;
   charging: boolean;
+  // Real-hardware only (voltage x current from the MPPT's charging current).
+  charging_power_w?: number | null;
 }
 
 export interface SolarPayload {
   watts: number;
-  cloud_cover_pct: number;
   peak_today_watts: number;
+  // Simulation-only synthetic value — no real cloud sensor exists.
+  cloud_cover_pct?: number;
+  // Real-hardware only, from the MPPT's own reporting.
+  yield_today_wh?: number | null;
+  charge_state?: string | null;
+  charger_error?: string | null;
 }
 
 export interface EnvironmentPayload {

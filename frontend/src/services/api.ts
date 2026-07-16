@@ -21,6 +21,8 @@ export interface PluginHealth {
   last_heartbeat: number | null;
   last_error: string | null;
   enabled: boolean;
+  device_name?: string | null;
+  mac_address?: string | null;
 }
 
 export const api = {
@@ -32,6 +34,13 @@ export const api = {
     list: () => request<PluginHealth[]>("/api/plugins"),
     enable: (name: string) => request<{ name: string; enabled: boolean }>(`/api/plugins/${name}/enable`, { method: "POST" }),
     disable: (name: string) => request<{ name: string; enabled: boolean }>(`/api/plugins/${name}/disable`, { method: "POST" }),
+    getConfig: (name: string) => request<Record<string, unknown>>(`/api/plugins/${name}/config`),
+    setConfig: (name: string, config: Record<string, unknown>) =>
+      request<Record<string, unknown>>(`/api/plugins/${name}/config`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ config }),
+      }),
   },
 
   config: {

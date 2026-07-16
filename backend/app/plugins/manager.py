@@ -114,6 +114,7 @@ class PluginManager:
         if not plugin:
             return False
         self._config.set_plugin_enabled(name, True)
+        plugin.configure(self._config.get_plugin_config(name))
         if plugin.status != PluginStatus.RUNNING:
             await self._start_one(plugin)
         return True

@@ -45,7 +45,7 @@ export function useRecentEvents(state: TelemetryState): AppEvent[] {
     // Battery milestone crossings
     const prevSoc = prev.battery?.payload.soc_pct;
     const currSoc = state.battery?.payload.soc_pct;
-    if (prevSoc !== undefined && currSoc !== undefined) {
+    if (prevSoc !== undefined && prevSoc !== null && currSoc !== undefined && currSoc !== null) {
       for (const milestone of BATTERY_MILESTONES) {
         if (prevSoc < milestone && currSoc >= milestone) {
           next.push({ id: `soc-${milestone}-${now}`, text: `Battery reached ${milestone}%`, timestamp: now });

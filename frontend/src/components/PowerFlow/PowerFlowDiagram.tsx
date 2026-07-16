@@ -84,7 +84,7 @@ export default function PowerFlowDiagram() {
           <BatteryMedium size={26} className="text-battery" />
         </div>
         <span className="font-mono text-lg font-semibold tabular-nums text-text-primary md:text-xl">
-          {battery ? `${Math.round(battery.soc_pct)}%` : "—"}
+          {battery ? (battery.soc_pct !== null ? `${Math.round(battery.soc_pct)}%` : `${battery.voltage}V`) : "—"}
         </span>
         <span className="text-[10px] uppercase tracking-wide text-text-muted">
           Leisure Battery · {charging ? "Charging" : "Discharging"}

@@ -5,3 +5,7 @@ pydantic==2.9.2
 pydantic-settings==2.5.2
 sqlalchemy==2.0.35
 python-dotenv==1.0.1
+
+# Victron MPPT Bluetooth plugin
+bleak==0.22.3
+victron-ble==0.9.3

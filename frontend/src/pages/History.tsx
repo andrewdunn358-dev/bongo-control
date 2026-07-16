@@ -24,7 +24,10 @@ export default function History() {
     .map((m, i) => ({
       id: `${m.timestamp}-${i}`,
       timestamp: m.timestamp,
-      text: `Battery ${Math.round(m.payload.soc_pct)}% (${m.payload.charging ? "charging" : "discharging"})`,
+      text:
+        m.payload.soc_pct !== null
+          ? `Battery ${Math.round(m.payload.soc_pct)}% (${m.payload.charging ? "charging" : "discharging"})`
+          : `Battery ${m.payload.voltage}V (${m.payload.charging ? "charging" : "discharging"})`,
     }));
 
   return (

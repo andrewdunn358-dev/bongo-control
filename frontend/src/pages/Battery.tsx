@@ -1,4 +1,4 @@
-import { BatteryMedium, Zap, BatteryCharging } from "lucide-react";
+import { BatteryMedium, Zap, BatteryCharging, Gauge } from "lucide-react";
 import { useTelemetry } from "../context/TelemetryContext";
 import MetricCard from "../components/Cards/MetricCard";
 
@@ -13,8 +13,16 @@ export default function Battery() {
         label="State of Charge"
         icon={<BatteryMedium size={14} />}
         accent="battery"
-        value={battery ? `${Math.round(battery.soc_pct)}%` : "—"}
-        subtext={battery ? (battery.charging ? "Charging" : "Discharging") : undefined}
+        value={battery ? (battery.soc_pct !== null ? `${Math.round(battery.soc_pct)}%` : "—") : "—"}
+        subtext={
+          battery
+            ? battery.soc_pct !== null
+              ? battery.charging
+                ? "Charging"
+                : "Discharging"
+              : "No shunt — voltage only"
+            : undefined
+        }
       />
       <MetricCard index={1} label="Voltage" icon={<Zap size={14} />} value={battery ? `${battery.voltage}V` : "—"} />
       <MetricCard
@@ -24,6 +32,9 @@ export default function Battery() {
         accent="battery"
         value={battery ? (battery.charging ? "Charging" : "Discharging") : "—"}
       />
+      {battery?.charging_power_w != null && (
+        <MetricCard index={3} label="Charging Power" icon={<Gauge size={14} />} accent="battery" value={`${battery.charging_power_w}W`} />
+      )}
     </div>
   );
 }

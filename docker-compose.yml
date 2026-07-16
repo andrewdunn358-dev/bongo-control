@@ -5,6 +5,22 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
+    # network_mode: host is required for the Victron Bluetooth plugin —
+    # BlueZ/D-Bus BLE access from inside a container generally doesn't
+    # work with Docker's default bridge networking. This makes the
+    # "ports:" mapping below redundant (host networking exposes the
+    # port directly), but it's left in place as documentation.
+    #
+    # IMPORTANT: this is the standard, documented approach for BLE-in-
+    # Docker (used by similar projects like victron-ble2mqtt), but it
+    # has NOT been tested against real hardware in this project yet —
+    # verify it works on your actual Pi + Bluetooth dongle. If it
+    # doesn't, see docs/victron_ble_integration.md for troubleshooting
+    # and fallback options (e.g. running the backend outside Docker).
+    network_mode: host
+    volumes:
+      - vanos-data:/app/data
+      - /var/run/dbus:/var/run/dbus
     ports:
       - "8000:8000"
     environment:
@@ -12,8 +28,6 @@ services:
       VANOS_SIMULATION_MODE: "true"
       VANOS_DATABASE_URL: sqlite:///./data/vanos.db
       VANOS_CORS_ORIGINS: '["http://localhost:8090"]'
-    volumes:
-      - vanos-data:/app/data
     restart: unless-stopped
 
   frontend:

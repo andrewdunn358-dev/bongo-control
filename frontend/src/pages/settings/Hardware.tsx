@@ -1,14 +1,101 @@
-import { Cpu } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Cpu, ExternalLink } from "lucide-react";
 import Card from "../../components/Cards/Card";
+import { api } from "../../services/api";
 
 export default function Hardware() {
+  const [macAddress, setMacAddress] = useState("");
+  const [encryptionKey, setEncryptionKey] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    api.plugins
+      .getConfig("victron_mppt")
+      .then((config) => {
+        setMacAddress((config.mac_address as string) ?? "");
+        setEncryptionKey((config.encryption_key as string) ?? "");
+      })
+      .finally(() => setLoaded(true));
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    setSaved(false);
+    try {
+      await api.plugins.setConfig("victron_mppt", {
+        mac_address: macAddress.trim() || null,
+        encryption_key: encryptionKey.trim() || null,
+      });
+      setSaved(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <Card label="Hardware" icon={<Cpu size={14} />}>
-      <p className="text-sm text-text-muted">
-        Once real hardware plugins exist (Victron Bluetooth, battery shunt, GPS), their connection settings — pairing,
-        device selection, polling interval — will live here. No hardware is connected yet, so there's nothing to
-        configure: this section is navigation only for now.
-      </p>
-    </Card>
+    <div className="space-y-4">
+      <Card label="Victron SmartSolar MPPT" icon={<Cpu size={14} />}>
+        {!loaded ? (
+          <span className="text-sm text-text-muted">Loading...</span>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-sm text-text-secondary">
+              Connects over Bluetooth using Victron's "Instant Readout" broadcast — no pairing needed, just the
+              per-device encryption key from the VictronConnect app.{" "}
+              <a
+                href="https://github.com/andrewdunn358-dev/bongo-control/blob/main/docs/victron_ble_integration.md"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-solar hover:underline"
+              >
+                Setup guide <ExternalLink size={12} />
+              </a>
+            </p>
+
+            <div className="space-y-1.5">
+              <label className="text-xs uppercase tracking-wide text-text-muted">Encryption key</label>
+              <input
+                type="text"
+                value={encryptionKey}
+                onChange={(e) => setEncryptionKey(e.target.value)}
+                placeholder="32-character hex key from VictronConnect"
+                className="w-full rounded-lg border border-white/10 bg-surface-raised px-3 py-2 font-mono text-sm text-text-primary placeholder:text-text-muted focus:border-solar focus:outline-none"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs uppercase tracking-wide text-text-muted">MAC address (optional)</label>
+              <input
+                type="text"
+                value={macAddress}
+                onChange={(e) => setMacAddress(e.target.value)}
+                placeholder="Leave blank to use the first Victron device found"
+                className="w-full rounded-lg border border-white/10 bg-surface-raised px-3 py-2 font-mono text-sm text-text-primary placeholder:text-text-muted focus:border-solar focus:outline-none"
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={save}
+                disabled={saving}
+                className="rounded-lg bg-solar px-4 py-2 text-sm font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {saving ? "Saving..." : "Save"}
+              </button>
+              {saved && <span className="text-sm text-battery">Saved — enable the plugin on the Plugins tab to connect.</span>}
+            </div>
+          </div>
+        )}
+      </Card>
+
+      <Card label="Victron SmartShunt">
+        <p className="text-sm text-text-muted">
+          Not yet owned — battery state-of-charge and full energy-flow data depend on this. Its plugin will reuse the
+          same architecture as the MPPT plugin once it's a future milestone.
+        </p>
+      </Card>
+    </div>
   );
 }

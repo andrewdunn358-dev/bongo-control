@@ -35,7 +35,7 @@ export default function Home() {
           label="Battery"
           icon={<BatteryMedium size={14} />}
           accent="battery"
-          value={battery ? `${Math.round(battery.soc_pct)}%` : "—"}
+          value={battery ? (battery.soc_pct !== null ? `${Math.round(battery.soc_pct)}%` : `${battery.voltage}V`) : "—"}
           subtext={battery ? (battery.charging ? "Charging" : "Discharging") : undefined}
         />
         <MetricCard
@@ -44,7 +44,13 @@ export default function Home() {
           icon={<Sun size={14} />}
           accent="solar"
           value={solar ? `${Math.round(solar.watts)}W` : "—"}
-          subtext={solar ? `${Math.round(solar.cloud_cover_pct)}% cloud cover` : undefined}
+          subtext={
+            solar?.cloud_cover_pct !== undefined
+              ? `${Math.round(solar.cloud_cover_pct)}% cloud cover`
+              : solar?.charge_state
+                ? solar.charge_state
+                : undefined
+          }
         />
         <MetricCard
           index={3}
