@@ -21,8 +21,10 @@ Battery Plugin ─────┘
   that starts/stops all registered plugins together and reports status.
 - `backend/app/plugins/simulation/engine.py` — the first (and currently
   only) plugin. Models solar irradiance, battery SoC integration, load
-  cycling, environment, connectivity, and vehicle state, publishing all
-  seven domains once per second.
+  cycling, environment, and connectivity, publishing all six domains
+  once per second. There's deliberately no Vehicle/OBD domain — this
+  vehicle has no OBD port, so real engine/ignition/odometer diagnostics
+  are out of scope rather than permanent fake data.
 
 ## Why an in-process bus instead of Redis/MQTT from day one?
 
@@ -67,13 +69,13 @@ small set of reusable pieces in `frontend/src/components/Cards/` and
 `frontend/src/components/Timeline/`:
 
 - **`Card`** — the base container (accent border, padding, entrance
-  motion, hover lift). `accent` is `solar | battery | vehicle | alert |
+  motion, hover lift). `accent` is `solar | battery | alert |
   neutral` — `alert` is reserved for genuine error/warning states
   (engine fault, offline), not decoration, per the "colour only
   communicates state" visual direction.
 - **`MetricCard`** — a `Card` preset for a single stat: icon + label +
   large mono value + optional subtext. Used for every "one number"
-  readout (Battery/Solar/Environment/Connectivity/Vehicle pages, Home's
+  readout (Battery/Solar/Environment/Connectivity pages, Home's
   Quick Status row).
 - **`StatRow`** — a label/value list row (optionally with a status dot),
   for cards showing several related facts together (Active Loads,

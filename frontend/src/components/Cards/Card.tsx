@@ -1,12 +1,11 @@
 import { motion } from "framer-motion";
 import type { ReactNode } from "react";
 
-export type CardAccent = "solar" | "battery" | "vehicle" | "alert" | "neutral";
+export type CardAccent = "solar" | "battery" | "alert" | "neutral";
 
 const accentBorder: Record<CardAccent, string> = {
   solar: "border-t-solar/60",
   battery: "border-t-battery/60",
-  vehicle: "border-t-vehicle/60",
   alert: "border-t-alert/60",
   neutral: "border-t-transparent",
 };
@@ -25,7 +24,7 @@ interface CardProps {
 
 /**
  * The base card every dashboard widget is built on. A 2px accent border
- * on top signals the card's domain (solar/battery/vehicle) without
+ * on top signals the card's domain (solar/battery) without
  * relying on icon color alone — helps at a glance and for accessibility.
  */
 export default function Card({ label, icon, accent = "neutral", className = "", children, index = 0 }: CardProps) {

@@ -30,9 +30,6 @@ export default {
           DEFAULT: "#46d2c4", // electric / storage
           dim: "#2b6e68",
         },
-        vehicle: {
-          DEFAULT: "#8fbf9f", // muted sage, used only for vehicle-health status
-        },
         alert: {
           DEFAULT: "#ff6b6a",
         },

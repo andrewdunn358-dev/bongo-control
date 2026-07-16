@@ -23,7 +23,10 @@ from pydantic import BaseModel, Field
 
 class TelemetryDomain(str, Enum):
     """Logical category of a telemetry reading. Maps loosely onto the
-    dashboard pages (Energy, Battery, Solar, Environment, Vehicle...).
+    dashboard pages (Energy, Battery, Solar, Environment, Connectivity...).
+    Note: there is deliberately no Vehicle/OBD domain — this vehicle has
+    no OBD port, and coding one would be impractical, so real vehicle
+    diagnostics are out of scope rather than left as permanent fake data.
     """
 
     ENERGY = "energy"
@@ -31,7 +34,6 @@ class TelemetryDomain(str, Enum):
     SOLAR = "solar"
     ENVIRONMENT = "environment"
     CONNECTIVITY = "connectivity"
-    VEHICLE = "vehicle"
     SYSTEM = "system"
 
 

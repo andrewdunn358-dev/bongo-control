@@ -10,7 +10,6 @@ export type TelemetryDomain =
   | "solar"
   | "environment"
   | "connectivity"
-  | "vehicle"
   | "system";
 
 export type TelemetrySource = "simulation" | "system";
@@ -53,12 +52,6 @@ export interface ConnectivityPayload {
   connection_type: string;
 }
 
-export interface VehiclePayload {
-  ignition_on: boolean;
-  odometer_km: number;
-  engine_ok: boolean;
-}
-
 export interface PowerBudget {
   heater_all_night_possible: boolean;
   estimated_runtime_hours: number;
@@ -75,6 +68,5 @@ export interface TelemetryState {
   solar?: TelemetryMessage<SolarPayload>;
   environment?: TelemetryMessage<EnvironmentPayload>;
   connectivity?: TelemetryMessage<ConnectivityPayload>;
-  vehicle?: TelemetryMessage<VehiclePayload>;
   system?: TelemetryMessage<SystemPayload>;
 }

@@ -14,7 +14,6 @@ Model summary (deliberately simple but directionally realistic):
 - Loads cycle a small set of appliances on/off on independent timers.
 - Environment (temperature) follows a smooth day/night curve.
 - Connectivity jitters signal strength and occasionally flips online/offline.
-- Vehicle reports static/simple values (ignition, odometer) for now.
 """
 
 from __future__ import annotations
@@ -47,7 +46,6 @@ class SimulationState:
         }
         self.online = True
         self.signal_strength = 78  # percent
-        self.odometer_km = 84213.4
 
 
 def _solar_irradiance(elapsed_hours: float, cloud_factor: float) -> float:
@@ -214,14 +212,5 @@ class SimulationEngine(Plugin):
                 "online": s.online,
                 "signal_strength_pct": s.signal_strength,
                 "connection_type": "4g_hotspot",
-            },
-        )
-
-        await emit(
-            TelemetryDomain.VEHICLE,
-            {
-                "ignition_on": False,
-                "odometer_km": round(s.odometer_km, 1),
-                "engine_ok": True,
             },
         )

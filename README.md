@@ -79,7 +79,7 @@ on the backend for this).
 | Endpoint | Purpose |
 |---|---|
 | `GET /api/health` | App + plugin status |
-| `GET /api/{energy,battery,solar,environment,connectivity,vehicle,system}` | Current snapshot per domain |
+| `GET /api/{energy,battery,solar,environment,connectivity,system}` | Current snapshot per domain |
 | `GET /api/history/{domain}` | In-memory recent history (SQLite-backed history lands in a later milestone) |
 | `GET /api/settings` | App config + plugin health |
 | `WS /ws/telemetry` | Live stream — snapshot on connect, then every new reading |
@@ -104,7 +104,12 @@ on the backend for this).
 | 4 | Battery shunt integration |
 | 5 | History graphs and SQLite logging |
 | 6 | External battery support |
-| 7 | Vehicle automation and plugins |
+| 7 | Automation and plugins |
+
+**Note:** there's deliberately no Vehicle/OBD domain or page. This
+vehicle has no OBD port, and adding one would be impractical — so real
+engine/ignition/odometer diagnostics are permanently out of scope
+rather than left as fake simulated data with no path to becoming real.
 
 ## Design
 

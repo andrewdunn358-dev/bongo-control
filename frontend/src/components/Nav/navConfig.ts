@@ -1,4 +1,4 @@
-import { Home, Zap, BatteryMedium, Sun, History, Thermometer, Wifi, Truck, Settings } from "lucide-react";
+import { Home, Zap, BatteryMedium, Sun, History, Thermometer, Wifi, Settings } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export interface NavItem {
@@ -17,7 +17,6 @@ export const navItems: NavItem[] = [
   { path: "/history", label: "History", icon: History },
   { path: "/environment", label: "Environment", icon: Thermometer },
   { path: "/connectivity", label: "Connectivity", icon: Wifi },
-  { path: "/vehicle", label: "Vehicle", icon: Truck },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
 

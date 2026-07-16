@@ -4,7 +4,6 @@ import Card from "../components/Cards/Card";
 import MetricCard from "../components/Cards/MetricCard";
 import PowerFlowDiagram from "../components/PowerFlow/PowerFlowDiagram";
 import PowerBudgetCard from "../components/Cards/PowerBudgetCard";
-import VehicleHealthCard from "../components/Cards/VehicleHealthCard";
 import RecentEventsCard from "../components/Cards/RecentEventsCard";
 import { useTelemetry } from "../context/TelemetryContext";
 
@@ -63,10 +62,9 @@ export default function Home() {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <PowerBudgetCard index={5} />
-        <VehicleHealthCard index={6} />
-        <RecentEventsCard index={7} />
+        <RecentEventsCard index={6} />
       </div>
     </div>
   );
