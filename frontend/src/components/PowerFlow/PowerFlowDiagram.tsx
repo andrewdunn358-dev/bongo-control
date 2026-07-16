@@ -101,12 +101,15 @@ export default function PowerFlowDiagram() {
       </div>
 
       {/* External Battery — honest stub, not fabricated data. Milestone 6. */}
-      <div className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 opacity-40" style={{ left: "90%", top: "54%" }}>
+      <div
+        className="absolute flex w-24 -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 text-center opacity-40"
+        style={{ left: "86%", top: "54%" }}
+      >
         <div className="rounded-full border border-dashed border-white/20 p-3">
           <BatteryWarning size={20} className="text-text-muted" />
         </div>
-        <span className="text-[10px] uppercase tracking-wide text-text-muted">External Battery</span>
-        <span className="text-[9px] text-text-muted">Not installed</span>
+        <span className="text-[10px] uppercase leading-tight tracking-wide text-text-muted">External Battery</span>
+        <span className="text-[9px] leading-tight text-text-muted">Not installed</span>
       </div>
     </div>
   );
