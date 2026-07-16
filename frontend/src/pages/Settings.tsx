@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Info, Puzzle } from "lucide-react";
+import { Info, Puzzle, Smartphone, CheckCircle2 } from "lucide-react";
 import Card from "../components/Cards/Card";
 import StatRow from "../components/Cards/StatRow";
 import { api } from "../services/api";
+import { useInstallPrompt } from "../hooks/useInstallPrompt";
 
 interface PluginHealth {
   name: string;
@@ -15,6 +16,40 @@ interface SettingsResponse {
   environment: string;
   simulation_mode: boolean;
   plugins: PluginHealth[];
+}
+
+function InstallCard({ index }: { index: number }) {
+  const { canInstall, installed, isIOS, promptInstall } = useInstallPrompt();
+
+  return (
+    <Card label="Install App" icon={<Smartphone size={14} />} accent={installed ? "battery" : "neutral"} index={index}>
+      {installed ? (
+        <div className="flex items-center gap-2 text-sm text-text-primary">
+          <CheckCircle2 size={16} className="text-battery" />
+          Installed — running as an app
+        </div>
+      ) : canInstall ? (
+        <div className="space-y-3">
+          <p className="text-sm text-text-secondary">Install for a full-screen, app-like experience — no browser bar, launches from your home screen.</p>
+          <button
+            onClick={promptInstall}
+            className="rounded-lg bg-solar px-4 py-2 text-sm font-semibold text-black transition-opacity hover:opacity-90"
+          >
+            Install Bongo Control
+          </button>
+        </div>
+      ) : isIOS ? (
+        <p className="text-sm text-text-secondary">
+          Tap the <span className="text-text-primary">Share</span> icon in Safari's toolbar, then{" "}
+          <span className="text-text-primary">Add to Home Screen</span>. iOS doesn't support one-tap install from the page itself.
+        </p>
+      ) : (
+        <p className="text-sm text-text-secondary">
+          Look for an install icon in your browser's address bar, or use its menu → "Install Bongo Control" / "Add to Home Screen".
+        </p>
+      )}
+    </Card>
+  );
 }
 
 export default function Settings() {
@@ -30,7 +65,9 @@ export default function Settings() {
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <Card label="App" icon={<Info size={14} />} index={0} accent={error ? "alert" : "neutral"}>
+      <InstallCard index={0} />
+
+      <Card label="App" icon={<Info size={14} />} index={1} accent={error ? "alert" : "neutral"}>
         {error && <span className="text-sm text-alert">Could not reach backend</span>}
         {settings && (
           <div>
@@ -41,7 +78,7 @@ export default function Settings() {
         )}
       </Card>
 
-      <Card label="Plugins" icon={<Puzzle size={14} />} index={1}>
+      <Card label="Plugins" icon={<Puzzle size={14} />} index={2}>
         {settings ? (
           <div>
             {settings.plugins.map((p) => (
