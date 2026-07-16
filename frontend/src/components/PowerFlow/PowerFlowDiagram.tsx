@@ -1,12 +1,17 @@
-import { Sun, BatteryMedium, Home as HomeIcon } from "lucide-react";
+import { Sun, BatteryMedium, Home as HomeIcon, Cpu, BatteryWarning } from "lucide-react";
 import { useTelemetry } from "../../context/TelemetryContext";
 
-// Path geometry (viewBox 0 0 400 200): Solar (top-left) -> Battery (center)
-// -> Load (right). Dots travel along these paths using CSS `offset-path`,
-// which is the right tool for continuous looping motion — cheaper and
-// smoother than driving it frame-by-frame from React/Framer Motion.
-const SOLAR_TO_BATTERY_PATH = "M 70 60 C 130 60, 140 100, 190 100";
-const BATTERY_TO_LOAD_PATH = "M 210 100 C 260 100, 270 140, 330 140";
+// Path geometry (viewBox 0 0 520 200): Solar -> Leisure Battery -> Van Loads
+// -> External Battery (stub, not yet installed). Dots travel along these
+// paths using CSS `offset-path`, which is the right tool for continuous
+// looping motion — cheaper and smoother than driving it frame-by-frame
+// from React/Framer Motion. "MPPT" is a label on the first path, not a
+// separate telemetry-bearing node — there's no MPPT-specific data yet.
+const SOLAR_TO_BATTERY_PATH = "M 65 58 C 130 58, 150 108, 208 108";
+const BATTERY_TO_LOAD_PATH = "M 228 108 C 280 108, 300 150, 343 150";
+// Dashed, no particles — External Battery isn't implemented yet
+// (Milestone 6). Shown honestly as "not installed" rather than faked.
+const LOAD_TO_EXTERNAL_PATH = "M 363 150 C 400 150, 420 108, 468 108";
 
 function FlowDots({ path, color, speedSeconds, reverse, count }: { path: string; color: string; speedSeconds: number; reverse: boolean; count: number }) {
   return (
@@ -45,9 +50,10 @@ export default function PowerFlowDiagram() {
 
   return (
     <div className="relative">
-      <svg viewBox="0 0 400 200" className="h-auto w-full" aria-hidden="true">
+      <svg viewBox="0 0 520 200" className="h-auto w-full" aria-hidden="true">
         <path d={SOLAR_TO_BATTERY_PATH} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={2} />
         <path d={BATTERY_TO_LOAD_PATH} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={2} />
+        <path d={LOAD_TO_EXTERNAL_PATH} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={2} strokeDasharray="4 5" />
       </svg>
 
       <div className="pointer-events-none absolute inset-0">
@@ -57,29 +63,50 @@ export default function PowerFlowDiagram() {
         )}
       </div>
 
-      {/* Nodes, positioned to match the SVG path endpoints as percentages of the viewBox */}
-      <div className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1" style={{ left: "17.5%", top: "30%" }}>
+      {/* MPPT — a label on the path, not a data node (no MPPT-specific telemetry exists yet) */}
+      <div className="absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full bg-white/5 px-2 py-1" style={{ left: "26%", top: "38%" }}>
+        <Cpu size={11} className="text-text-muted" />
+        <span className="text-[9px] uppercase tracking-widest text-text-muted">MPPT</span>
+      </div>
+
+      {/* Solar */}
+      <div className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1" style={{ left: "12.5%", top: "29%" }}>
         <div className="rounded-full bg-solar/15 p-3">
           <Sun size={22} className="text-solar" />
         </div>
-        <span className="font-mono text-sm tabular-nums text-text-primary">{Math.round(solarWatts)}W</span>
+        <span className="font-mono text-base tabular-nums text-text-primary md:text-lg">{Math.round(solarWatts)}W</span>
         <span className="text-[10px] uppercase tracking-wide text-text-muted">Solar</span>
       </div>
 
-      <div className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1" style={{ left: "50%", top: "50%" }}>
+      {/* Leisure Battery */}
+      <div className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1" style={{ left: "40%", top: "54%" }}>
         <div className="rounded-full bg-battery/15 p-4">
           <BatteryMedium size={26} className="text-battery" />
         </div>
-        <span className="font-mono text-base font-semibold tabular-nums text-text-primary">{battery ? `${Math.round(battery.soc_pct)}%` : "—"}</span>
-        <span className="text-[10px] uppercase tracking-wide text-text-muted">{charging ? "Charging" : "Discharging"}</span>
+        <span className="font-mono text-lg font-semibold tabular-nums text-text-primary md:text-xl">
+          {battery ? `${Math.round(battery.soc_pct)}%` : "—"}
+        </span>
+        <span className="text-[10px] uppercase tracking-wide text-text-muted">
+          Leisure Battery · {charging ? "Charging" : "Discharging"}
+        </span>
       </div>
 
-      <div className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1" style={{ left: "82.5%", top: "70%" }}>
+      {/* Van Loads */}
+      <div className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1" style={{ left: "66%", top: "75%" }}>
         <div className="rounded-full bg-white/10 p-3">
           <HomeIcon size={22} className="text-text-secondary" />
         </div>
-        <span className="font-mono text-sm tabular-nums text-text-primary">{Math.round(loadWatts)}W</span>
-        <span className="text-[10px] uppercase tracking-wide text-text-muted">Van</span>
+        <span className="font-mono text-base tabular-nums text-text-primary md:text-lg">{Math.round(loadWatts)}W</span>
+        <span className="text-[10px] uppercase tracking-wide text-text-muted">Van Loads</span>
+      </div>
+
+      {/* External Battery — honest stub, not fabricated data. Milestone 6. */}
+      <div className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 opacity-40" style={{ left: "90%", top: "54%" }}>
+        <div className="rounded-full border border-dashed border-white/20 p-3">
+          <BatteryWarning size={20} className="text-text-muted" />
+        </div>
+        <span className="text-[10px] uppercase tracking-wide text-text-muted">External Battery</span>
+        <span className="text-[9px] text-text-muted">Not installed</span>
       </div>
     </div>
   );

@@ -32,14 +32,15 @@ export default function Card({ label, icon, accent = "neutral", className = "", 
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -2 }}
       transition={{ duration: 0.4, delay: index * 0.06, ease: "easeOut" }}
-      className={`rounded-xl2 border-t-2 bg-surface-card shadow-card ${accentBorder[accent]} ${className}`}
+      className={`rounded-xl2 border-t-2 bg-surface-card shadow-card transition-shadow hover:shadow-lg ${accentBorder[accent]} ${className}`}
     >
-      <div className="p-5">
+      <div className="p-6">
         {label && (
-          <div className="mb-3 flex items-center gap-2 text-text-secondary">
+          <div className="mb-3.5 flex items-center gap-2 text-text-secondary">
             {icon}
-            <span className="text-xs font-semibold uppercase tracking-wider">{label}</span>
+            <span className="text-[11px] font-semibold uppercase tracking-widest">{label}</span>
           </div>
         )}
         {children}
