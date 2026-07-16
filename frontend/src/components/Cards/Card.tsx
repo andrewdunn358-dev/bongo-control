@@ -1,12 +1,13 @@
 import { motion } from "framer-motion";
 import type { ReactNode } from "react";
 
-export type CardAccent = "solar" | "battery" | "vehicle" | "neutral";
+export type CardAccent = "solar" | "battery" | "vehicle" | "alert" | "neutral";
 
 const accentBorder: Record<CardAccent, string> = {
   solar: "border-t-solar/60",
   battery: "border-t-battery/60",
   vehicle: "border-t-vehicle/60",
+  alert: "border-t-alert/60",
   neutral: "border-t-transparent",
 };
 

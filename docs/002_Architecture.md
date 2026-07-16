@@ -59,3 +59,28 @@ non-realtime needs: health checks, settings, and history queries.
 3. Register it in `backend/app/main.py`'s `lifespan`, guarded by
    `settings.simulation_mode` or a per-plugin enable flag.
 4. `PluginRegistry` and `/api/health` pick it up automatically.
+
+## Frontend component set (Sprint 3)
+
+To avoid duplicated UI code across pages, every page is built from a
+small set of reusable pieces in `frontend/src/components/Cards/` and
+`frontend/src/components/Timeline/`:
+
+- **`Card`** — the base container (accent border, padding, entrance
+  motion, hover lift). `accent` is `solar | battery | vehicle | alert |
+  neutral` — `alert` is reserved for genuine error/warning states
+  (engine fault, offline), not decoration, per the "colour only
+  communicates state" visual direction.
+- **`MetricCard`** — a `Card` preset for a single stat: icon + label +
+  large mono value + optional subtext. Used for every "one number"
+  readout (Battery/Solar/Environment/Connectivity/Vehicle pages, Home's
+  Quick Status row).
+- **`StatRow`** — a label/value list row (optionally with a status dot),
+  for cards showing several related facts together (Active Loads,
+  Settings' app info and plugin health).
+- **`Timeline`** — a vertical rail-and-dot list of timestamped entries.
+  Shared by Home's Recent Events and the History page, so both read
+  identically instead of each having their own list markup.
+
+Adding a new page should mean composing these, not writing new card
+markup from scratch.

@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { Info, Puzzle } from "lucide-react";
 import Card from "../components/Cards/Card";
+import StatRow from "../components/Cards/StatRow";
 import { api } from "../services/api";
 
 interface PluginHealth {
@@ -28,28 +30,31 @@ export default function Settings() {
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <Card label="App">
-        {error && <span className="text-red-400">Could not reach backend</span>}
+      <Card label="App" icon={<Info size={14} />} index={0} accent={error ? "alert" : "neutral"}>
+        {error && <span className="text-sm text-alert">Could not reach backend</span>}
         {settings && (
-          <ul className="space-y-1 text-base">
-            <li>{settings.app_name}</li>
-            <li>Environment: {settings.environment}</li>
-            <li>Mode: {settings.simulation_mode ? "Simulation" : "Live hardware"}</li>
-          </ul>
+          <div>
+            <StatRow label="Name" value={settings.app_name} />
+            <StatRow label="Environment" value={settings.environment} />
+            <StatRow label="Mode" value={settings.simulation_mode ? "Simulation" : "Live hardware"} />
+          </div>
         )}
       </Card>
 
-      <Card label="Plugins">
+      <Card label="Plugins" icon={<Puzzle size={14} />} index={1}>
         {settings ? (
-          <ul className="space-y-1 text-base">
+          <div>
             {settings.plugins.map((p) => (
-              <li key={p.name}>
-                {p.display_name}: {p.status}
-              </li>
+              <StatRow
+                key={p.name}
+                label={p.display_name}
+                value={p.status}
+                dotColor={p.status === "running" ? "bg-battery" : p.status === "error" ? "bg-alert" : "bg-white/20"}
+              />
             ))}
-          </ul>
+          </div>
         ) : (
-          "—"
+          <span className="text-sm text-text-muted">—</span>
         )}
       </Card>
     </div>
