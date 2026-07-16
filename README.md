@@ -45,7 +45,7 @@ mockups/     Design sprint output (from the UI/UX design track)
 docker compose up --build
 ```
 
-- Frontend: http://localhost:8080
+- Frontend: http://localhost:8090
 - Backend API: http://localhost:8000 (docs at `/docs`)
 - WebSocket: `ws://localhost:8000/ws/telemetry`
 

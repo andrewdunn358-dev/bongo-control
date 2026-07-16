@@ -11,7 +11,7 @@ services:
       VANOS_ENVIRONMENT: production
       VANOS_SIMULATION_MODE: "true"
       VANOS_DATABASE_URL: sqlite:///./data/vanos.db
-      VANOS_CORS_ORIGINS: '["http://localhost:8080"]'
+      VANOS_CORS_ORIGINS: '["http://localhost:8090"]'
     volumes:
       - vanos-data:/app/data
     restart: unless-stopped
@@ -21,7 +21,7 @@ services:
       context: .
       dockerfile: docker/frontend.Dockerfile
     ports:
-      - "8080:80"
+      - "8090:80"
     depends_on:
       - backend
     restart: unless-stopped
