@@ -10,4 +10,43 @@ body,
 
 body {
   margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid #46d2c4;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Power Flow diagram: particles travel along an SVG path via offset-path,
+   looping continuously. Speed/count (set inline per-dot) communicate
+   magnitude of energy flow. */
+@keyframes flow-travel {
+  from {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  to {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+
+/* Respect reduced-motion for the CSS offset-path flow animations
+   (Framer Motion respects this automatically for its own animations). */
+@media (prefers-reduced-motion: reduce) {
+  .flow-dot {
+    animation: none !important;
+  }
 }

@@ -7,7 +7,7 @@ export default function Energy() {
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <Card title="Power Flow">
+      <Card label="Power Flow">
         {energy ? (
           <div className="space-y-1 text-base">
             <div>Solar in: {energy.solar_watts}W</div>
@@ -19,7 +19,7 @@ export default function Energy() {
         )}
       </Card>
 
-      <Card title="Active Loads">
+      <Card label="Active Loads">
         {energy ? (
           <ul className="space-y-1 text-base">
             {Object.entries(energy.loads).map(([name, on]) => (

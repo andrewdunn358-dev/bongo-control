@@ -28,7 +28,7 @@ export default function Settings() {
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <Card title="App">
+      <Card label="App">
         {error && <span className="text-red-400">Could not reach backend</span>}
         {settings && (
           <ul className="space-y-1 text-base">
@@ -39,7 +39,7 @@ export default function Settings() {
         )}
       </Card>
 
-      <Card title="Plugins">
+      <Card label="Plugins">
         {settings ? (
           <ul className="space-y-1 text-base">
             {settings.plugins.map((p) => (

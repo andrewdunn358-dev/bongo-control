@@ -1,40 +1,32 @@
-import { useTelemetry } from "../context/TelemetryContext";
+import { motion } from "framer-motion";
 import Card from "../components/Cards/Card";
+import PowerFlowDiagram from "../components/PowerFlow/PowerFlowDiagram";
+import PowerBudgetCard from "../components/Cards/PowerBudgetCard";
+import VehicleHealthCard from "../components/Cards/VehicleHealthCard";
+import RecentEventsCard from "../components/Cards/RecentEventsCard";
 
 export default function Home() {
-  const { state } = useTelemetry();
-  const battery = state.battery?.payload;
-  const solar = state.solar?.payload;
-  const budget = state.system?.payload.power_budget;
-  const vehicle = state.vehicle?.payload;
-
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <Card title="Power Budget">
-        {budget ? (
-          <ul className="space-y-1 text-base">
-            <li>Heater all night: {budget.heater_all_night_possible ? "Yes" : "No"}</li>
-            <li>Estimated runtime: ~{budget.estimated_runtime_hours}h</li>
-            <li>Recovery tomorrow: ~{budget.estimated_recovery_tomorrow_pct}%</li>
-          </ul>
-        ) : (
-          <span className="text-white/40">Waiting for data...</span>
-        )}
-      </Card>
+    <div className="space-y-5">
+      <motion.h1
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="font-display text-lg font-semibold text-text-primary md:text-xl"
+      >
+        Good to go
+      </motion.h1>
 
-      <Card title="Battery">
-        {battery ? `${battery.soc_pct}% · ${battery.voltage}V · ${battery.charging ? "Charging" : "Discharging"}` : "—"}
-      </Card>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-3">
+          <Card label="Power Flow" accent="solar" index={0}>
+            <PowerFlowDiagram />
+          </Card>
+        </div>
 
-      <Card title="Solar">{solar ? `${solar.watts}W (${solar.cloud_cover_pct}% cloud cover)` : "—"}</Card>
-
-      <Card title="Vehicle Health">
-        {vehicle ? `Engine ${vehicle.engine_ok ? "OK" : "Fault"} · ${vehicle.odometer_km} km` : "—"}
-      </Card>
-
-      <Card title="Recent Events">
-        <span className="text-white/40">Event log coming in a later sprint.</span>
-      </Card>
+        <PowerBudgetCard index={1} />
+        <VehicleHealthCard index={2} />
+        <RecentEventsCard index={3} />
+      </div>
     </div>
   );
 }

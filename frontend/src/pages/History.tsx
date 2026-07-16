@@ -18,7 +18,7 @@ export default function History() {
   }, []);
 
   return (
-    <Card title="Battery History (last readings)">
+    <Card label="Battery History (last readings)">
       {history.length === 0 ? (
         <span className="text-white/40">
           No history yet — charts (recharts) land in Milestone 5 once SQLite logging is wired up.

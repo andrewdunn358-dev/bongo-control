@@ -4,17 +4,48 @@ export default {
   darkMode: "class",
   theme: {
     extend: {
-      // NOTE: placeholder palette only. Replace once the design system
-      // from the UI/UX design sprint (docs/design-system.md) is finalized.
       colors: {
+        // Deep navy-charcoal, not pure black — Tesla/EcoFlow instrument-panel feel.
+        base: "#0a0e14",
         surface: {
-          DEFAULT: "#0b0f14",
-          raised: "#141a21",
-          card: "#181f27",
+          DEFAULT: "#0a0e14",
+          raised: "#10151d",
+          card: "#161c26",
+          cardHover: "#1b222e",
         },
-        accent: {
-          DEFAULT: "#3ddc97",
+        border: {
+          hairline: "rgba(255,255,255,0.07)",
         },
+        text: {
+          primary: "#edeff3",
+          secondary: "#8a93a6",
+          muted: "#5b6472",
+        },
+        // Two accents tied to meaning, not decoration:
+        solar: {
+          DEFAULT: "#f0a84e", // sunlight / production
+          dim: "#7a5a2c",
+        },
+        battery: {
+          DEFAULT: "#46d2c4", // electric / storage
+          dim: "#2b6e68",
+        },
+        vehicle: {
+          DEFAULT: "#8fbf9f", // muted sage, used only for vehicle-health status
+        },
+        alert: {
+          DEFAULT: "#ff6b6a",
+        },
+      },
+      fontFamily: {
+        display: ["Sora", "system-ui", "sans-serif"],
+        mono: ["'IBM Plex Mono'", "ui-monospace", "monospace"],
+      },
+      borderRadius: {
+        xl2: "1.25rem",
+      },
+      boxShadow: {
+        card: "0 1px 0 0 rgba(255,255,255,0.04) inset, 0 8px 24px -8px rgba(0,0,0,0.5)",
       },
     },
   },
