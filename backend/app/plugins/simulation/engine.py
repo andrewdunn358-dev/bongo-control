@@ -74,6 +74,7 @@ def _total_load_watts(loads: dict[str, bool]) -> float:
 class SimulationEngine(Plugin):
     name = "simulation"
     display_name = "Simulation Engine"
+    version = "1.0.0"
 
     def __init__(self, bus: TelemetryBus) -> None:
         super().__init__(bus)
@@ -135,6 +136,7 @@ class SimulationEngine(Plugin):
             s.online = not s.online
 
         await self._publish_all(solar_watts, load_watts, elapsed_hours)
+        self.heartbeat()
 
     async def _publish_all(self, solar_watts: float, load_watts: float, elapsed_hours: float) -> None:
         s = self.state

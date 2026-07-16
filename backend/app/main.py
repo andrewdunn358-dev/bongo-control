@@ -6,39 +6,47 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import health, settings as settings_routes, telemetry
+from app.api.routes import config as config_routes
+from app.api.routes import health, plugins as plugins_routes, settings as settings_routes, telemetry
 from app.api.websocket import router as websocket_router
 from app.core.config import settings
 from app.core.logging_config import configure_logging
 from app.db.database import init_db
-from app.plugins.base import registry
-from app.plugins.simulation import SimulationEngine
+from app.plugins.manager import PluginManager
+from app.services import battery_service, configuration_service, notification_service
 from app.telemetry.bus import bus
 
 configure_logging()
 logger = logging.getLogger("vanos.main")
 
+plugin_manager = PluginManager(bus, configuration_service, notification_service)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting %s (environment=%s, simulation_mode=%s)", settings.app_name, settings.environment, settings.simulation_mode)
+    logger.info(
+        "Starting %s (environment=%s, simulation_mode=%s)", settings.app_name, settings.environment, settings.simulation_mode
+    )
 
     init_db()
 
-    if settings.simulation_mode:
-        registry.register(SimulationEngine(bus))
-    # Real hardware plugins get registered here too, e.g.:
-    # if not settings.simulation_mode:
-    #     registry.register(VictronPlugin(bus))
-    #     registry.register(BatteryShuntPlugin(bus))
+    # Discovery is real: scans app/plugins/* for PLUGIN_CLASSES. A real
+    # hardware plugin (Victron, battery shunt, ...) added later needs no
+    # changes here — just a new package under app/plugins/.
+    plugin_manager.discover_and_register()
+    plugins_routes.set_manager(plugin_manager)
 
-    await registry.start_all()
-    logger.info("All plugins started")
+    await plugin_manager.start_all()
+    logger.info("Plugin manager started (%d plugin(s) registered)", len(plugin_manager.health()))
+
+    await battery_service.start_monitoring()
+    logger.info("Battery service monitoring started")
 
     yield
 
-    logger.info("Shutting down, stopping plugins")
-    await registry.stop_all()
+    logger.info("Shutting down")
+    await battery_service.stop_monitoring()
+    await plugin_manager.stop_all()
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
@@ -54,6 +62,8 @@ app.add_middleware(
 app.include_router(health.router, prefix="/api")
 app.include_router(telemetry.router)
 app.include_router(settings_routes.router)
+app.include_router(plugins_routes.router)
+app.include_router(config_routes.router)
 app.include_router(websocket_router)
 
 

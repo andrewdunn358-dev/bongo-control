@@ -4,8 +4,8 @@ import time
 
 from fastapi import APIRouter
 
+from app.api.routes.plugins import get_manager
 from app.core.config import settings
-from app.plugins.base import registry
 
 router = APIRouter()
 
@@ -20,5 +20,5 @@ async def health() -> dict:
         "environment": settings.environment,
         "simulation_mode": settings.simulation_mode,
         "uptime_seconds": round(time.time() - _startup_time, 1),
-        "plugins": registry.health(),
+        "plugins": get_manager().health(),
     }

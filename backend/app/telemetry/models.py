@@ -35,6 +35,7 @@ class TelemetryDomain(str, Enum):
     ENVIRONMENT = "environment"
     CONNECTIVITY = "connectivity"
     SYSTEM = "system"
+    NOTIFICATION = "notification"
 
 
 class TelemetrySource(str, Enum):

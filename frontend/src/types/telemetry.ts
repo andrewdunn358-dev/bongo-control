@@ -10,7 +10,8 @@ export type TelemetryDomain =
   | "solar"
   | "environment"
   | "connectivity"
-  | "system";
+  | "system"
+  | "notification";
 
 export type TelemetrySource = "simulation" | "system";
 
@@ -60,6 +61,14 @@ export interface PowerBudget {
 
 export interface SystemPayload {
   power_budget: PowerBudget;
+}
+
+export type NotificationLevel = "success" | "info" | "warning" | "error";
+
+export interface NotificationPayload {
+  level: NotificationLevel;
+  title: string;
+  message: string;
 }
 
 export interface TelemetryState {
