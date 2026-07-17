@@ -7,7 +7,7 @@ import { api } from "../../services/api";
 interface HealthResponse {
   status: string;
   environment: string;
-  simulation_mode: boolean;
+  mode: "simulation" | "live_hardware" | "none";
   uptime_seconds: number;
 }
 
@@ -17,6 +17,12 @@ function formatUptime(seconds: number): string {
   if (minutes < 60) return `${minutes}m ${Math.round(seconds % 60)}s`;
   const hours = Math.floor(minutes / 60);
   return `${hours}h ${minutes % 60}m`;
+}
+
+function formatMode(mode: string): string {
+  if (mode === "live_hardware") return "Live hardware";
+  if (mode === "simulation") return "Simulation";
+  return "None active";
 }
 
 export default function Developer() {
@@ -42,7 +48,7 @@ export default function Developer() {
         <div>
           <StatRow label="Backend status" value={health.status} />
           <StatRow label="Environment" value={health.environment} />
-          <StatRow label="Simulation mode" value={health.simulation_mode ? "On" : "Off"} />
+          <StatRow label="Active data source" value={formatMode(health.mode)} />
           <StatRow label="Backend uptime" value={formatUptime(health.uptime_seconds)} />
         </div>
       ) : (

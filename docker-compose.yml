@@ -9,12 +9,10 @@ services:
     # "ports:" mapping below redundant (host networking exposes the
     # port directly), but it's left in place as documentation.
     #
-    # IMPORTANT: this is the standard, documented approach for BLE-in-
-    # Docker (used by similar projects like victron-ble2mqtt), but it
-    # has NOT been tested against real hardware in this project yet —
-    # verify it works on your actual Pi + Bluetooth dongle. If it
-    # doesn't, see docs/victron_ble_integration.md for troubleshooting
-    # and fallback options (e.g. running the backend outside Docker).
+    # Confirmed working against real hardware: connected to an actual
+    # Victron SmartSolar MPPT over Bluetooth from inside this container
+    # on a Raspberry Pi 2. See docs/victron_ble_integration.md if it
+    # doesn't work on a different setup.
     network_mode: host
     volumes:
       - vanos-data:/app/data
@@ -23,9 +21,7 @@ services:
       - "8000:8000"
     environment:
       VANOS_ENVIRONMENT: production
-      VANOS_SIMULATION_MODE: "true"
       VANOS_DATABASE_URL: sqlite:///./data/vanos.db
-      VANOS_CORS_ORIGINS: '["http://localhost:8090"]'
     restart: unless-stopped
 
   frontend:

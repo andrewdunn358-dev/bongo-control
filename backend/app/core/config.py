@@ -17,12 +17,7 @@ class Settings(BaseSettings):
     environment: str = "development"  # development | production
     log_level: str = "INFO"
 
-    # Set to False once real hardware plugins exist and should take over.
-    simulation_mode: bool = True
-
     database_url: str = "sqlite:///./data/vanos.db"
-
-    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 
     websocket_history_size: int = 200
 

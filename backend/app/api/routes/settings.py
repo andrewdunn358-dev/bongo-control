@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.routes.plugins import get_manager
+from app.api.routes.plugins import get_active_mode, get_manager
 from app.core.config import settings as app_settings
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -20,6 +20,6 @@ async def get_settings() -> dict:
     return {
         "app_name": app_settings.app_name,
         "environment": app_settings.environment,
-        "simulation_mode": app_settings.simulation_mode,
+        "mode": get_active_mode(),
         "plugins": get_manager().health(),
     }

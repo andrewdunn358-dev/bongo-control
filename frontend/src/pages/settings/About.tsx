@@ -7,7 +7,13 @@ import { api } from "../../services/api";
 interface SettingsResponse {
   app_name: string;
   environment: string;
-  simulation_mode: boolean;
+  mode: "simulation" | "live_hardware" | "none";
+}
+
+function formatMode(mode: string): string {
+  if (mode === "live_hardware") return "Live hardware";
+  if (mode === "simulation") return "Simulation";
+  return "None active";
 }
 
 export default function About() {
@@ -28,7 +34,7 @@ export default function About() {
         <div>
           <StatRow label="Name" value={settings.app_name} />
           <StatRow label="Environment" value={settings.environment} />
-          <StatRow label="Mode" value={settings.simulation_mode ? "Simulation" : "Live hardware"} />
+          <StatRow label="Mode" value={formatMode(settings.mode)} />
         </div>
       )}
     </Card>

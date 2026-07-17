@@ -24,9 +24,7 @@ plugin_manager = PluginManager(bus, configuration_service, notification_service)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info(
-        "Starting %s (environment=%s, simulation_mode=%s)", settings.app_name, settings.environment, settings.simulation_mode
-    )
+    logger.info("Starting %s (environment=%s)", settings.app_name, settings.environment)
 
     init_db()
 
@@ -53,8 +51,14 @@ app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
+    # This app has no cookie-based auth/sessions at all (nothing in the
+    # frontend ever sends credentials), so there's no security reason to
+    # restrict by origin - and doing so was actively fragile in practice:
+    # the exact-string allowlist broke depending on whether this was
+    # accessed via localhost, 127.0.0.1, a LAN IP, or a Tailscale IP -
+    # all functionally "the same machine" but different CORS origins.
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

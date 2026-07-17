@@ -37,6 +37,20 @@ def _get_manager() -> PluginManager:
     return _manager
 
 
+def get_active_mode() -> str:
+    """Derived from actual plugin state, not a static config flag - this
+    is what was wrong before: a fixed 'simulation_mode' setting kept
+    saying 'Simulation' even after switching to real hardware, since it
+    never actually reflected which plugin was running.
+    """
+    plugins = _get_manager().health()
+    if any(p["status"] == "running" and p["name"] != "simulation" for p in plugins):
+        return "live_hardware"
+    if any(p["status"] == "running" and p["name"] == "simulation" for p in plugins):
+        return "simulation"
+    return "none"
+
+
 class PluginConfigUpdate(BaseModel):
     config: dict[str, Any]
 
