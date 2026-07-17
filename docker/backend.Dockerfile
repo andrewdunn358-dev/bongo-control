@@ -1,10 +1,5 @@
 FROM python:3.11-slim
 
-# Unbuffered stdout/stderr - without this, `docker compose logs -f` shows
-# nothing until Python's internal buffer fills or the process exits,
-# which makes live debugging (e.g. watching a plugin start up) useless.
-ENV PYTHONUNBUFFERED=1
-
 WORKDIR /app
 
 # Fallback for any dependency without a prebuilt wheel for this
@@ -23,6 +18,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/app ./app
 
 RUN mkdir -p /app/data
+
+# Placed as late as possible: Docker invalidates every layer AFTER the
+# line it changes, not just the line itself. An env var like this has
+# no business being above the expensive apt-get/pip install layers —
+# putting it here means future changes to it (or to anything else this
+# far down) never force a slow recompile of dbus-fast/pycryptodome again.
+ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 
