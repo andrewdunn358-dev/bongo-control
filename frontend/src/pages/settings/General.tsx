@@ -19,7 +19,7 @@ export default function General() {
           </p>
           <button
             onClick={promptInstall}
-            className="rounded-lg bg-solar px-4 py-2 text-sm font-semibold text-black transition-opacity hover:opacity-90"
+            className="rounded-lg bg-solar px-4 py-2 text-sm font-semibold text-black transition-all duration-150 hover:opacity-90 active:scale-95"
           >
             Install Bongo Control
           </button>

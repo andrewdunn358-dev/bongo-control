@@ -2,61 +2,80 @@ import { motion } from "framer-motion";
 import { BatteryMedium, Sun, Thermometer, Wifi, WifiOff } from "lucide-react";
 import Card from "../components/Cards/Card";
 import MetricCard from "../components/Cards/MetricCard";
+import LiveIndicator from "../components/Cards/LiveIndicator";
 import PowerFlowDiagram from "../components/PowerFlow/PowerFlowDiagram";
 import PowerBudgetCard from "../components/Cards/PowerBudgetCard";
 import RecentEventsCard from "../components/Cards/RecentEventsCard";
 import { useTelemetry } from "../context/TelemetryContext";
 
 export default function Home() {
-  const { state } = useTelemetry();
+  const { state, connected } = useTelemetry();
   const battery = state.battery?.payload;
   const solar = state.solar?.payload;
   const environment = state.environment?.payload;
   const connectivity = state.connectivity?.payload;
 
+  const heroLastUpdated = state.battery?.timestamp ?? state.solar?.timestamp ?? null;
+
   return (
     <div className="space-y-5">
-      <motion.h1
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="font-display text-lg font-semibold text-text-primary md:text-xl"
-      >
-        Good to go
-      </motion.h1>
+      <div className="flex items-center justify-between">
+        <motion.h1
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="font-display text-lg font-semibold text-text-primary md:text-xl"
+        >
+          Good to go
+        </motion.h1>
+        <LiveIndicator lastUpdated={heroLastUpdated} connected={connected} />
+      </div>
 
-      <Card label="Energy Flow" accent="solar" index={0}>
+      {/* Hero: the Energy Flow diagram is the flagship visual - given
+          room to breathe and stand apart from the grid of stat tiles
+          below it, rather than reading as just another equal-weight card. */}
+      <Card label="Energy Flow" accent="solar" index={0} className="md:pb-2">
         <PowerFlowDiagram />
       </Card>
 
-      {/* Quick Status — at-a-glance readouts, detail lives on each domain's own page */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      {/* Primary telemetry - Battery/Solar are what someone checks first,
+          given more visual weight (larger type) than the secondary row below. */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <MetricCard
           index={1}
           label="Battery"
-          icon={<BatteryMedium size={14} />}
+          icon={<BatteryMedium size={16} />}
           accent="battery"
-          value={battery ? (battery.soc_pct !== null ? `${Math.round(battery.soc_pct)}%` : `${battery.voltage}V`) : "—"}
+          size="large"
+          value={battery ? (battery.soc_pct !== null ? battery.soc_pct : battery.voltage) : "—"}
+          unit={battery ? (battery.soc_pct !== null ? "%" : "V") : ""}
+          decimals={battery && battery.soc_pct === null ? 2 : 0}
           subtext={battery ? (battery.charging ? "Charging" : "Discharging") : undefined}
         />
         <MetricCard
           index={2}
           label="Solar"
-          icon={<Sun size={14} />}
+          icon={<Sun size={16} />}
           accent="solar"
-          value={solar ? `${Math.round(solar.watts)}W` : "—"}
+          size="large"
+          value={solar ? solar.watts : "—"}
+          unit={solar ? "W" : ""}
           subtext={
             solar?.cloud_cover_pct !== undefined
               ? `${Math.round(solar.cloud_cover_pct)}% cloud cover`
-              : solar?.charge_state
-                ? solar.charge_state
-                : undefined
+              : (solar?.charge_state ?? undefined)
           }
         />
+      </div>
+
+      {/* Secondary telemetry - supporting context, deliberately more compact
+          so it doesn't compete with Battery/Solar above. */}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <MetricCard
           index={3}
           label="Environment"
           icon={<Thermometer size={14} />}
-          value={environment ? `${Math.round(environment.internal_temp_c)}°C` : "—"}
+          value={environment ? environment.internal_temp_c : "—"}
+          unit={environment ? "°C" : ""}
           subtext={environment ? `Outside ${Math.round(environment.external_temp_c)}°C` : undefined}
         />
         <MetricCard
@@ -68,8 +87,12 @@ export default function Home() {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <PowerBudgetCard index={5} />
+      {/* Power Budget is the "so what does this mean for me" summary -
+          given more room than Recent Events, which is a shorter supporting list. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <PowerBudgetCard index={5} />
+        </div>
         <RecentEventsCard index={6} />
       </div>
     </div>

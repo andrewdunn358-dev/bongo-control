@@ -1,5 +1,7 @@
 import { Sun, BatteryMedium, Home as HomeIcon, Cpu, BatteryWarning } from "lucide-react";
+import { motion } from "framer-motion";
 import { useTelemetry } from "../../context/TelemetryContext";
+import AnimatedNumber from "../Cards/AnimatedNumber";
 
 // Path geometry (viewBox 0 0 520 200): Solar -> Leisure Battery -> Van Loads
 // -> External Battery (stub, not yet installed). Dots travel along these
@@ -19,7 +21,7 @@ function FlowDots({ path, color, speedSeconds, reverse, count }: { path: string;
       {Array.from({ length: count }).map((_, i) => (
         <div
           key={i}
-          className="flow-dot absolute h-2 w-2 rounded-full"
+          className="flow-dot absolute h-2.5 w-2.5 rounded-full"
           style={{
             backgroundColor: color,
             offsetPath: `path("${path}")`,
@@ -27,7 +29,7 @@ function FlowDots({ path, color, speedSeconds, reverse, count }: { path: string;
             animation: `flow-travel ${speedSeconds}s linear infinite`,
             animationDelay: `${(i * speedSeconds) / count}s`,
             animationDirection: reverse ? "reverse" : "normal",
-            boxShadow: `0 0 6px ${color}`,
+            boxShadow: `0 0 8px ${color}`,
           }}
         />
       ))}
@@ -49,10 +51,10 @@ export default function PowerFlowDiagram() {
   const loadSpeed = loadWatts > 0 ? Math.max(1.2, 4 - loadWatts / 60) : 4;
 
   return (
-    <div className="relative">
+    <div className="relative py-2">
       <svg viewBox="0 0 520 200" className="h-auto w-full" aria-hidden="true">
-        <path d={SOLAR_TO_BATTERY_PATH} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={2} />
-        <path d={BATTERY_TO_LOAD_PATH} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={2} />
+        <path d={SOLAR_TO_BATTERY_PATH} fill="none" stroke="rgba(255,255,255,0.09)" strokeWidth={2} />
+        <path d={BATTERY_TO_LOAD_PATH} fill="none" stroke="rgba(255,255,255,0.09)" strokeWidth={2} />
         <path d={LOAD_TO_EXTERNAL_PATH} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={2} strokeDasharray="4 5" />
       </svg>
 
@@ -70,21 +72,35 @@ export default function PowerFlowDiagram() {
       </div>
 
       {/* Solar */}
-      <div className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1" style={{ left: "12.5%", top: "29%" }}>
-        <div className="rounded-full bg-solar/15 p-3">
-          <Sun size={22} className="text-solar" />
+      <div className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5" style={{ left: "12.5%", top: "29%" }}>
+        <div className="rounded-full bg-solar/15 p-3.5">
+          <Sun size={24} className="text-solar" />
         </div>
-        <span className="font-mono text-base tabular-nums text-text-primary md:text-lg">{Math.round(solarWatts)}W</span>
+        <span className="font-mono text-lg tabular-nums text-text-primary md:text-xl">
+          <AnimatedNumber value={solarWatts} decimals={0} suffix="W" />
+        </span>
         <span className="text-[10px] uppercase tracking-wide text-text-muted">Solar</span>
       </div>
 
-      {/* Leisure Battery */}
-      <div className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1" style={{ left: "40%", top: "54%" }}>
-        <div className="rounded-full bg-battery/15 p-4">
-          <BatteryMedium size={26} className="text-battery" />
-        </div>
-        <span className="font-mono text-lg font-semibold tabular-nums text-text-primary md:text-xl">
-          {battery ? (battery.soc_pct !== null ? `${Math.round(battery.soc_pct)}%` : `${battery.voltage}V`) : "—"}
+      {/* Leisure Battery - the hero node, with a gentle glow while charging */}
+      <div className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5" style={{ left: "40%", top: "54%" }}>
+        <motion.div
+          className="rounded-full bg-battery/15 p-4.5"
+          animate={charging ? { boxShadow: ["0 0 0px rgba(70,210,196,0)", "0 0 22px rgba(70,210,196,0.35)", "0 0 0px rgba(70,210,196,0)"] } : {}}
+          transition={{ duration: 2.5, repeat: charging ? Infinity : 0, ease: "easeInOut" }}
+        >
+          <BatteryMedium size={30} className="text-battery" />
+        </motion.div>
+        <span className="font-mono text-xl font-semibold tabular-nums text-text-primary md:text-2xl">
+          {battery ? (
+            battery.soc_pct !== null ? (
+              <AnimatedNumber value={battery.soc_pct} decimals={0} suffix="%" />
+            ) : (
+              <AnimatedNumber value={battery.voltage} decimals={2} suffix="V" />
+            )
+          ) : (
+            "—"
+          )}
         </span>
         <span className="text-[10px] uppercase tracking-wide text-text-muted">
           Leisure Battery · {charging ? "Charging" : "Discharging"}
@@ -92,11 +108,13 @@ export default function PowerFlowDiagram() {
       </div>
 
       {/* Van Loads */}
-      <div className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1" style={{ left: "66%", top: "75%" }}>
-        <div className="rounded-full bg-white/10 p-3">
-          <HomeIcon size={22} className="text-text-secondary" />
+      <div className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5" style={{ left: "66%", top: "75%" }}>
+        <div className="rounded-full bg-white/10 p-3.5">
+          <HomeIcon size={24} className="text-text-secondary" />
         </div>
-        <span className="font-mono text-base tabular-nums text-text-primary md:text-lg">{Math.round(loadWatts)}W</span>
+        <span className="font-mono text-lg tabular-nums text-text-primary md:text-xl">
+          <AnimatedNumber value={loadWatts} decimals={0} suffix="W" />
+        </span>
         <span className="text-[10px] uppercase tracking-wide text-text-muted">Van Loads</span>
       </div>
 

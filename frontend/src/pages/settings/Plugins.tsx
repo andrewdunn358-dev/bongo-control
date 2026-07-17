@@ -89,7 +89,7 @@ export default function Plugins() {
                 <button
                   onClick={() => toggle(plugin)}
                   disabled={busy === plugin.name}
-                  className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-opacity disabled:opacity-50 ${
+                  className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-150 active:scale-95 disabled:opacity-50 ${
                     plugin.enabled ? "bg-white/10 text-text-primary hover:bg-white/15" : "bg-solar text-black hover:opacity-90"
                   }`}
                 >

@@ -1,6 +1,7 @@
 import { Sun, CloudSun, Gauge, Zap, AlertTriangle, BatteryCharging } from "lucide-react";
 import { useTelemetry } from "../context/TelemetryContext";
 import MetricCard from "../components/Cards/MetricCard";
+import Card from "../components/Cards/Card";
 
 function titleCase(s: string): string {
   return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -16,19 +17,24 @@ export default function Solar() {
   const hasCloudData = solar?.cloud_cover_pct !== undefined;
   const hasHardwareData = solar?.charge_state !== undefined || solar?.yield_today_wh !== undefined;
 
+  if (!solar) {
+    return (
+      <Card label="Solar" icon={<Sun size={14} />}>
+        <p className="text-sm text-text-muted">
+          No solar controller connected — enable the Simulation or Victron MPPT plugin in Settings → Plugins to see
+          readings here.
+        </p>
+      </Card>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-      <MetricCard index={0} label="Current Output" icon={<Sun size={14} />} accent="solar" value={solar ? `${Math.round(solar.watts)}W` : "—"} />
-      <MetricCard
-        index={1}
-        label="Peak Today"
-        icon={<Gauge size={14} />}
-        accent="solar"
-        value={solar ? `${Math.round(solar.peak_today_watts)}W` : "—"}
-      />
+      <MetricCard index={0} label="Current Output" icon={<Sun size={14} />} accent="solar" value={solar.watts} unit="W" />
+      <MetricCard index={1} label="Peak Today" icon={<Gauge size={14} />} accent="solar" value={solar.peak_today_watts} unit="W" />
 
       {hasCloudData && (
-        <MetricCard index={2} label="Cloud Cover" icon={<CloudSun size={14} />} value={`${Math.round(solar!.cloud_cover_pct!)}%`} />
+        <MetricCard index={2} label="Cloud Cover" icon={<CloudSun size={14} />} value={solar.cloud_cover_pct!} unit="%" />
       )}
 
       {hasHardwareData && (
@@ -38,12 +44,12 @@ export default function Solar() {
             label="Charge Stage"
             icon={<BatteryCharging size={14} />}
             accent="battery"
-            value={solar?.charge_state ? titleCase(solar.charge_state) : "—"}
+            value={solar.charge_state ? titleCase(solar.charge_state) : "—"}
           />
-          {solar?.yield_today_wh != null && (
-            <MetricCard index={4} label="Yield Today" icon={<Zap size={14} />} accent="solar" value={`${Math.round(solar.yield_today_wh)}Wh`} />
+          {solar.yield_today_wh != null && (
+            <MetricCard index={4} label="Yield Today" icon={<Zap size={14} />} accent="solar" value={solar.yield_today_wh} unit="Wh" />
           )}
-          {solar?.charger_error && (
+          {solar.charger_error && (
             <MetricCard
               index={5}
               label="Charger Error"

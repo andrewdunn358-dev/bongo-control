@@ -98,7 +98,7 @@ export default function Hardware() {
               <button
                 onClick={save}
                 disabled={saving}
-                className="rounded-lg bg-solar px-4 py-2 text-sm font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-50"
+                className="rounded-lg bg-solar px-4 py-2 text-sm font-semibold text-black transition-all duration-150 hover:opacity-90 active:scale-95 disabled:opacity-50"
               >
                 {saving ? "Saving..." : "Save"}
               </button>
