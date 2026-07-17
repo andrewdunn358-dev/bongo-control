@@ -25,6 +25,15 @@ export interface PluginHealth {
   mac_address?: string | null;
 }
 
+export interface ScanResult {
+  mac_address: string;
+  name: string | null;
+  rssi: number;
+  is_instant_readout: boolean;
+  decrypt_success: boolean | null;
+  model_name: string | null;
+}
+
 export const api = {
   health: () => request<Record<string, unknown>>("/api/health"),
   settings: () => request<Record<string, unknown>>("/api/settings"),
@@ -41,6 +50,8 @@ export const api = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ config }),
       }),
+    scan: (name: string, duration = 8) =>
+      request<ScanResult[]>(`/api/plugins/${name}/scan?duration=${duration}`, { method: "POST" }),
   },
 
   config: {

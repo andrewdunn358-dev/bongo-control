@@ -79,3 +79,20 @@ async def update_plugin_config(name: str, body: PluginConfigUpdate) -> dict:
     if _get_manager().get(name) is None:
         raise HTTPException(status_code=404, detail=f"Unknown plugin '{name}'")
     return configuration_service.update_plugin_config(name, body.config)
+
+
+@router.post("/{name}/scan")
+async def scan_plugin(name: str, duration: float = 10.0) -> list[dict]:
+    """Triggers a one-shot device-discovery scan for plugins that
+    support it (currently just victron_mppt). Independent of the
+    plugin's enabled/running state — useful specifically for confirming
+    hardware is visible over Bluetooth at all before fully configuring
+    or enabling anything.
+    """
+    plugin = _get_manager().get(name)
+    if plugin is None:
+        raise HTTPException(status_code=404, detail=f"Unknown plugin '{name}'")
+    try:
+        return await plugin.scan(duration_seconds=duration)
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))

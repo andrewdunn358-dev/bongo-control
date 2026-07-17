@@ -79,6 +79,16 @@ class Plugin(ABC):
         """
         self.config = config
 
+    async def scan(self, duration_seconds: float = 10.0) -> list[dict[str, Any]]:
+        """Optional: actively search for available devices independent
+        of start()/stop() — e.g. a BLE plugin listing nearby advertising
+        devices so the user can confirm hardware is actually visible
+        before (or instead of) fully enabling the plugin. Plugins
+        without a meaningful notion of "discovery" leave this
+        unimplemented; the API layer reports 501 for those.
+        """
+        raise NotImplementedError(f"{self.name} does not support device scanning")
+
     def heartbeat(self) -> None:
         """Plugins call this on every successful tick/reading so the
         Plugin Manager can show 'last update' and detect stalled plugins.

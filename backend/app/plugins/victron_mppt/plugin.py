@@ -102,6 +102,49 @@ class VictronMPPTPlugin(Plugin):
         base["mac_address"] = self._mac_address
         return base
 
+    async def scan(self, duration_seconds: float = 10.0) -> list[dict[str, Any]]:
+        """One-shot discovery scan, independent of start()/stop() and of
+        whether this plugin is currently enabled. Reports every Victron
+        device seen (by manufacturer ID, regardless of decryption
+        success) so the user can confirm hardware is actually visible
+        over Bluetooth at all — the single most useful diagnostic when
+        "nothing is happening" and it's unclear whether that's a config
+        problem, a range/power problem, or a Docker/Bluetooth-access
+        problem.
+        """
+        found: dict[str, dict[str, Any]] = {}
+
+        def on_advertisement(device: BLEDevice, advertisement: AdvertisementData) -> None:
+            data = advertisement.manufacturer_data.get(VICTRON_MANUFACTURER_ID)
+            if not data:
+                return
+
+            entry: dict[str, Any] = {
+                "mac_address": device.address,
+                "name": device.name,
+                "rssi": advertisement.rssi,
+                "is_instant_readout": data.startswith(b"\x10"),
+                "decrypt_success": None,
+                "model_name": None,
+            }
+
+            if self._decoder is not None and entry["is_instant_readout"]:
+                try:
+                    parsed = self._decoder.parse(data)
+                    entry["decrypt_success"] = True
+                    entry["model_name"] = parsed.get_model_name()
+                except Exception:  # noqa: BLE001 - wrong key for this specific device is a normal, expected outcome here
+                    entry["decrypt_success"] = False
+
+            found[device.address] = entry
+
+        scanner = BleakScanner(detection_callback=on_advertisement)
+        await scanner.start()
+        await asyncio.sleep(duration_seconds)
+        await scanner.stop()
+
+        return list(found.values())
+
     async def start(self) -> None:
         if not self._decoder:
             self.status = PluginStatus.ERROR
@@ -194,6 +237,7 @@ class VictronMPPTPlugin(Plugin):
 
         self._last_advertisement_at = time.time()
         self._device_name = device.name or self._device_name
+        self.last_error = None  # clear any stale error now that data is flowing again
         self.heartbeat()
 
         asyncio.create_task(self._publish(parsed))

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Cpu, ExternalLink } from "lucide-react";
+import { Cpu, ExternalLink, Radar, CheckCircle2, XCircle } from "lucide-react";
 import Card from "../../components/Cards/Card";
-import { api } from "../../services/api";
+import { api, type ScanResult } from "../../services/api";
 
 export default function Hardware() {
   const [macAddress, setMacAddress] = useState("");
@@ -9,6 +9,10 @@ export default function Hardware() {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
+
+  const [scanning, setScanning] = useState(false);
+  const [scanResults, setScanResults] = useState<ScanResult[] | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
 
   useEffect(() => {
     api.plugins
@@ -31,6 +35,20 @@ export default function Hardware() {
       setSaved(true);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const scan = async () => {
+    setScanning(true);
+    setScanError(null);
+    setScanResults(null);
+    try {
+      const results = await api.plugins.scan("victron_mppt", 8);
+      setScanResults(results);
+    } catch {
+      setScanError("Scan failed — check the plugin is reachable and Bluetooth is available.");
+    } finally {
+      setScanning(false);
     }
   };
 
@@ -88,6 +106,56 @@ export default function Hardware() {
             </div>
           </div>
         )}
+      </Card>
+
+      <Card label="Scan for Devices" icon={<Radar size={14} />}>
+        <div className="space-y-3">
+          <p className="text-sm text-text-secondary">
+            Looks for any nearby Victron devices broadcasting over Bluetooth, independent of whether the plugin is
+            enabled — useful for confirming hardware is actually visible before troubleshooting anything else.
+          </p>
+          <button
+            onClick={scan}
+            disabled={scanning}
+            className="rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-text-primary transition-colors hover:bg-white/15 disabled:opacity-50"
+          >
+            {scanning ? "Scanning (8s)..." : "Scan for Devices"}
+          </button>
+
+          {scanError && <p className="text-sm text-alert">{scanError}</p>}
+
+          {scanResults && (
+            <div className="space-y-2">
+              {scanResults.length === 0 ? (
+                <p className="text-sm text-text-muted">
+                  No Victron devices seen. Check the MPPT is powered, in range, and that Bluetooth is actually
+                  reachable from this container (see the Docker/Bluetooth note in the setup guide).
+                </p>
+              ) : (
+                scanResults.map((r) => (
+                  <div key={r.mac_address} className="flex items-center justify-between rounded-lg bg-surface-raised px-3 py-2">
+                    <div>
+                      <div className="text-sm text-text-primary">{r.name ?? r.mac_address}</div>
+                      <div className="font-mono text-xs text-text-muted">
+                        {r.mac_address} · {r.rssi} dBm{r.model_name ? ` · ${r.model_name}` : ""}
+                      </div>
+                    </div>
+                    {r.decrypt_success === true && (
+                      <span className="flex items-center gap-1 text-xs text-battery">
+                        <CheckCircle2 size={14} /> Key works
+                      </span>
+                    )}
+                    {r.decrypt_success === false && (
+                      <span className="flex items-center gap-1 text-xs text-alert">
+                        <XCircle size={14} /> Key doesn't match
+                      </span>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
       </Card>
 
       <Card label="Victron SmartShunt">

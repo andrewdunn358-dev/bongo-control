@@ -1,5 +1,10 @@
 FROM python:3.11-slim
 
+# Unbuffered stdout/stderr - without this, `docker compose logs -f` shows
+# nothing until Python's internal buffer fills or the process exits,
+# which makes live debugging (e.g. watching a plugin start up) useless.
+ENV PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
 # Fallback for any dependency without a prebuilt wheel for this
