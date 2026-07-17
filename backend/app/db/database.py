@@ -38,6 +38,8 @@ def init_db() -> None:
     """Create tables for any models registered on Base. Safe to call
     repeatedly (no-op if tables already exist).
     """
+    from app.db import models  # noqa: F401 - import registers models with Base.metadata
+
     Base.metadata.create_all(bind=engine)
 
 

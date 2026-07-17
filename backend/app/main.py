@@ -13,7 +13,7 @@ from app.core.config import settings
 from app.core.logging_config import configure_logging
 from app.db.database import init_db
 from app.plugins.manager import PluginManager
-from app.services import battery_service, configuration_service, notification_service
+from app.services import battery_service, configuration_service, history_service, notification_service
 from app.telemetry.bus import bus
 
 configure_logging()
@@ -40,9 +40,13 @@ async def lifespan(app: FastAPI):
     await battery_service.start_monitoring()
     logger.info("Battery service monitoring started")
 
+    await history_service.start()
+    logger.info("History service started")
+
     yield
 
     logger.info("Shutting down")
+    await history_service.stop()
     await battery_service.stop_monitoring()
     await plugin_manager.stop_all()
 

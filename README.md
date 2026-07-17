@@ -98,13 +98,14 @@ on the backend for this).
 | Milestone | Goal |
 |---|---|
 | 0 | Project skeleton, Docker, GitHub, README ✅ |
-| 1 | Tesla-style dashboard using simulated data (this scaffold — UI pending design sprint) |
-| 2 | PWA installable on Android/iOS/Desktop |
-| 3 | Victron Bluetooth integration |
-| 4 | Battery shunt integration |
-| 5 | History graphs and SQLite logging |
-| 6 | External battery support |
-| 7 | Automation and plugins |
+| 1 | Tesla-style dashboard using simulated data ✅ (polished across several design sprints) |
+| 2 | PWA installable on Android/iOS/Desktop ✅ |
+| 3 | Victron Bluetooth integration ✅ (confirmed against real hardware in the van) |
+| — | Plugin Manager + Service Layer ✅ (built ahead of schedule — the foundation Milestone 7 needs, and what made switching Simulation↔Victron a config toggle rather than a code change) |
+| 5 | History graphs and SQLite logging ✅ |
+| 4 | Battery shunt integration ⏸ paused — needs a SmartShunt, not yet owned |
+| 6 | External battery support ⏸ paused — same hardware dependency as Milestone 4 |
+| 7 | Automation and plugins 🟡 partially done via the Plugin Manager above |
 
 **Note:** there's deliberately no Vehicle/OBD domain or page. This
 vehicle has no OBD port, and adding one would be impractical — so real

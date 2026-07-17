@@ -37,7 +37,7 @@ export interface ScanResult {
 export const api = {
   health: () => request<Record<string, unknown>>("/api/health"),
   settings: () => request<Record<string, unknown>>("/api/settings"),
-  history: (domain: string) => request<unknown[]>(`/api/history/${domain}`),
+  history: (domain: string, hours = 24) => request<unknown[]>(`/api/history/${domain}?hours=${hours}`),
 
   plugins: {
     list: () => request<PluginHealth[]>("/api/plugins"),
