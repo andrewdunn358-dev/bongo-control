@@ -5,9 +5,12 @@ services:
       dockerfile: docker/backend.Dockerfile
     # network_mode: host is required for the Victron Bluetooth plugin —
     # BlueZ/D-Bus BLE access from inside a container generally doesn't
-    # work with Docker's default bridge networking. This makes the
-    # "ports:" mapping below redundant (host networking exposes the
-    # port directly), but it's left in place as documentation.
+    # work with Docker's default bridge networking. Under host
+    # networking there's no port mapping/translation at all - the
+    # backend binds directly to the host's own network interfaces on
+    # port 8000, same as if it were running outside Docker entirely.
+    # (No "ports:" section here on purpose - Compose warns if you add
+    # one, since host mode makes it meaningless.)
     #
     # Confirmed working against real hardware: connected to an actual
     # Victron SmartSolar MPPT over Bluetooth from inside this container
@@ -17,8 +20,6 @@ services:
     volumes:
       - vanos-data:/app/data
       - /var/run/dbus:/var/run/dbus
-    ports:
-      - "8000:8000"
     environment:
       VANOS_ENVIRONMENT: production
       VANOS_DATABASE_URL: sqlite:///./data/vanos.db
