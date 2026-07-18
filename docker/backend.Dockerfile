@@ -2,33 +2,41 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Fallback for any dependency without a prebuilt wheel for this
-# architecture (notably pycryptodome, a transitive dep of victron-ble,
-# on 32-bit ARM/armv7 — Raspberry Pi 2/3). Most dependencies do have
-# prebuilt wheels and won't need this, but when one doesn't, failing to
-# compile it at all (no C compiler) is worse than the extra ~60s this
-# install costs on every fresh build.
-# build-essential: fallback for deps without a prebuilt armv7 wheel.
-# network-manager: provides nmcli, used by WifiService to scan/connect
-# to WiFi. It talks to the host's NetworkManager over the D-Bus socket
-# this container already mounts for Bluetooth, so no extra privileges.
+# --- Layer ordering matters enormously on slow ARM hardware ---
+# Docker invalidates every layer AFTER one that changes. The pip layer
+# below is by far the most expensive thing in this build, so anything
+# likely to change must sit BELOW it, not above. Only the build
+# toolchain that pip itself needs goes here.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    network-manager \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+
+# piwheels serves prebuilt armv7l/armv6l wheels for Raspberry Pi,
+# letting pip download packages like pycryptodome and dbus-fast instead
+# of compiling them from source (which takes ~10 minutes on a Pi 2).
+# It's an *extra* index, so on any other architecture pip simply finds
+# no matching wheel and falls back to PyPI as before - safe everywhere,
+# just dramatically faster on a Pi.
+RUN pip install --no-cache-dir \
+    --extra-index-url https://www.piwheels.org/simple \
+    -r requirements.txt
+
+# Runtime-only packages belong BELOW the pip layer. network-manager
+# (which provides nmcli for WiFi switching) is not needed to build any
+# Python package - having it above cost a full ~11 minute pip recompile
+# the first time WiFi support was added, for no reason.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    network-manager \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY backend/app ./app
 
 RUN mkdir -p /app/data
 
-# Placed as late as possible: Docker invalidates every layer AFTER the
-# line it changes, not just the line itself. An env var like this has
-# no business being above the expensive apt-get/pip install layers —
-# putting it here means future changes to it (or to anything else this
-# far down) never force a slow recompile of dbus-fast/pycryptodome again.
+# Cheap and change-prone: keep last so it can never invalidate anything
+# expensive above it.
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
