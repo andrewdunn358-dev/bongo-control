@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/poi", tags=["poi"])
 
 
 @router.get("/nearby")
-async def get_nearby(radius_m: int = 10000, categories: str = "") -> list[dict]:
+async def get_nearby(radius_m: int = 10000, categories: str = "") -> dict:
     location = location_service.get()
     if location is None:
         raise HTTPException(status_code=404, detail="No location set - configure one in Settings → General")
@@ -23,4 +23,4 @@ async def get_nearby(radius_m: int = 10000, categories: str = "") -> list[dict]:
     try:
         return await poi_service.search_nearby(location["latitude"], location["longitude"], radius_m, category_list)
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"POI search failed: {e}")
+        raise HTTPException(status_code=502, detail=f"POI search failed and nothing is cached for this area: {e}")

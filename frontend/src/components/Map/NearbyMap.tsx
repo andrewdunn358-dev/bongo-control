@@ -44,6 +44,8 @@ export default function NearbyMap() {
   const [activeCategories, setActiveCategories] = useState<Set<string>>(new Set(Object.keys(CATEGORY_META)));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cachedAt, setCachedAt] = useState<number | null>(null);
+  const [fromCache, setFromCache] = useState(false);
 
   useEffect(() => {
     api.location
@@ -89,8 +91,12 @@ export default function NearbyMap() {
     setError(null);
     api.poi
       .nearby(10000, Object.keys(CATEGORY_META))
-      .then(setPois)
-      .catch(() => setError("Couldn't reach the POI search — check your connection."))
+      .then((data) => {
+        setPois(data.results);
+        setFromCache(data.from_cache);
+        setCachedAt(data.cached_at);
+      })
+      .catch(() => setError("No connection, and nothing saved for this area yet."))
       .finally(() => setLoading(false));
   };
 
@@ -152,7 +158,14 @@ export default function NearbyMap() {
       <div ref={mapContainerRef} className="h-[420px] w-full overflow-hidden rounded-xl2 border border-white/10" />
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-text-muted">
-        <span>{loading ? "Searching nearby..." : `${pois.filter((p) => activeCategories.has(p.category)).length} places found within 10km`}</span>
+        <span>
+          {loading
+            ? "Searching nearby..."
+            : `${pois.filter((p) => activeCategories.has(p.category)).length} places within 10km`}
+          {!loading && fromCache && cachedAt && (
+            <span className="text-solar"> · saved offline data from {new Date(cachedAt * 1000).toLocaleDateString()}</span>
+          )}
+        </span>
         <a href="https://park4night.com/en" target="_blank" rel="noreferrer" className="text-solar hover:underline">
           Open Park4Night for reviews & photos →
         </a>

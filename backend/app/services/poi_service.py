@@ -15,11 +15,24 @@ trading a small amount of completeness for a much simpler query/parse.
 from __future__ import annotations
 
 import logging
+import math
+import time
 from typing import Any
 
 import httpx
 
+from app.db.database import SessionLocal
+from app.db.models import CachedPoi, PoiFetchLog
+
 logger = logging.getLogger("vanos.poi_service")
+
+# POIs change on the order of months, not minutes - a long TTL keeps
+# the free public Overpass instances from being hammered and means the
+# van usually answers from local data instantly.
+CACHE_TTL_SECONDS = 30 * 86400
+# How far the van can move from a previously-fetched point before that
+# fetch no longer counts as covering the current position.
+COVERAGE_TOLERANCE_M = 3000
 
 # overpass-api.de began requiring a descriptive User-Agent around April
 # 2026 and returns 406 Not Acceptable without one - a generic library
@@ -46,11 +59,120 @@ POI_TAGS: dict[str, tuple[str, str]] = {
 }
 
 
+def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    r = 6371000.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
 class PoiService:
-    async def search_nearby(self, latitude: float, longitude: float, radius_m: int, categories: list[str]) -> list[dict[str, Any]]:
-        valid_categories = [c for c in categories if c in POI_TAGS]
-        if not valid_categories:
-            valid_categories = list(POI_TAGS.keys())
+    async def search_nearby(
+        self, latitude: float, longitude: float, radius_m: int, categories: list[str]
+    ) -> dict[str, Any]:
+        """Returns {"results": [...], "from_cache": bool, "cached_at": float|None}.
+
+        Cache-first: if this area was fetched recently, answer locally
+        without touching the network at all. If it wasn't, fetch and
+        store. If the fetch fails (no signal, Overpass down), fall back
+        to whatever is cached for the area regardless of age and say so,
+        rather than showing nothing.
+        """
+        valid = [c for c in categories if c in POI_TAGS] or list(POI_TAGS.keys())
+
+        covered_at = self._coverage_timestamp(latitude, longitude, radius_m)
+        if covered_at is not None and (time.time() - covered_at) < CACHE_TTL_SECONDS:
+            return {
+                "results": self._from_cache(latitude, longitude, radius_m, valid),
+                "from_cache": True,
+                "cached_at": covered_at,
+            }
+
+        try:
+            results = await self._fetch_remote(latitude, longitude, radius_m, valid)
+            self._store(results, latitude, longitude, radius_m)
+            return {"results": results, "from_cache": False, "cached_at": None}
+        except Exception as e:  # noqa: BLE001 - offline is an expected state in a van
+            logger.warning("Overpass fetch failed (%s) - falling back to cache", e)
+            cached = self._from_cache(latitude, longitude, radius_m, valid)
+            if cached or covered_at is not None:
+                return {"results": cached, "from_cache": True, "cached_at": covered_at}
+            raise
+
+    def _coverage_timestamp(self, latitude: float, longitude: float, radius_m: int) -> float | None:
+        """Most recent fetch that plausibly covers this point/radius."""
+        db = SessionLocal()
+        try:
+            best: float | None = None
+            for entry in db.query(PoiFetchLog).filter(PoiFetchLog.radius_m >= radius_m).all():
+                if _haversine_m(latitude, longitude, entry.latitude, entry.longitude) <= COVERAGE_TOLERANCE_M:
+                    if best is None or entry.fetched_at > best:
+                        best = entry.fetched_at
+            return best
+        finally:
+            db.close()
+
+    def _from_cache(self, latitude: float, longitude: float, radius_m: int, categories: list[str]) -> list[dict[str, Any]]:
+        # Pre-filter with a bounding box so SQLite can use the lat/lon
+        # indexes, then refine with true distance in Python.
+        lat_delta = radius_m / 111_000
+        lon_delta = radius_m / (111_000 * max(0.01, math.cos(math.radians(latitude))))
+        db = SessionLocal()
+        try:
+            rows = (
+                db.query(CachedPoi)
+                .filter(
+                    CachedPoi.category.in_(categories),
+                    CachedPoi.latitude.between(latitude - lat_delta, latitude + lat_delta),
+                    CachedPoi.longitude.between(longitude - lon_delta, longitude + lon_delta),
+                )
+                .all()
+            )
+            return [
+                {
+                    "id": r.osm_id,
+                    "category": r.category,
+                    "name": r.name,
+                    "latitude": r.latitude,
+                    "longitude": r.longitude,
+                    "opening_hours": r.opening_hours,
+                    "fee": r.fee,
+                }
+                for r in rows
+                if _haversine_m(latitude, longitude, r.latitude, r.longitude) <= radius_m
+            ]
+        finally:
+            db.close()
+
+    def _store(self, results: list[dict[str, Any]], latitude: float, longitude: float, radius_m: int) -> None:
+        now = time.time()
+        db = SessionLocal()
+        try:
+            for r in results:
+                db.merge(
+                    CachedPoi(
+                        osm_id=r["id"],
+                        category=r["category"],
+                        name=r["name"],
+                        latitude=r["latitude"],
+                        longitude=r["longitude"],
+                        opening_hours=r["opening_hours"],
+                        fee=r["fee"],
+                        cached_at=now,
+                    )
+                )
+            db.add(PoiFetchLog(latitude=latitude, longitude=longitude, radius_m=radius_m, fetched_at=now))
+            db.commit()
+        except Exception as e:  # noqa: BLE001 - caching is best-effort, never fatal
+            logger.warning("Failed to cache POIs: %s", e)
+            db.rollback()
+        finally:
+            db.close()
+
+    async def _fetch_remote(self, latitude: float, longitude: float, radius_m: int, categories: list[str]) -> list[dict[str, Any]]:
+        valid_categories = categories
 
         clauses = "\n".join(
             f'  node["{key}"="{value}"](around:{radius_m},{latitude},{longitude});'
@@ -67,6 +189,13 @@ class PoiService:
             category = self._categorize(tags)
             if category is None:
                 continue
+            # Overpass bounds results server-side via (around:...), but
+            # filter here too so the live path and the cache path apply
+            # identical distance rules - otherwise an unexpected response
+            # could put POIs on the map that a later cached query drops.
+            if _haversine_m(latitude, longitude, element["lat"], element["lon"]) > radius_m:
+                continue
+
             results.append(
                 {
                     "id": element["id"],

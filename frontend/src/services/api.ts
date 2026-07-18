@@ -93,8 +93,8 @@ export const api = {
 
   poi: {
     nearby: (radiusM: number, categories: string[]) =>
-      request<
-        {
+      request<{
+        results: {
           id: number;
           category: string;
           name: string | null;
@@ -102,7 +102,9 @@ export const api = {
           longitude: number;
           opening_hours: string | null;
           fee: string | null;
-        }[]
-      >(`/api/poi/nearby?radius_m=${radiusM}&categories=${categories.join(",")}`),
+        }[];
+        from_cache: boolean;
+        cached_at: number | null;
+      }>(`/api/poi/nearby?radius_m=${radiusM}&categories=${categories.join(",")}`),
   },
 };

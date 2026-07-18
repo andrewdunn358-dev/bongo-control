@@ -1,4 +1,4 @@
-import { Home, Zap, BatteryMedium, Sun, History, Thermometer, Wifi, Settings, MapPin } from "lucide-react";
+import { Home, Zap, BatteryMedium, Sun, History, Thermometer, Wifi, Settings, MapPin, CloudSun } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export interface NavItem {
@@ -14,6 +14,7 @@ export const navItems: NavItem[] = [
   { path: "/energy", label: "Energy", icon: Zap },
   { path: "/battery", label: "Battery", icon: BatteryMedium },
   { path: "/solar", label: "Solar", icon: Sun },
+  { path: "/weather", label: "Weather", icon: CloudSun },
   { path: "/nearby", label: "Nearby", icon: MapPin },
   { path: "/history", label: "History", icon: History },
   { path: "/environment", label: "Environment", icon: Thermometer },
@@ -26,5 +27,5 @@ export const navItems: NavItem[] = [
 // via the sidebar on larger screens; mobile users get the primary five,
 // consistent with how Tesla/EcoFlow mobile apps prioritize their tab bars.
 export const primaryNavItems: NavItem[] = navItems.filter((item) =>
-  ["/", "/battery", "/solar", "/nearby", "/settings"].includes(item.path)
+  ["/", "/battery", "/weather", "/nearby", "/settings"].includes(item.path)
 );

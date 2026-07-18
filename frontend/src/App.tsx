@@ -6,6 +6,7 @@ import Energy from "./pages/Energy";
 import Battery from "./pages/Battery";
 import Solar from "./pages/Solar";
 import Nearby from "./pages/Nearby";
+import Weather from "./pages/Weather";
 import History from "./pages/History";
 import Environment from "./pages/Environment";
 import Connectivity from "./pages/Connectivity";
@@ -29,6 +30,7 @@ export default function App() {
             <Route path="/energy" element={<Energy />} />
             <Route path="/battery" element={<Battery />} />
             <Route path="/solar" element={<Solar />} />
+            <Route path="/weather" element={<Weather />} />
             <Route path="/nearby" element={<Nearby />} />
             <Route path="/history" element={<History />} />
             <Route path="/environment" element={<Environment />} />
