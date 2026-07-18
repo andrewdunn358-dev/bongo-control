@@ -58,6 +58,13 @@ services:
   cloudflared:
     image: ${CLOUDFLARED_IMAGE:-cloudflare/cloudflared:latest}
     command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    # Host networking is required: the tunnel's routes point at
+    # localhost:8090 (frontend) and localhost:8000 (backend). Under
+    # default bridge networking, "localhost" would mean the cloudflared
+    # container itself - where nothing is listening - producing a 502
+    # Bad Gateway even though the tunnel connects fine. Host networking
+    # makes localhost mean the Pi, which is what the routes expect.
+    network_mode: host
     restart: unless-stopped
     profiles:
       - cloudflare-tunnel
