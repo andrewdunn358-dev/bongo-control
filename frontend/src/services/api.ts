@@ -3,7 +3,7 @@
 // — live dashboard data comes from the WebSocket stream via
 // TelemetryContext, not from here.
 
-const API_BASE = import.meta.env.VITE_API_URL ?? `http://${window.location.hostname}:8000`;
+const API_BASE = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, init);

@@ -29,11 +29,32 @@ services:
     build:
       context: .
       dockerfile: docker/frontend.Dockerfile
+      # Set these two in a root .env file (gitignored) to your actual
+      # domain - e.g. VITE_API_URL=https://bongo-api.yourdomain.com and
+      # VITE_WS_URL=wss://bongo-api.yourdomain.com/ws/telemetry - only
+      # needed if you're using Cloudflare Tunnel for remote HTTPS access.
+      # Left unset, everything works exactly as before (derives the
+      # backend address from whatever hostname/IP you're browsing to).
+      args:
+        VITE_API_URL: ${VITE_API_URL:-}
+        VITE_WS_URL: ${VITE_WS_URL:-}
     ports:
       - "8090:80"
     depends_on:
       - backend
     restart: unless-stopped
+
+  # Optional: only starts doing anything useful once CLOUDFLARE_TUNNEL_TOKEN
+  # is set in a root .env file. Gives the app a real public HTTPS URL on
+  # your own domain without opening any ports on your router - works
+  # behind CGNAT, since it's an outbound-only connection to Cloudflare.
+  # See docs/remote_access_cloudflare_tunnel.md for full setup.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    restart: unless-stopped
+    profiles:
+      - cloudflare-tunnel
 
 volumes:
   vanos-data:

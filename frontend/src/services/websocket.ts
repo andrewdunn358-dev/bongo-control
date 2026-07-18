@@ -5,7 +5,7 @@
 import type { TelemetryMessage } from "../types/telemetry";
 
 const WS_URL =
-  import.meta.env.VITE_WS_URL ??
+  import.meta.env.VITE_WS_URL ||
   `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.hostname}:8000/ws/telemetry`;
 
 type MessageHandler = (message: TelemetryMessage) => void;
