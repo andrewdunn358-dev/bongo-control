@@ -21,7 +21,17 @@ import httpx
 
 logger = logging.getLogger("vanos.poi_service")
 
-OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+# overpass-api.de began requiring a descriptive User-Agent around April
+# 2026 and returns 406 Not Acceptable without one - a generic library
+# default like "python-httpx/0.27.2" is rejected. It's also frequently
+# overloaded, so we fail over to a well-known mirror rather than giving
+# up on the first error.
+OVERPASS_ENDPOINTS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+]
+
+USER_AGENT = "BongoControl/1.0 (campervan telemetry dashboard; https://github.com/andrewdunn358-dev/bongo-control)"
 
 # OSM tag -> our category label. "sanitary_dump_station" is the real,
 # correct OSM tag for what UK campervanners call an "Elsan point"
@@ -49,10 +59,7 @@ class PoiService:
         )
         query = f"[out:json][timeout:25];\n(\n{clauses}\n);\nout body;"
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(OVERPASS_URL, data={"data": query})
-            response.raise_for_status()
-            data = response.json()
+        data = await self._query_with_failover(query)
 
         results = []
         for element in data.get("elements", []):
@@ -72,6 +79,27 @@ class PoiService:
                 }
             )
         return results
+
+    async def _query_with_failover(self, query: str) -> dict[str, Any]:
+        """Tries each Overpass endpoint in turn, returning the first
+        success. Public Overpass instances are heavily shared and go
+        down or rate-limit regularly, so a single endpoint is a single
+        point of failure for the whole Nearby page.
+        """
+        headers = {"User-Agent": USER_AGENT}
+        errors: list[str] = []
+
+        async with httpx.AsyncClient(timeout=30.0, headers=headers) as client:
+            for endpoint in OVERPASS_ENDPOINTS:
+                try:
+                    response = await client.post(endpoint, data={"data": query})
+                    response.raise_for_status()
+                    return response.json()
+                except Exception as e:  # noqa: BLE001 - try the next mirror
+                    logger.warning("Overpass endpoint %s failed: %s", endpoint, e)
+                    errors.append(f"{endpoint}: {e}")
+
+        raise RuntimeError("All Overpass endpoints failed - " + "; ".join(errors))
 
     def _categorize(self, tags: dict[str, str]) -> str | None:
         for category, (key, value) in POI_TAGS.items():
