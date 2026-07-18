@@ -36,6 +36,7 @@ class TelemetryDomain(str, Enum):
     CONNECTIVITY = "connectivity"
     SYSTEM = "system"
     NOTIFICATION = "notification"
+    WEATHER = "weather"
 
 
 class TelemetrySource(str, Enum):
@@ -46,6 +47,7 @@ class TelemetrySource(str, Enum):
     SIMULATION = "simulation"
     SYSTEM = "system"
     VICTRON_MPPT = "victron_mppt"
+    WEATHER = "weather"
 
 
 class TelemetryMessage(BaseModel):

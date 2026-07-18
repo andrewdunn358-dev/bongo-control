@@ -26,6 +26,7 @@ const statusDot: Record<string, string> = {
 // Simulation has nothing to configure, so it's absent here.
 const CONFIG_ROUTES: Record<string, string> = {
   victron_mppt: "/settings/hardware",
+  weather: "/settings/general",
 };
 
 export default function Plugins() {

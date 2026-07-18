@@ -18,7 +18,7 @@ from app.services.configuration_service import configuration_service
 
 router = APIRouter(prefix="/api/config", tags=["config"])
 
-VALID_SECTIONS = {"general", "appearance", "hardware", "plugins", "notifications", "developer"}
+VALID_SECTIONS = {"general", "appearance", "hardware", "plugins", "notifications", "developer", "location"}
 
 
 class ConfigUpdate(BaseModel):

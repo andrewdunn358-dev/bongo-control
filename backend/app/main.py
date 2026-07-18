@@ -7,13 +7,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import config as config_routes
-from app.api.routes import health, plugins as plugins_routes, settings as settings_routes, telemetry
+from app.api.routes import health, location as location_routes, plugins as plugins_routes, settings as settings_routes, telemetry
 from app.api.websocket import router as websocket_router
 from app.core.config import settings
 from app.core.logging_config import configure_logging
 from app.db.database import init_db
 from app.plugins.manager import PluginManager
-from app.services import battery_service, configuration_service, history_service, notification_service
+from app.services import battery_service, configuration_service, history_service, notification_service, power_budget_service
 from app.telemetry.bus import bus
 
 configure_logging()
@@ -43,9 +43,13 @@ async def lifespan(app: FastAPI):
     await history_service.start()
     logger.info("History service started")
 
+    await power_budget_service.start()
+    logger.info("Power Budget service started")
+
     yield
 
     logger.info("Shutting down")
+    await power_budget_service.stop()
     await history_service.stop()
     await battery_service.stop_monitoring()
     await plugin_manager.stop_all()
@@ -72,6 +76,7 @@ app.include_router(telemetry.router)
 app.include_router(settings_routes.router)
 app.include_router(plugins_routes.router)
 app.include_router(config_routes.router)
+app.include_router(location_routes.router)
 app.include_router(websocket_router)
 
 

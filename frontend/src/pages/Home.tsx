@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { BatteryMedium, Sun, Thermometer, Wifi, WifiOff } from "lucide-react";
+import { BatteryMedium, Sun, Thermometer, Wifi, WifiOff, CloudSun } from "lucide-react";
 import Card from "../components/Cards/Card";
 import MetricCard from "../components/Cards/MetricCard";
 import LiveIndicator from "../components/Cards/LiveIndicator";
@@ -14,6 +14,7 @@ export default function Home() {
   const solar = state.solar?.payload;
   const environment = state.environment?.payload;
   const connectivity = state.connectivity?.payload;
+  const weather = state.weather?.payload;
 
   const heroLastUpdated = state.battery?.timestamp ?? state.solar?.timestamp ?? null;
 
@@ -85,15 +86,23 @@ export default function Home() {
           value={connectivity ? (connectivity.online ? "Online" : "Offline") : "—"}
           subtext={connectivity ? `${connectivity.signal_strength_pct}% signal` : undefined}
         />
+        <MetricCard
+          index={5}
+          label="Weather"
+          icon={<CloudSun size={14} />}
+          value={weather?.current_temp_c != null ? weather.current_temp_c : "—"}
+          unit={weather?.current_temp_c != null ? "°C" : ""}
+          subtext={weather ? weather.today.weather_description : undefined}
+        />
       </div>
 
       {/* Power Budget is the "so what does this mean for me" summary -
           given more room than Recent Events, which is a shorter supporting list. */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <PowerBudgetCard index={5} />
+          <PowerBudgetCard index={6} />
         </div>
-        <RecentEventsCard index={6} />
+        <RecentEventsCard index={7} />
       </div>
     </div>
   );

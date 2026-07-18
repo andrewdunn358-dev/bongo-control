@@ -63,4 +63,15 @@ export const api = {
         body: JSON.stringify({ value }),
       }),
   },
+
+  location: {
+    get: () => request<{ latitude: number; longitude: number; source: string; updated_at: number; city?: string; country?: string }>("/api/location"),
+    setGps: (latitude: number, longitude: number) =>
+      request<Record<string, unknown>>("/api/location/gps", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ latitude, longitude }),
+      }),
+    refreshIpFallback: () => request<Record<string, unknown>>("/api/location/ip-fallback", { method: "POST" }),
+  },
 };

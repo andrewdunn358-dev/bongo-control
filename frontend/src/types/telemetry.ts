@@ -11,7 +11,8 @@ export type TelemetryDomain =
   | "environment"
   | "connectivity"
   | "system"
-  | "notification";
+  | "notification"
+  | "weather";
 
 export type TelemetrySource = "simulation" | "system" | "victron_mppt";
 
@@ -63,13 +64,40 @@ export interface ConnectivityPayload {
 }
 
 export interface PowerBudget {
-  heater_all_night_possible: boolean;
-  estimated_runtime_hours: number;
-  estimated_recovery_tomorrow_pct: number;
+  heater_all_night_possible: boolean | null;
+  estimated_runtime_hours: number | null;
+  note?: string | null;
+}
+
+export interface TomorrowOutlook {
+  summary: string;
+  radiation_ratio_vs_today?: number | null;
+  precipitation_probability_pct?: number | null;
+  recommendation: string;
 }
 
 export interface SystemPayload {
   power_budget: PowerBudget;
+  tomorrow_outlook: TomorrowOutlook;
+}
+
+export interface DailyWeather {
+  weather_code: number | null;
+  weather_description: string;
+  temp_max_c: number | null;
+  temp_min_c: number | null;
+  shortwave_radiation_sum_mj: number | null;
+  precipitation_probability_max_pct: number | null;
+  sunrise: string | null;
+  sunset: string | null;
+}
+
+export interface WeatherPayload {
+  current_temp_c: number | null;
+  current_cloud_cover_pct: number | null;
+  today: DailyWeather;
+  tomorrow: DailyWeather;
+  tomorrow_vs_today_radiation_ratio: number | null;
 }
 
 export type NotificationLevel = "success" | "info" | "warning" | "error";
@@ -87,4 +115,5 @@ export interface TelemetryState {
   environment?: TelemetryMessage<EnvironmentPayload>;
   connectivity?: TelemetryMessage<ConnectivityPayload>;
   system?: TelemetryMessage<SystemPayload>;
+  weather?: TelemetryMessage<WeatherPayload>;
 }

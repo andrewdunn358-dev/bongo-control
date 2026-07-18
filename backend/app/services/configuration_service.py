@@ -24,6 +24,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "general": {},
     "appearance": {},
     "hardware": {},
+    "location": {},
     # Simulation is on by default (nothing to configure); Victron starts
     # disabled until an encryption_key is set - see docs/victron_ble_integration.md.
     # This is also how switching between them works with zero code
@@ -31,6 +32,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "plugins": {
         "simulation": {"enabled": True},
         "victron_mppt": {"enabled": False},
+        "weather": {"enabled": False},
     },
     "notifications": {"enabled": True},
     "developer": {},

@@ -180,23 +180,12 @@ class SimulationEngine(Plugin):
             },
         )
 
-        # Runtime predictions in plain English — the "Power Budget" concept
-        bank_wh_remaining = (s.battery_soc / 100.0) * 100 * 12.8
-        fridge_only_hours = (
-            bank_wh_remaining / _total_load_watts({"fridge": True, "lighting": False, "diesel_heater": False, "water_pump": False})
-            if s.loads.get("fridge")
-            else float("inf")
-        )
-        await emit(
-            TelemetryDomain.SYSTEM,
-            {
-                "power_budget": {
-                    "heater_all_night_possible": bank_wh_remaining > 120 * 8,
-                    "estimated_runtime_hours": round(min(fridge_only_hours, 999), 1),
-                    "estimated_recovery_tomorrow_pct": round(min(100.0, s.battery_soc + 35), 0),
-                }
-            },
-        )
+        # Power Budget (heater_all_night_possible, estimated_runtime_hours,
+        # tomorrow's outlook) is now computed by PowerBudgetService instead
+        # of here - that version works identically whether simulation or
+        # real hardware (Victron) is providing the underlying battery/solar
+        # data, using actual recorded history + weather forecast rather
+        # than fabricated simulation-only math. See services/power_budget_service.py.
 
         temp_c = 12 + 8 * math.sin(math.pi * ((elapsed_hours + 8) % 24 - 6) / 12)
         await emit(
