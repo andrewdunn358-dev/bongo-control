@@ -2,8 +2,14 @@ FROM node:20-slim AS build
 
 WORKDIR /app
 
-COPY frontend/package.json ./
-RUN npm install
+# Copy the lockfile too, and use `npm ci` rather than `npm install`:
+# ci installs exactly what the lockfile pins, skipping full dependency
+# resolution entirely - meaningfully faster (especially on slow ARM
+# hardware) and reproducible. Kept as its own layer above the source
+# copy so it only re-runs when dependencies actually change, not on
+# every code edit.
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
 
 COPY frontend/ ./
 
