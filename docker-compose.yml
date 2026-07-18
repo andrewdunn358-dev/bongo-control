@@ -49,8 +49,14 @@ services:
   # your own domain without opening any ports on your router - works
   # behind CGNAT, since it's an outbound-only connection to Cloudflare.
   # See docs/remote_access_cloudflare_tunnel.md for full setup.
+  #
+  # NOTE on 32-bit ARM (Raspberry Pi 2/3 running 32-bit Raspberry Pi OS):
+  # Cloudflare publishes no official armv7 image. Override
+  # CLOUDFLARED_IMAGE in .env with an unofficial multi-arch build.
+  # Be aware cloudflared is also reported to segfault on Pi Zero W / 1B /
+  # 2B specifically - see the docs for alternatives if that happens.
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: ${CLOUDFLARED_IMAGE:-cloudflare/cloudflared:latest}
     command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:-}
     restart: unless-stopped
     profiles:
