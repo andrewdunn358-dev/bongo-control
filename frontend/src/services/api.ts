@@ -74,4 +74,19 @@ export const api = {
       }),
     refreshIpFallback: () => request<Record<string, unknown>>("/api/location/ip-fallback", { method: "POST" }),
   },
+
+  poi: {
+    nearby: (radiusM: number, categories: string[]) =>
+      request<
+        {
+          id: number;
+          category: string;
+          name: string | null;
+          latitude: number;
+          longitude: number;
+          opening_hours: string | null;
+          fee: string | null;
+        }[]
+      >(`/api/poi/nearby?radius_m=${radiusM}&categories=${categories.join(",")}`),
+  },
 };
