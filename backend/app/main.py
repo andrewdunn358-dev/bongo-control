@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import config as config_routes
-from app.api.routes import health, location as location_routes, plugins as plugins_routes, poi as poi_routes, settings as settings_routes, telemetry
+from app.api.routes import health, location as location_routes, plugins as plugins_routes, poi as poi_routes, settings as settings_routes, telemetry, wifi as wifi_routes
 from app.api.websocket import router as websocket_router
 from app.core.config import settings
 from app.core.logging_config import configure_logging
@@ -78,6 +78,7 @@ app.include_router(plugins_routes.router)
 app.include_router(config_routes.router)
 app.include_router(location_routes.router)
 app.include_router(poi_routes.router)
+app.include_router(wifi_routes.router)
 app.include_router(websocket_router)
 
 

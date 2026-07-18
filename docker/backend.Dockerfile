@@ -8,8 +8,13 @@ WORKDIR /app
 # prebuilt wheels and won't need this, but when one doesn't, failing to
 # compile it at all (no C compiler) is worse than the extra ~60s this
 # install costs on every fresh build.
+# build-essential: fallback for deps without a prebuilt armv7 wheel.
+# network-manager: provides nmcli, used by WifiService to scan/connect
+# to WiFi. It talks to the host's NetworkManager over the D-Bus socket
+# this container already mounts for Bluetooth, so no extra privileges.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    network-manager \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt .

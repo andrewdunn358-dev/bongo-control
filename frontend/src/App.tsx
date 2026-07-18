@@ -13,6 +13,7 @@ import SettingsLayout from "./pages/settings/SettingsLayout";
 import General from "./pages/settings/General";
 import Appearance from "./pages/settings/Appearance";
 import Hardware from "./pages/settings/Hardware";
+import Network from "./pages/settings/Network";
 import Plugins from "./pages/settings/Plugins";
 import Notifications from "./pages/settings/Notifications";
 import Developer from "./pages/settings/Developer";
@@ -38,6 +39,7 @@ export default function App() {
               <Route path="general" element={<General />} />
               <Route path="appearance" element={<Appearance />} />
               <Route path="hardware" element={<Hardware />} />
+              <Route path="network" element={<Network />} />
               <Route path="plugins" element={<Plugins />} />
               <Route path="notifications" element={<Notifications />} />
               <Route path="developer" element={<Developer />} />

@@ -1,10 +1,11 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { SlidersHorizontal, Palette, Cpu, Puzzle, Bell, Code2, Info } from "lucide-react";
+import { SlidersHorizontal, Palette, Cpu, Puzzle, Bell, Code2, Info, Wifi } from "lucide-react";
 
 const sections = [
   { path: "general", label: "General", icon: SlidersHorizontal },
   { path: "appearance", label: "Appearance", icon: Palette },
   { path: "hardware", label: "Hardware", icon: Cpu },
+  { path: "network", label: "Network", icon: Wifi },
   { path: "plugins", label: "Plugins", icon: Puzzle },
   { path: "notifications", label: "Notifications", icon: Bell },
   { path: "developer", label: "Developer", icon: Code2 },

@@ -80,6 +80,17 @@ export const api = {
     refreshIpFallback: () => request<Record<string, unknown>>("/api/location/ip-fallback", { method: "POST" }),
   },
 
+  wifi: {
+    status: () => request<{ connected: boolean; ssid: string | null; signal: number | null; known_networks: string[] }>("/api/wifi/status"),
+    scan: () => request<{ ssid: string; signal: number | null; secured: boolean; active: boolean }[]>("/api/wifi/scan"),
+    connect: (ssid: string, password?: string) =>
+      request<{ connected: boolean; ssid: string | null; signal: number | null }>("/api/wifi/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ssid, password: password || null }),
+      }),
+  },
+
   poi: {
     nearby: (radiusM: number, categories: string[]) =>
       request<
