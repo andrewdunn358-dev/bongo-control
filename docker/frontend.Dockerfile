@@ -13,16 +13,9 @@ RUN npm ci
 
 COPY frontend/ ./
 
-# Baked in at build time (Vite env vars only exist during `npm run
-# build`, not at container runtime) - set via docker-compose's build.args,
-# sourced from a root .env file (gitignored, not committed). Falls back
-# to the existing window.location-derived default when unset, so plain
-# LAN-only use (no Cloudflare Tunnel) is completely unaffected.
-ARG VITE_API_URL
-ARG VITE_WS_URL
-ENV VITE_API_URL=$VITE_API_URL
-ENV VITE_WS_URL=$VITE_WS_URL
-
+# No build-time API URL configuration needed: the frontend uses
+# same-origin relative paths and nginx proxies /api and /ws to the
+# backend. Same build works on the LAN offline and behind a tunnel.
 RUN npm run build
 
 FROM nginx:1.27-alpine

@@ -4,9 +4,10 @@
 
 import type { TelemetryMessage } from "../types/telemetry";
 
-const WS_URL =
-  import.meta.env.VITE_WS_URL ||
-  `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.hostname}:8000/ws/telemetry`;
+// Same-origin, matching the page's own protocol (ws:// on http, wss://
+// on https) - nginx proxies /ws through to the backend. Works on the
+// van's LAN offline and through a remote HTTPS tunnel, unchanged.
+const WS_URL = `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws/telemetry`;
 
 type MessageHandler = (message: TelemetryMessage) => void;
 

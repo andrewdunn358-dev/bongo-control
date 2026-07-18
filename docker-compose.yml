@@ -29,17 +29,13 @@ services:
     build:
       context: .
       dockerfile: docker/frontend.Dockerfile
-      # Set these two in a root .env file (gitignored) to your actual
-      # domain - e.g. VITE_API_URL=https://bongo-api.yourdomain.com and
-      # VITE_WS_URL=wss://bongo-api.yourdomain.com/ws/telemetry - only
-      # needed if you're using Cloudflare Tunnel for remote HTTPS access.
-      # Left unset, everything works exactly as before (derives the
-      # backend address from whatever hostname/IP you're browsing to).
-      args:
-        VITE_API_URL: ${VITE_API_URL:-}
-        VITE_WS_URL: ${VITE_WS_URL:-}
     ports:
       - "8090:80"
+    # nginx proxies /api and /ws to the backend, which runs with
+    # network_mode: host - so it's reached via the host gateway rather
+    # than a compose service name.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - backend
     restart: unless-stopped

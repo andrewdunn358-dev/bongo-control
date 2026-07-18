@@ -3,7 +3,12 @@
 // — live dashboard data comes from the WebSocket stream via
 // TelemetryContext, not from here.
 
-const API_BASE = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`;
+// Same-origin relative paths: nginx proxies /api through to the backend.
+// This is deliberate - it means the dashboard works identically on the
+// van's LAN with no internet and through a remote HTTPS tunnel, with no
+// build-time configuration and nothing that can point somewhere
+// unreachable when offline.
+const API_BASE = "";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, init);
