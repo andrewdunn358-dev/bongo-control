@@ -122,6 +122,17 @@ export const api = {
       }),
   },
 
+  intelligence: {
+    missionBrief: () =>
+      request<{
+        status: "green" | "amber" | "red";
+        summary: string;
+        recommendations: string[];
+        predictions: { key: string; label: string; value: number | null; unit: string | null; confidence: string | null }[];
+        signals: { source: string; severity: string; message: string; weight: number }[];
+        computed_at: number;
+      }>("/api/intelligence/mission-brief"),
+  },
   poi: {
     nearby: (radiusM: number, categories: string[]) =>
       request<{

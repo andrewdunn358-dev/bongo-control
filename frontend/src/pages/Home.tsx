@@ -7,6 +7,8 @@ import AnimatedNumber from "../components/Cards/AnimatedNumber";
 import PowerFlowDiagram from "../components/PowerFlow/PowerFlowDiagram";
 import PowerBudgetCard from "../components/Cards/PowerBudgetCard";
 import RecentEventsCard from "../components/Cards/RecentEventsCard";
+import RecommendationsPanel from "../components/MissionBrief/RecommendationsPanel";
+import PredictionsPanel from "../components/MissionBrief/PredictionsPanel";
 import { useTelemetry } from "../context/TelemetryContext";
 import { colors } from "../theme/colors";
 
@@ -297,6 +299,11 @@ export default function Home() {
       <div className="grid gap-5 lg:grid-cols-2">
         <PowerBudgetCard index={5} />
         <RecentEventsCard index={6} />
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <RecommendationsPanel index={7} />
+        <PredictionsPanel index={8} />
       </div>
     </div>
   );

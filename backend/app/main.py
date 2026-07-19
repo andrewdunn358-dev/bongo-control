@@ -9,19 +9,40 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import auth as auth_routes
 from app.api.routes import camera as camera_routes
 from app.api.routes import config as config_routes
+from app.api.routes import intelligence as intelligence_routes
 from app.api.routes import health, location as location_routes, plugins as plugins_routes, poi as poi_routes, settings as settings_routes, telemetry, wifi as wifi_routes
 from app.api.websocket import router as websocket_router
 from app.core.config import settings
 from app.core.logging_config import configure_logging
 from app.db.database import init_db
+from app.intelligence.engine import IntelligenceEngine
+from app.intelligence.providers.battery_signal import BatterySignalProvider
+from app.intelligence.providers.power_predictions import PowerPredictionProvider
+from app.intelligence.providers.solar_outlook import SolarOutlookSignalProvider
+from app.intelligence.runner import IntelligenceRunner
 from app.plugins.manager import PluginManager
-from app.services import battery_service, configuration_service, history_service, notification_service, power_budget_service
+from app.services import battery_service, configuration_service, history_service, notification_service, power_budget_service, telemetry_service
 from app.telemetry.bus import bus
 
 configure_logging()
 logger = logging.getLogger("vanos.main")
 
 plugin_manager = PluginManager(bus, configuration_service, notification_service)
+
+# Signal/Prediction providers read telemetry the same way
+# PowerBudgetService already does (telemetry_service.latest(domain)) -
+# a future Water/Heating/Door-Sensor plugin adds itself here as one
+# more provider, with zero changes to IntelligenceEngine's own code.
+intelligence_engine = IntelligenceEngine(
+    signal_providers=[
+        BatterySignalProvider(telemetry_service),
+        SolarOutlookSignalProvider(telemetry_service),
+    ],
+    prediction_providers=[
+        PowerPredictionProvider(telemetry_service, history_service),
+    ],
+)
+intelligence_runner = IntelligenceRunner(telemetry_service, intelligence_engine)
 
 
 @asynccontextmanager
@@ -48,9 +69,14 @@ async def lifespan(app: FastAPI):
     await power_budget_service.start()
     logger.info("Power Budget service started")
 
+    intelligence_routes.set_engine(intelligence_engine)
+    await intelligence_runner.start()
+    logger.info("Intelligence engine started")
+
     yield
 
     logger.info("Shutting down")
+    await intelligence_runner.stop()
     await power_budget_service.stop()
     await history_service.stop()
     await battery_service.stop_monitoring()
@@ -83,6 +109,7 @@ app.include_router(poi_routes.router)
 app.include_router(camera_routes.router)
 app.include_router(wifi_routes.router)
 app.include_router(auth_routes.router)
+app.include_router(intelligence_routes.router)
 app.include_router(websocket_router)
 
 

@@ -7,6 +7,7 @@ import UnlockScreen from "./components/UnlockScreen";
 import AppLayout from "./components/Layout/AppLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
 import UpdateBanner from "./components/UpdateBanner";
+import MissionBriefModal from "./components/MissionBrief/MissionBriefModal";
 import Home from "./pages/Home";
 import Energy from "./pages/Energy";
 import Battery from "./pages/Battery";
@@ -76,6 +77,7 @@ function Gate() {
       <TelemetryProvider>
         <BrowserRouter>
           <UpdateBanner />
+          <MissionBriefModal />
           <AppLayout>
             <AppRoutes />
           </AppLayout>
