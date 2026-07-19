@@ -31,6 +31,8 @@ services:
       VANOS_DATABASE_URL: sqlite:///./data/vanos.db
       WEBCAM_DEVICE: ${WEBCAM_DEVICE:-/dev/video0}
       APP_ACCESS_PASSWORD: ${APP_ACCESS_PASSWORD:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AI_RECOMMENDATIONS_MODEL: ${AI_RECOMMENDATIONS_MODEL:-claude-haiku-4-5-20251001}
     restart: unless-stopped
 
   frontend:
