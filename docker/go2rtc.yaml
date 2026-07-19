@@ -15,6 +15,10 @@ streams:
 api:
   listen: ":1984"
   origin: "*"
+  # Lets go2rtc generate its internal links/API calls correctly when
+  # served behind nginx under /camera, rather than assuming it owns
+  # the whole origin - the documented mechanism for exactly this.
+  base_path: "/camera"
 
 webrtc:
   listen: ":8555"

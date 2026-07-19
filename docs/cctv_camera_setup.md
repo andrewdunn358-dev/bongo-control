@@ -4,12 +4,23 @@ Live video from a Tapo C113 via [go2rtc](https://github.com/AlexxIT/go2rtc) —
 confirmed the C113 supports RTSP + ONVIF directly (it's wired, not one
 of the battery-only Tapo models that lack this).
 
-**Important limitation, read this first**: this only works while
-you're on the van's own WiFi, same network as the Pi and the camera.
-WebRTC is peer-to-peer — it needs a direct connection between your
-phone and the Pi, which a Cloudflare Tunnel can't carry (tunnels handle
-HTTP/WebSocket traffic; WebRTC uses direct UDP). There's no remote
-viewing here, by design, not as a bug.
+**On remote access**: go2rtc is proxied through nginx under the same
+origin as the rest of the app (`/camera/`), the same trick that already
+made the dashboard itself work identically on the LAN and through the
+Cloudflare Tunnel. This should mean: real-time WebRTC on the van's own
+WiFi, and an automatic fallback to a slightly-delayed MSE stream when
+accessed remotely (MSE is WebSocket-based, so — unlike raw WebRTC,
+which is peer-to-peer UDP and can't be tunneled — it can traverse the
+same route the dashboard's telemetry already uses).
+
+**Honesty note**: this reverse-proxy setup is verified correct at the
+config level (tested with a real nginx binary and a stand-in upstream,
+confirming the request path go2rtc expects is preserved end-to-end),
+but not against an actual camera/go2rtc instance — no camera exists in
+the environment this was built in. If remote viewing doesn't work in
+practice, check `docker compose logs go2rtc` first; go2rtc's own
+GitHub has open discussion of real-world quirks running it behind a
+reverse proxy, so there may be more to it than the config alone.
 
 ## 1. Create a local Camera Account (Tapo app)
 
@@ -67,11 +78,13 @@ limitation above) and go to **Camera**.
 ## Why go2rtc's own player (an iframe), not a custom video component
 
 go2rtc ships a tested reference player (`stream.html`) that
-automatically tries WebRTC first and falls back to MSE (a
-WebSocket-based streaming mode) if a direct peer-to-peer connection
-can't establish. Reimplementing that fallback logic from scratch with
-raw `RTCPeerConnection` calls would be redoing work go2rtc has already
-solved and tested — the iframe embed uses their code directly instead.
+automatically tries WebRTC first and falls back to MSE if a direct
+peer-to-peer connection can't establish. Reimplementing that fallback
+logic from scratch with raw `RTCPeerConnection` calls would be redoing
+work go2rtc has already solved and tested — the iframe embed uses
+their code directly instead, served same-origin via nginx (`/camera/`)
+so there's no mixed-content issue and the MSE fallback can actually
+reach the outside world through the tunnel.
 
 ## Why `/stream2`, not `/stream1`
 
@@ -85,9 +98,7 @@ viewing it, with no real downside for a "check the van" camera.
 
 - **Blank iframe, dashboard loaded fine**: check `docker compose logs
   go2rtc`. A wrong password/IP shows up there clearly.
-- **Works on WiFi, not remotely**: expected — see the limitation at
-  the top.
-- **Loaded via `https://bongo.yourdomain.com` and camera page shows a
-  warning about HTTPS**: expected — the browser blocks loading
-  `http://` content (go2rtc has no TLS configured) inside an `https://`
-  page. Switch to the local `http://<pi-ip>:8090` address.
+- **Works on WiFi, not remotely**: check the nginx `/camera/` proxy is
+  actually reaching go2rtc — `docker compose logs frontend` for nginx
+  errors, and confirm go2rtc's `base_path: /camera` in
+  `docker/go2rtc.yaml` matches nginx's location block.
