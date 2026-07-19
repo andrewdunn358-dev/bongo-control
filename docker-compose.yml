@@ -30,6 +30,7 @@ services:
       VANOS_ENVIRONMENT: production
       VANOS_DATABASE_URL: sqlite:///./data/vanos.db
       WEBCAM_DEVICE: ${WEBCAM_DEVICE:-/dev/video0}
+      APP_ACCESS_PASSWORD: ${APP_ACCESS_PASSWORD:-}
     restart: unless-stopped
 
   frontend:
