@@ -149,21 +149,24 @@ export default function Home() {
 
       <section className="vehicle-panel min-h-[40vh] rounded-[2.4rem] p-5 sm:p-7 xl:p-9">
         <div className="grid min-h-[34vh] gap-7 xl:grid-cols-[1.05fr_0.95fr] xl:items-stretch">
-          <div className="flex flex-col justify-between gap-8">
-            <div>
+          <div className="flex min-w-0 flex-col justify-between gap-8">
+            <div className="min-w-0">
               <div className="flex items-center gap-3 text-[0.7rem] font-bold uppercase tracking-[0.28em] text-white/42">
                 <Gauge size={15} className="text-battery" /> SIT REP
               </div>
               <motion.div
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mt-7 text-7xl font-semibold leading-none tracking-[-0.09em] text-white sm:text-8xl xl:text-9xl"
+                className="mt-7 break-words text-4xl font-semibold leading-none tracking-[-0.06em] text-white sm:text-6xl md:text-7xl xl:text-9xl xl:tracking-[-0.09em]"
               >
                 {sitRep.state}
               </motion.div>
-              <div className="mt-5 flex items-center gap-3 text-xl font-medium text-white/62 md:text-2xl">
-                <span className="h-3 w-3 rounded-full" style={{ backgroundColor: sitRepColor, boxShadow: `0 0 22px ${sitRepColor}` }} />
-                {sitRep.line}
+              <div className="mt-5 flex items-start gap-3 text-xl font-medium text-white/62 md:text-2xl">
+                <span
+                  className="mt-2 h-3 w-3 shrink-0 rounded-full"
+                  style={{ backgroundColor: sitRepColor, boxShadow: `0 0 22px ${sitRepColor}` }}
+                />
+                <span className="min-w-0 flex-1 break-words">{sitRep.line}</span>
               </div>
             </div>
 
@@ -230,7 +233,7 @@ export default function Home() {
             <div>
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="font-mono text-7xl font-semibold leading-none tracking-[-0.09em] text-white tabular-nums">
+                  <div className="break-words font-mono text-5xl font-semibold leading-none tracking-[-0.06em] text-white tabular-nums sm:text-6xl md:text-7xl">
                     {solar ? <AnimatedNumber value={solar.watts} decimals={0} /> : "—"}
                   </div>
                   <div className="mt-2 text-xl font-semibold uppercase tracking-[0.18em] text-solar">Watts PV</div>
