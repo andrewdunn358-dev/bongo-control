@@ -3,53 +3,45 @@ import type { ReactNode } from "react";
 
 export type CardAccent = "solar" | "battery" | "alert" | "neutral";
 
-// Softer than before (was /60) - per design feedback the accent border
-// was competing with content rather than quietly signaling domain.
-const accentBorder: Record<CardAccent, string> = {
-  solar: "border-t-solar/35",
-  battery: "border-t-battery/35",
-  alert: "border-t-alert/50", // alert stays a touch stronger - it should be noticed
-  neutral: "border-t-transparent",
+const accentClass: Record<CardAccent, string> = {
+  solar: "from-[#FFB000]/18 via-white/[0.03] to-transparent border-[#FFB000]/25",
+  battery: "from-[#00C2A8]/18 via-white/[0.03] to-transparent border-[#00C2A8]/25",
+  alert: "from-[#FF4B55]/20 via-white/[0.03] to-transparent border-[#FF4B55]/30",
+  neutral: "from-white/[0.06] via-white/[0.025] to-transparent border-white/[0.08]",
 };
 
 interface CardProps {
-  /** Eyebrow label — short, e.g. "POWER BUDGET". Keep to 1-3 words. */
   label?: string;
-  /** Optional icon rendered next to the label. */
   icon?: ReactNode;
   accent?: CardAccent;
   className?: string;
   children: ReactNode;
-  /** Stagger index for entrance animation when several cards mount together. */
   index?: number;
+  compact?: boolean;
 }
 
-/**
- * The base card every dashboard widget is built on. A top accent border
- * signals the card's domain (solar/battery) without relying on icon
- * color alone — helps at a glance and for accessibility.
- */
-export default function Card({ label, icon, accent = "neutral", className = "", children, index = 0 }: CardProps) {
+export default function Card({ label, icon, accent = "neutral", className = "", children, index = 0, compact = false }: CardProps) {
   const reduceMotion = useReducedMotion();
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: reduceMotion ? 0 : 10 }}
+    <motion.section
+      initial={{ opacity: 0, y: reduceMotion ? 0 : 12 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={reduceMotion ? undefined : { y: -3, scale: 1.006 }}
-      transition={{ duration: 0.35, delay: index * 0.05, ease: [0.16, 1, 0.3, 1] }}
-      className={`rounded-xl2 border-t-2 bg-surface-card shadow-card transition-shadow duration-300 hover:shadow-lg ${accentBorder[accent]} ${className}`}
-      style={{ willChange: "transform" }}
+      whileHover={reduceMotion ? undefined : { y: -2 }}
+      transition={{ duration: 0.32, delay: index * 0.035, ease: [0.16, 1, 0.3, 1] }}
+      className={`relative overflow-hidden rounded-[2rem] border bg-[#151A21]/88 shadow-[0_20px_55px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-sm ${accentClass[accent]} ${className}`}
     >
-      <div className="p-7">
+      <div className={`absolute inset-0 bg-gradient-to-br ${accentClass[accent]} opacity-80`} />
+      <div className="absolute -right-16 -top-20 h-44 w-44 rounded-full bg-white/[0.035] blur-2xl" />
+      <div className={`relative ${compact ? "p-5" : "p-5 sm:p-6 xl:p-7"}`}>
         {label && (
-          <div className="mb-4 flex items-center gap-2 text-text-secondary">
-            {icon}
-            <span className="text-[11px] font-semibold uppercase tracking-widest">{label}</span>
+          <div className="mb-5 flex items-center gap-2 text-text-secondary">
+            {icon && <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/[0.06] text-[#00C2A8] ring-1 ring-white/[0.06]">{icon}</span>}
+            <span className="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-white/48">{label}</span>
           </div>
         )}
         {children}
       </div>
-    </motion.div>
+    </motion.section>
   );
 }
