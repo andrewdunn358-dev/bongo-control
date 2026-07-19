@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Video } from "lucide-react";
 import Card from "../components/Cards/Card";
+import { getStoredAppToken } from "../services/api";
 
 // Auto-refreshing snapshot rather than a continuous multipart stream.
 // Multipart/x-mixed-replace (the standard way to do continuous MJPEG
@@ -28,7 +29,16 @@ export default function Camera() {
     cancelledRef.current = false;
 
     const tick = () => {
-      const url = `${SNAPSHOT_URL}?t=${Date.now()}`;
+      // <img> tags cannot send custom headers at all, so the usual
+      // X-App-Token header (attached automatically to every request()
+      // call elsewhere in this app) never reaches this one - the
+      // backend's require_app_token dependency was specifically built
+      // to also accept the token via a query param for exactly this
+      // route. Without this, the camera would 401 forever once a
+      // password is configured.
+      const token = getStoredAppToken();
+      const tokenParam = token ? `&token=${encodeURIComponent(token)}` : "";
+      const url = `${SNAPSHOT_URL}?t=${Date.now()}${tokenParam}`;
       const img = new Image();
       img.onload = () => {
         if (!cancelledRef.current) setDisplayUrl(url);

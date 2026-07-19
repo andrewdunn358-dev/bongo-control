@@ -9,9 +9,30 @@
 // build-time configuration and nothing that can point somewhere
 // unreachable when offline.
 const API_BASE = "";
+const TOKEN_STORAGE_KEY = "bongo-app-token";
+
+export function getStoredAppToken(): string | null {
+  try {
+    return localStorage.getItem(TOKEN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredAppToken(token: string): void {
+  try {
+    localStorage.setItem(TOKEN_STORAGE_KEY, token);
+  } catch {
+    // best effort - if storage is unavailable, the unlock just won't persist across reloads
+  }
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, init);
+  const token = getStoredAppToken();
+  const headers = new Headers(init?.headers);
+  if (token) headers.set("X-App-Token", token);
+
+  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
   if (!res.ok) {
     throw new Error(`API request failed: ${path} (${res.status})`);
   }
@@ -66,6 +87,16 @@ export const api = {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ value }),
+      }),
+  },
+
+  auth: {
+    status: () => request<{ required: boolean }>("/api/auth/status"),
+    unlock: (password: string) =>
+      request<{ token: string }>("/api/auth/unlock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
       }),
   },
 

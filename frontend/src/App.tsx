@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { TelemetryProvider } from "./context/TelemetryContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { LocationProvider } from "./context/LocationContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import UnlockScreen from "./components/UnlockScreen";
 import AppLayout from "./components/Layout/AppLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
 import UpdateBanner from "./components/UpdateBanner";
@@ -58,19 +60,37 @@ function AppRoutes() {
   );
 }
 
+function Gate() {
+  const { ready, unlocked } = useAuth();
+
+  // Avoid a flash of the unlock screen while we're still checking
+  // whether a password is even configured - most existing deployments
+  // have none set, and briefly showing a lock screen they'll never
+  // need would be a confusing regression for them.
+  if (!ready) return null;
+
+  if (!unlocked) return <UnlockScreen />;
+
+  return (
+    <LocationProvider>
+      <TelemetryProvider>
+        <BrowserRouter>
+          <UpdateBanner />
+          <AppLayout>
+            <AppRoutes />
+          </AppLayout>
+        </BrowserRouter>
+      </TelemetryProvider>
+    </LocationProvider>
+  );
+}
+
 export default function App() {
   return (
     <ThemeProvider>
-      <LocationProvider>
-        <TelemetryProvider>
-          <BrowserRouter>
-            <UpdateBanner />
-            <AppLayout>
-              <AppRoutes />
-            </AppLayout>
-          </BrowserRouter>
-        </TelemetryProvider>
-      </LocationProvider>
+      <AuthProvider>
+        <Gate />
+      </AuthProvider>
     </ThemeProvider>
   );
 }

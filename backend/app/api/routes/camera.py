@@ -9,12 +9,13 @@ dependent experience.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 
+from app.api.routes.auth import require_app_token
 from app.services.camera_service import CameraUnavailableError, camera_service
 
-router = APIRouter(prefix="/api/camera", tags=["camera"])
+router = APIRouter(prefix="/api/camera", tags=["camera"], dependencies=[Depends(require_app_token)])
 
 
 @router.get("/snapshot")
