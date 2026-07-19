@@ -11,6 +11,9 @@ interface PoiResult {
   longitude: number;
   opening_hours: string | null;
   fee: string | null;
+  address: string | null;
+  phone: string | null;
+  website: string | null;
 }
 
 // Colors match the app's existing design tokens where a category has an
@@ -24,6 +27,40 @@ const CATEGORY_META: Record<string, { label: string; color: string }> = {
   supermarket: { label: "Supermarket", color: "#c9cdd6" },
   fuel: { label: "Fuel", color: "#ff6b6a" },
 };
+
+function escapeHtml(value: string): string {
+  const div = document.createElement("div");
+  div.textContent = value;
+  return div.innerHTML;
+}
+
+function directionsUrl(lat: number, lon: number): string {
+  // A plain navigation deep link, not a Places API call - opens the
+  // device's native Maps app on Android/iOS, or Google Maps on the web
+  // otherwise. No API key needed, same category of "hand off to an
+  // external app" as the existing Park4Night link.
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
+}
+
+function buildPopupHtml(p: PoiResult, categoryLabel: string): string {
+  const title = escapeHtml(p.name ?? categoryLabel);
+  const lines: string[] = [`<strong>${title}</strong>`, categoryLabel];
+
+  if (p.address) lines.push(escapeHtml(p.address));
+  if (p.opening_hours) lines.push(escapeHtml(p.opening_hours));
+  if (p.fee) lines.push(`Fee: ${escapeHtml(p.fee)}`);
+  if (p.phone) lines.push(`<a href="tel:${escapeHtml(p.phone)}">${escapeHtml(p.phone)}</a>`);
+  if (p.website) {
+    const href = /^https?:\/\//.test(p.website) ? p.website : `https://${p.website}`;
+    lines.push(`<a href="${escapeHtml(href)}" target="_blank" rel="noreferrer">Website</a>`);
+  }
+
+  lines.push(
+    `<a href="${directionsUrl(p.latitude, p.longitude)}" target="_blank" rel="noreferrer" style="color:#4a9eea">Get Directions</a>`
+  );
+
+  return lines.join("<br/>");
+}
 
 function markerIcon(color: string): L.DivIcon {
   return L.divIcon({
@@ -115,11 +152,7 @@ export default function NearbyMap() {
       .forEach((p) => {
         const meta = CATEGORY_META[p.category];
         if (!meta) return;
-        L.marker([p.latitude, p.longitude], { icon: markerIcon(meta.color) })
-          .bindPopup(
-            `<strong>${p.name ?? meta.label}</strong><br/>${meta.label}${p.opening_hours ? `<br/>${p.opening_hours}` : ""}`
-          )
-          .addTo(layer);
+        L.marker([p.latitude, p.longitude], { icon: markerIcon(meta.color) }).bindPopup(buildPopupHtml(p, meta.label)).addTo(layer);
       });
   }, [pois, activeCategories]);
 

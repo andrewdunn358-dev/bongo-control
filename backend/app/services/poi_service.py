@@ -68,6 +68,35 @@ def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * r * math.asin(math.sqrt(a))
 
 
+def _build_address(tags: dict[str, str]) -> str | None:
+    """OSM's structured address tags (housenumber/street/city/postcode)
+    aren't present on every entry - many campsites and dump stations are
+    mapped with just a location and a name. Combines whatever parts
+    exist rather than requiring all of them.
+    """
+    if tags.get("addr:full"):
+        return tags["addr:full"]
+
+    line1 = " ".join(part for part in [tags.get("addr:housenumber"), tags.get("addr:street")] if part)
+    parts = [p for p in [line1, tags.get("addr:city"), tags.get("addr:postcode")] if p]
+    return ", ".join(parts) if parts else None
+
+
+def _build_poi_dict(osm_id: int, category: str, latitude: float, longitude: float, tags: dict[str, str]) -> dict[str, Any]:
+    return {
+        "id": osm_id,
+        "category": category,
+        "name": tags.get("name"),
+        "latitude": latitude,
+        "longitude": longitude,
+        "opening_hours": tags.get("opening_hours"),
+        "fee": tags.get("fee"),
+        "address": _build_address(tags),
+        "phone": tags.get("phone") or tags.get("contact:phone"),
+        "website": tags.get("website") or tags.get("contact:website"),
+    }
+
+
 class PoiService:
     async def search_nearby(
         self, latitude: float, longitude: float, radius_m: int, categories: list[str]
@@ -139,6 +168,9 @@ class PoiService:
                     "longitude": r.longitude,
                     "opening_hours": r.opening_hours,
                     "fee": r.fee,
+                    "address": r.address,
+                    "phone": r.phone,
+                    "website": r.website,
                 }
                 for r in rows
                 if _haversine_m(latitude, longitude, r.latitude, r.longitude) <= radius_m
@@ -160,6 +192,9 @@ class PoiService:
                         longitude=r["longitude"],
                         opening_hours=r["opening_hours"],
                         fee=r["fee"],
+                        address=r["address"],
+                        phone=r["phone"],
+                        website=r["website"],
                         cached_at=now,
                     )
                 )
@@ -196,17 +231,7 @@ class PoiService:
             if _haversine_m(latitude, longitude, element["lat"], element["lon"]) > radius_m:
                 continue
 
-            results.append(
-                {
-                    "id": element["id"],
-                    "category": category,
-                    "name": tags.get("name"),
-                    "latitude": element["lat"],
-                    "longitude": element["lon"],
-                    "opening_hours": tags.get("opening_hours"),
-                    "fee": tags.get("fee"),
-                }
-            )
+            results.append(_build_poi_dict(element["id"], category, element["lat"], element["lon"], tags))
         return results
 
     async def _query_with_failover(self, query: str) -> dict[str, Any]:

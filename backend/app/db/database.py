@@ -40,7 +40,32 @@ def init_db() -> None:
     """
     from app.db import models  # noqa: F401 - import registers models with Base.metadata
 
+    _migrate_poi_cache_schema()
     Base.metadata.create_all(bind=engine)
+
+
+def _migrate_poi_cache_schema() -> None:
+    """create_all() only creates tables that don't exist yet - it never
+    adds new columns to a table already on disk. Adding address/phone/
+    website to CachedPoi means any existing deployment's SQLite file has
+    an old-shaped cached_pois table that would fail on the first insert
+    referencing those columns.
+
+    There's no migration framework in this project yet, and building one
+    just for this would be overkill: cached_pois is disposable, re-
+    fetchable data (30-day TTL against a free public API), not
+    irreplaceable user data. So the pragmatic fix is: detect the old
+    schema and drop it, forcing one re-fetch from Overpass rather than
+    erroring forever. poi_fetch_log is dropped alongside it - keeping a
+    fetch-log entry pointing at a wiped POI table would make Nearby
+    think an area is already covered when it isn't.
+    """
+    with engine.connect() as conn:
+        existing_columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(cached_pois)").fetchall()}
+        if existing_columns and "address" not in existing_columns:
+            conn.exec_driver_sql("DROP TABLE IF EXISTS cached_pois")
+            conn.exec_driver_sql("DROP TABLE IF EXISTS poi_fetch_log")
+            conn.commit()
 
 
 def get_db() -> Session:  # pragma: no cover - simple DI helper

@@ -49,6 +49,13 @@ class CachedPoi(Base):
     longitude: Mapped[float] = mapped_column(Float, index=True)
     opening_hours: Mapped[str | None] = mapped_column(String(255), nullable=True)
     fee: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Not every OSM entry has these — many campsites/dump stations are
+    # mapped with just a location and a name. Shown when present, left
+    # out of the UI entirely when not, same "don't invent it" rule as
+    # everywhere else in this app.
+    address: Mapped[str | None] = mapped_column(String(400), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    website: Mapped[str | None] = mapped_column(String(400), nullable=True)
     cached_at: Mapped[float] = mapped_column(Float)
 
 

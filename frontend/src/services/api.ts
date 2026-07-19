@@ -102,6 +102,9 @@ export const api = {
           longitude: number;
           opening_hours: string | null;
           fee: string | null;
+          address: string | null;
+          phone: string | null;
+          website: string | null;
         }[];
         from_cache: boolean;
         cached_at: number | null;
