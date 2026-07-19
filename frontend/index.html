@@ -6,6 +6,28 @@
     <meta name="theme-color" content="#0a0e14" />
     <meta name="format-detection" content="telephone=no" />
 
+    <!-- Applies the light/dark class before first paint - has to run
+         here, synchronously, not after React mounts, or there'd be a
+         visible flash of the wrong theme on every load. Must mirror
+         ThemeContext's exact default ("dark", not "system" - this app
+         has always been dark-only, so an existing user with no stored
+         preference shouldn't suddenly see light mode just because
+         their OS happens to prefer it) and resolution logic exactly,
+         or the two would disagree and cause the very flash this exists
+         to prevent. -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("bongo-theme");
+          var mode = stored === "light" || stored === "dark" || stored === "system" ? stored : "dark";
+          var isLight = mode === "light" || (mode === "system" && window.matchMedia("(prefers-color-scheme: light)").matches);
+          if (isLight) document.documentElement.classList.add("light");
+        } catch (e) {
+          // localStorage unavailable - fall through to the dark default, same as ThemeContext would.
+        }
+      })();
+    </script>
+
     <!-- iOS installed-app behavior: standalone (no Safari chrome), themed status bar, home screen name/icon -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

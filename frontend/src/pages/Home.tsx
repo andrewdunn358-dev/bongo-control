@@ -147,6 +147,10 @@ export default function Home() {
         </div>
       </header>
 
+      <Card label="Energy Flow" icon={<Zap size={16} />} accent="battery" index={0}>
+        <PowerFlowDiagram />
+      </Card>
+
       <section className="vehicle-panel min-h-[40vh] rounded-[2.4rem] p-5 sm:p-7 xl:p-9">
         <div className="grid min-h-[34vh] gap-7 xl:grid-cols-[1.05fr_0.95fr] xl:items-stretch">
           <div className="flex min-w-0 flex-col justify-between gap-8">
@@ -290,14 +294,9 @@ export default function Home() {
         </Card>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1.45fr_0.75fr]">
-        <Card label="Energy Flow" icon={<Zap size={16} />} accent="battery" index={4}>
-          <PowerFlowDiagram />
-        </Card>
-        <div className="grid gap-5">
-          <PowerBudgetCard index={5} />
-          <RecentEventsCard index={6} />
-        </div>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <PowerBudgetCard index={5} />
+        <RecentEventsCard index={6} />
       </div>
     </div>
   );

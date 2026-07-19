@@ -2,14 +2,56 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Mirrors frontend/tailwind.config.js and frontend/src/theme/colors.ts -
-   plain CSS can't import those directly, so these three copies must be
-   kept in sync by hand when the palette changes. */
+/* Theme variables — dark is the default (no class needed on <html>),
+   .light overrides every value. This is the single source every
+   Tailwind color token in tailwind.config.js resolves through, via
+   rgb(var(--color-x) / <alpha-value>) - which is also why these are
+   space-separated RGB triplets ("237 239 243") rather than hex strings:
+   Tailwind needs to inject an alpha channel into them for opacity
+   modifiers (bg-battery/15 etc, used 20+ times across this app) to
+   keep working once the underlying value becomes swappable.
+
+   Domain accent colors (solar/battery/alert/success) are intentionally
+   IDENTICAL in both themes - kept for brand consistency rather than a
+   fully separate light-mode accent palette, the same approach most
+   products take. One known, accepted tradeoff: solar amber as *text*
+   directly on the light theme's white cards has noticeably lower
+   contrast than on dark - acceptable for now since it's mostly used on
+   tinted backgrounds/icon chips, not as body text, but worth revisiting
+   if it proves a real problem in practice. */
 :root {
-  --color-base: #0b0e12;
-  --color-base-deep: #080a0d;
-  --color-battery: #00c2a8;
-  --color-solar: #ffb000;
+  --color-base: 11 14 18;
+  --color-surface-raised: 16 21 29;
+  --color-surface-card: 21 26 33;
+  --color-surface-card-hover: 27 34 46;
+  --color-text-primary: 237 239 243;
+  --color-text-secondary: 138 147 166;
+  --color-text-muted: 91 100 114;
+  --color-hairline: 255 255 255;
+
+  --color-solar: 255 176 0;
+  --color-solar-dim: 122 90 44;
+  --color-battery: 0 194 168;
+  --color-battery-dim: 43 110 104;
+  --color-alert: 255 75 85;
+  --color-success: 55 214 122;
+
+  /* Used only by the body background gradient below - not a Tailwind
+     token, just this file's own decorative use. */
+  --color-base-deep: 8 10 13;
+}
+
+:root.light {
+  --color-base: 243 244 246;
+  --color-surface-raised: 233 235 238;
+  --color-surface-card: 255 255 255;
+  --color-surface-card-hover: 241 242 244;
+  --color-text-primary: 20 24 31;
+  --color-text-secondary: 91 100 114;
+  --color-text-muted: 138 147 166;
+  --color-hairline: 20 24 31;
+
+  --color-base-deep: 233 235 238;
 }
 
 html,
@@ -19,7 +61,7 @@ body,
 }
 
 html {
-  background: var(--color-base);
+  background: rgb(var(--color-base));
 }
 
 body {
@@ -27,15 +69,15 @@ body {
   margin: 0;
   overflow-x: hidden;
   background:
-    radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--color-battery) 14%, transparent), transparent 30rem),
-    radial-gradient(circle at 88% 12%, color-mix(in srgb, var(--color-solar) 8%, transparent), transparent 24rem),
-    linear-gradient(180deg, var(--color-base) 0%, var(--color-base-deep) 100%);
+    radial-gradient(circle at 18% 0%, color-mix(in srgb, rgb(var(--color-battery)) 14%, transparent), transparent 30rem),
+    radial-gradient(circle at 88% 12%, color-mix(in srgb, rgb(var(--color-solar)) 8%, transparent), transparent 24rem),
+    linear-gradient(180deg, rgb(var(--color-base)) 0%, rgb(var(--color-base-deep)) 100%);
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--color-battery) 35%, transparent);
+  background: color-mix(in srgb, rgb(var(--color-battery)) 35%, transparent);
   color: #ffffff;
 }
 
@@ -44,7 +86,7 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-battery);
+  outline: 2px solid rgb(var(--color-battery));
   outline-offset: 3px;
   border-radius: 12px;
 }
@@ -66,7 +108,7 @@ body {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(120deg, color-mix(in srgb, var(--color-battery) 12%, transparent), transparent 35%, rgba(255, 255, 255, 0.04));
+  background: linear-gradient(120deg, color-mix(in srgb, rgb(var(--color-battery)) 12%, transparent), transparent 35%, rgba(255, 255, 255, 0.04));
   opacity: 0.65;
 }
 
@@ -85,7 +127,7 @@ body {
 
 .soft-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--color-battery) 40%, transparent) transparent;
+  scrollbar-color: color-mix(in srgb, rgb(var(--color-battery)) 40%, transparent) transparent;
 }
 
 .soft-scrollbar::-webkit-scrollbar {
@@ -95,7 +137,7 @@ body {
 
 .soft-scrollbar::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: color-mix(in srgb, var(--color-battery) 35%, transparent);
+  background: color-mix(in srgb, rgb(var(--color-battery)) 35%, transparent);
 }
 
 /* Power Flow diagram: particles travel along an SVG path via offset-path,
@@ -121,10 +163,10 @@ body {
 @keyframes charge-breathe {
   0%,
   100% {
-    box-shadow: 0 0 0 color-mix(in srgb, var(--color-battery) 0%, transparent);
+    box-shadow: 0 0 0 color-mix(in srgb, rgb(var(--color-battery)) 0%, transparent);
   }
   50% {
-    box-shadow: 0 0 28px color-mix(in srgb, var(--color-battery) 32%, transparent);
+    box-shadow: 0 0 28px color-mix(in srgb, rgb(var(--color-battery)) 32%, transparent);
   }
 }
 
@@ -132,11 +174,54 @@ body {
   animation: charge-breathe 2.8s ease-in-out infinite;
 }
 
+/* Energy Flow diagram v2 (flexbox layout, luminous treatment) */
+@keyframes flow-connector-v {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(200%);
+  }
+}
+
+@keyframes flow-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes flow-liquid {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes flow-aurora {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
 /* Respect reduced-motion for the CSS offset-path flow animations
-   (Framer Motion respects this automatically for its own animations). */
+   (Framer Motion respects this automatically for its own animations).
+   These target inline style="animation:..." attributes - a stylesheet
+   rule with !important is the one thing that can override an inline
+   style for this property, which is why each element needs its own
+   class here rather than relying on the media query alone. */
 @media (prefers-reduced-motion: reduce) {
   .flow-dot,
-  .charging-glow {
+  .charging-glow,
+  .flow-connector-anim,
+  .flow-sun-rays-anim,
+  .flow-liquid-anim,
+  .flow-aurora-anim {
     animation: none !important;
   }
 }

@@ -4,37 +4,96 @@ import { useTelemetry } from "../../context/TelemetryContext";
 import AnimatedNumber from "../Cards/AnimatedNumber";
 import { colors } from "../../theme/colors";
 
-// Path geometry (viewBox 0 0 520 200): Solar -> Leisure Battery -> Van Loads
-// -> External Battery (stub, not yet installed). Dots travel along these
-// paths using CSS `offset-path`, which is the right tool for continuous
-// looping motion — cheaper and smoother than driving it frame-by-frame
-// from React/Framer Motion. "MPPT" is a label on the first path, not a
-// separate telemetry-bearing node — there's no MPPT-specific data yet.
-const SOLAR_TO_BATTERY_PATH = "M 65 58 C 130 58, 150 108, 208 108";
-const BATTERY_TO_LOAD_PATH = "M 228 108 C 280 108, 300 150, 343 150";
-// Dashed, no particles — External Battery isn't implemented yet
-// (Milestone 6). Shown honestly as "not installed" rather than faked.
-const LOAD_TO_EXTERNAL_PATH = "M 363 150 C 400 150, 420 108, 468 108";
+/**
+ * Rebuilt on a flexbox row/column layout instead of percentage-based
+ * absolute positioning over a fixed viewBox. The old approach tuned
+ * percentages against one assumed container width - the moment this
+ * sat inside a narrower card, fixed-size text labels had nowhere to
+ * go and started overlapping their neighbors. Flex items can't do
+ * that: each node gets its own box, sized by its own content, laid
+ * out in document flow. Stacks vertically on narrow screens,
+ * horizontally on wide ones - the connector between nodes just
+ * rotates with it.
+ */
 
-function FlowDots({ path, color, speedSeconds, reverse, count }: { path: string; color: string; speedSeconds: number; reverse: boolean; count: number }) {
+function Connector({ color, active, reverse }: { color: string; active: boolean; reverse: boolean }) {
   return (
-    <>
-      {Array.from({ length: count }).map((_, i) => (
+    <div className="relative mx-auto h-8 w-1 shrink-0 overflow-hidden rounded-full bg-white/[0.06] lg:mx-0 lg:h-1 lg:w-full lg:flex-1">
+      {active && (
         <div
-          key={i}
-          className="flow-dot absolute h-2 w-2 rounded-full"
+          className="flow-connector-anim absolute inset-x-0 top-0 h-10 w-full lg:inset-y-0 lg:left-0 lg:h-full lg:w-10"
           style={{
-            backgroundColor: color,
-            offsetPath: `path("${path}")`,
-            offsetRotate: "0deg",
-            animation: `flow-travel ${speedSeconds}s linear infinite`,
-            animationDelay: `${(i * speedSeconds) / count}s`,
-            animationDirection: reverse ? "reverse" : "normal",
-            boxShadow: `0 0 14px ${color}`,
+            background: `linear-gradient(${reverse ? "0deg" : "180deg"}, transparent, ${color}, transparent)`,
+            animation: `flow-connector-v 1.6s linear infinite`,
           }}
         />
-      ))}
-    </>
+      )}
+    </div>
+  );
+}
+
+function SunRays({ spinning }: { spinning: boolean }) {
+  return (
+    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+      <div
+        className="flow-sun-rays-anim h-full w-full rounded-full"
+        style={{
+          background: `conic-gradient(${colors.solar}55 0deg 18deg, transparent 18deg 45deg, ${colors.solar}55 45deg 63deg, transparent 63deg 90deg, ${colors.solar}55 90deg 108deg, transparent 108deg 135deg, ${colors.solar}55 135deg 153deg, transparent 153deg 180deg, ${colors.solar}55 180deg 198deg, transparent 198deg 225deg, ${colors.solar}55 225deg 243deg, transparent 243deg 270deg, ${colors.solar}55 270deg 288deg, transparent 288deg 315deg, ${colors.solar}55 315deg 333deg, transparent 333deg 360deg)`,
+          maskImage: "radial-gradient(circle, transparent 58%, #000 60%, #000 78%, transparent 80%)",
+          WebkitMaskImage: "radial-gradient(circle, transparent 58%, #000 60%, #000 78%, transparent 80%)",
+          animation: spinning ? "flow-spin 16s linear infinite" : undefined,
+        }}
+      />
+    </div>
+  );
+}
+
+function BatteryLiquid({ pct, charging }: { pct: number; charging: boolean }) {
+  const fillHeight = Math.max(6, Math.min(100, pct));
+  return (
+    <div className="pointer-events-none absolute inset-1 overflow-hidden rounded-full">
+      <div
+        className="flow-liquid-anim absolute inset-x-[-25%] bottom-0 rounded-[45%]"
+        style={{
+          height: `${fillHeight}%`,
+          background: `linear-gradient(180deg, ${colors.battery}55, ${colors.battery}22)`,
+          animation: charging ? "flow-liquid 4s ease-in-out infinite" : undefined,
+        }}
+      />
+    </div>
+  );
+}
+
+interface NodeProps {
+  icon: React.ReactNode;
+  value: React.ReactNode;
+  label: string;
+  sublabel?: string;
+  glowColor: string;
+  decoration?: React.ReactNode;
+  animatePulse?: boolean;
+}
+
+function Node({ icon, value, label, sublabel, glowColor, decoration, animatePulse }: NodeProps) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col items-center gap-2 text-center lg:gap-2.5">
+      <motion.div
+        className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-full border lg:h-20 lg:w-20"
+        style={{ borderColor: `${glowColor}40`, background: `${glowColor}1f` }}
+        animate={animatePulse ? { boxShadow: [`0 0 0px ${glowColor}00`, `0 0 26px ${glowColor}55`, `0 0 0px ${glowColor}00`] } : {}}
+        transition={{ duration: 2.6, repeat: animatePulse ? Infinity : 0, ease: "easeInOut" }}
+      >
+        {decoration}
+        <span className="relative z-10">{icon}</span>
+      </motion.div>
+      <div className="min-w-0 break-words font-mono text-xl font-semibold leading-none tracking-[-0.03em] text-white sm:text-2xl lg:text-3xl">
+        {value}
+      </div>
+      <div className="min-w-0 break-words text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">
+        {label}
+        {sublabel && <span className="block text-white/60">{sublabel}</span>}
+      </div>
+    </div>
   );
 }
 
@@ -44,92 +103,76 @@ export default function PowerFlowDiagram() {
   const battery = state.battery?.payload;
   const loadWatts = state.energy?.payload.load_watts ?? 0;
   const charging = battery?.charging ?? false;
-
-  // Dot count/speed communicates magnitude — more watts, more/faster dots.
-  const solarCount = solarWatts > 5 ? Math.min(4, Math.max(1, Math.round(solarWatts / 90))) : 0;
-  const loadCount = loadWatts > 5 ? Math.min(4, Math.max(1, Math.round(loadWatts / 30))) : 0;
-  const solarSpeed = solarWatts > 0 ? Math.max(1.2, 4 - solarWatts / 120) : 4;
-  const loadSpeed = loadWatts > 0 ? Math.max(1.2, 4 - loadWatts / 60) : 4;
+  const batteryPct = battery?.soc_pct ?? (battery ? Math.min(100, Math.max(0, ((battery.voltage - 11.8) / (14.4 - 11.8)) * 100)) : 0);
 
   return (
-    <div className="relative min-h-[260px] overflow-hidden rounded-[1.75rem] border border-white/[0.06] bg-base/55 px-2 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_42%_50%,rgba(0,194,168,0.14),transparent_28rem)]" />
-      <svg viewBox="0 0 520 200" className="relative h-auto w-full" aria-hidden="true">
-        <path d={SOLAR_TO_BATTERY_PATH} fill="none" stroke="rgba(0,194,168,0.22)" strokeWidth={3} />
-        <path d={BATTERY_TO_LOAD_PATH} fill="none" stroke="rgba(255,255,255,0.16)" strokeWidth={3} />
-        <path d={LOAD_TO_EXTERNAL_PATH} fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth={2} strokeDasharray="4 5" />
-      </svg>
-
-      <div className="pointer-events-none absolute inset-0">
-        {solarCount > 0 && <FlowDots path={SOLAR_TO_BATTERY_PATH} color={colors.solar} speedSeconds={solarSpeed} reverse={false} count={solarCount} />}
-        {loadCount > 0 && (
-          <FlowDots path={BATTERY_TO_LOAD_PATH} color={colors.battery} speedSeconds={loadSpeed} reverse={!charging} count={loadCount} />
-        )}
-      </div>
-
-      {/* MPPT — a label on the path, not a data node (no MPPT-specific telemetry exists yet) */}
-      <div className="absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border border-white/[0.08] bg-surface-card/85 px-3 py-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.24)]" style={{ left: "26%", top: "38%" }}>
-        <Cpu size={11} className="text-white/38" />
-        <span className="text-[9px] font-bold uppercase tracking-[0.22em] text-white/42">MPPT</span>
-      </div>
-
-      {/* Solar */}
-      <div className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5" style={{ left: "12.5%", top: "29%" }}>
-        <div className="rounded-full border border-solar/25 bg-solar/15 p-4 shadow-[0_0_28px_rgba(255,176,0,0.16)]">
-          <Sun size={24} className="text-solar" />
-        </div>
-        <span className="font-mono text-2xl font-semibold tabular-nums text-white md:text-3xl">
-          <AnimatedNumber value={solarWatts} decimals={0} suffix="W" />
-        </span>
-        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/38">Solar</span>
-      </div>
-
-      {/* Leisure Battery - the hero node, with a gentle glow while charging */}
-      <div className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5" style={{ left: "40%", top: "54%" }}>
-        <motion.div
-          className="rounded-full border border-battery/25 bg-battery/15 p-5 shadow-[0_0_34px_rgba(0,194,168,0.18)]"
-          animate={charging ? { boxShadow: ["0 0 0px rgba(0,194,168,0)", "0 0 22px rgba(0,194,168,0.35)", "0 0 0px rgba(0,194,168,0)"] } : {}}
-          transition={{ duration: 2.5, repeat: charging ? Infinity : 0, ease: "easeInOut" }}
-        >
-          <BatteryMedium size={30} className="text-battery" />
-        </motion.div>
-        <span className="font-mono text-3xl font-semibold tabular-nums text-white md:text-4xl">
-          {battery ? (
-            battery.soc_pct !== null ? (
-              <AnimatedNumber value={battery.soc_pct} decimals={0} suffix="%" />
-            ) : (
-              <AnimatedNumber value={battery.voltage} decimals={2} suffix="V" />
-            )
-          ) : (
-            "—"
-          )}
-        </span>
-        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/38">
-          Leisure Battery · {charging ? "Charging" : "Discharging"}
-        </span>
-      </div>
-
-      {/* Van Loads */}
-      <div className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1.5" style={{ left: "66%", top: "75%" }}>
-        <div className="rounded-full border border-white/[0.1] bg-white/[0.07] p-4">
-          <HomeIcon size={24} className="text-white/58" />
-        </div>
-        <span className="font-mono text-2xl font-semibold tabular-nums text-white md:text-3xl">
-          <AnimatedNumber value={loadWatts} decimals={0} suffix="W" />
-        </span>
-        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/38">Van Loads</span>
-      </div>
-
-      {/* External Battery — honest stub, not fabricated data. Milestone 6. */}
+    <div className="relative overflow-hidden rounded-[1.75rem] border border-white/[0.07] bg-base/55 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)] sm:p-7">
+      {/* Aurora backdrop - slow drifting gradient, purely decorative */}
       <div
-        className="absolute flex w-24 -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 text-center opacity-40"
-        style={{ left: "86%", top: "54%" }}
-      >
-        <div className="rounded-full border border-dashed border-white/20 bg-white/[0.03] p-3">
-          <BatteryWarning size={20} className="text-white/38" />
+        className="flow-aurora-anim pointer-events-none absolute -inset-1/2 opacity-70"
+        style={{
+          background: `conic-gradient(from 0deg, ${colors.battery}22, transparent 30%, ${colors.solar}18, transparent 60%, ${colors.battery}22)`,
+          animation: "flow-aurora 24s linear infinite",
+        }}
+      />
+
+      <div className="relative flex items-center justify-between gap-2 lg:hidden">
+        <div className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-surface-card/85 px-3 py-1.5">
+          <Cpu size={11} className="text-white/40" />
+          <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/45">MPPT</span>
         </div>
-        <span className="text-[10px] uppercase leading-tight tracking-wide text-text-muted">External Battery</span>
-        <span className="text-[9px] leading-tight text-text-muted">Not installed</span>
+      </div>
+
+      <div className="relative flex flex-col items-stretch gap-1 lg:flex-row lg:items-center lg:gap-4">
+        <Node
+          icon={<Sun size={26} className="text-solar lg:h-8 lg:w-8" />}
+          value={<AnimatedNumber value={solarWatts} decimals={0} suffix="W" />}
+          label="Solar"
+          glowColor={colors.solar}
+          decoration={<SunRays spinning={solarWatts > 5} />}
+        />
+
+        <Connector color={colors.solar} active={solarWatts > 5} reverse={false} />
+
+        <Node
+          icon={<BatteryMedium size={30} className="text-battery lg:h-9 lg:w-9" />}
+          value={
+            battery ? (
+              battery.soc_pct !== null ? (
+                <AnimatedNumber value={battery.soc_pct} decimals={0} suffix="%" />
+              ) : (
+                <AnimatedNumber value={battery.voltage} decimals={2} suffix="V" />
+              )
+            ) : (
+              "—"
+            )
+          }
+          label="Leisure Battery"
+          sublabel={battery ? (charging ? "Charging" : "Discharging") : undefined}
+          glowColor={colors.battery}
+          decoration={<BatteryLiquid pct={batteryPct} charging={charging} />}
+          animatePulse={charging}
+        />
+
+        <Connector color={colors.battery} active={loadWatts > 5} reverse={!charging} />
+
+        <Node
+          icon={<HomeIcon size={24} className="text-white/70 lg:h-7 lg:w-7" />}
+          value={<AnimatedNumber value={loadWatts} decimals={0} suffix="W" />}
+          label="Van Loads"
+          glowColor="#ffffff"
+        />
+
+        <Connector color="#ffffff" active={false} reverse={false} />
+
+        {/* External Battery — honest stub, not fabricated data. Milestone 6. */}
+        <div className="flex min-w-0 flex-1 flex-col items-center gap-2 text-center opacity-40 lg:gap-2.5">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-dashed border-white/20 bg-white/[0.03] lg:h-20 lg:w-20">
+            <BatteryWarning size={20} className="text-white/40" />
+          </div>
+          <div className="text-[10px] font-bold uppercase leading-tight tracking-[0.18em] text-white/40">External Battery</div>
+          <div className="text-[9px] leading-tight text-white/35">Not installed</div>
+        </div>
       </div>
     </div>
   );

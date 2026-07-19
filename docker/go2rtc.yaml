@@ -1,0 +1,20 @@
+## go2rtc config - RTSP-to-WebRTC/MSE relay for the Tapo C113 CCTV camera.
+#
+# ${VAR} substitution is go2rtc's own built-in feature (reads real
+# environment variables passed to the container) - this file is safe
+# to commit, since no actual credentials live in it.
+#
+# stream2 (not stream1) is used deliberately: it's the Tapo's lower-
+# resolution substream, which matters on a Pi 2 - go2rtc only remuxes
+# (repackages the existing compressed video, doesn't re-encode it), so
+# CPU cost is low either way, but the substream is still lighter on
+# both the Pi's network stack and whatever's viewing it.
+streams:
+  cctv: rtsp://${TAPO_CAMERA_USER}:${TAPO_CAMERA_PASS}@${TAPO_CAMERA_IP}:554/stream2
+
+api:
+  listen: ":1984"
+  origin: "*"
+
+webrtc:
+  listen: ":8555"

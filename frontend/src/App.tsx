@@ -1,13 +1,16 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { TelemetryProvider } from "./context/TelemetryContext";
+import { ThemeProvider } from "./context/ThemeContext";
 import AppLayout from "./components/Layout/AppLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
+import UpdateBanner from "./components/UpdateBanner";
 import Home from "./pages/Home";
 import Energy from "./pages/Energy";
 import Battery from "./pages/Battery";
 import Solar from "./pages/Solar";
 import Nearby from "./pages/Nearby";
 import Weather from "./pages/Weather";
+import Camera from "./pages/Camera";
 import History from "./pages/History";
 import SettingsLayout from "./pages/settings/SettingsLayout";
 import General from "./pages/settings/General";
@@ -35,6 +38,7 @@ function AppRoutes() {
         <Route path="/solar" element={<Solar />} />
         <Route path="/weather" element={<Weather />} />
         <Route path="/nearby" element={<Nearby />} />
+        <Route path="/camera" element={<Camera />} />
         <Route path="/history" element={<History />} />
 
         <Route path="/settings" element={<SettingsLayout />}>
@@ -55,12 +59,15 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <TelemetryProvider>
-      <BrowserRouter>
-        <AppLayout>
-          <AppRoutes />
-        </AppLayout>
-      </BrowserRouter>
-    </TelemetryProvider>
+    <ThemeProvider>
+      <TelemetryProvider>
+        <BrowserRouter>
+          <UpdateBanner />
+          <AppLayout>
+            <AppRoutes />
+          </AppLayout>
+        </BrowserRouter>
+      </TelemetryProvider>
+    </ThemeProvider>
   );
 }

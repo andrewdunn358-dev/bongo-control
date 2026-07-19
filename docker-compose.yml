@@ -65,5 +65,32 @@ services:
     profiles:
       - cloudflare-tunnel
 
+  # Optional: RTSP-to-WebRTC/MSE relay for a local CCTV camera (Tapo
+  # C113). Only starts doing anything useful once TAPO_CAMERA_IP/USER/PASS
+  # are set in a root .env file. go2rtc only remuxes the existing
+  # compressed video (doesn't re-encode it), so it's genuinely light on
+  # a Pi 2 despite doing "video streaming" - confirmed to officially
+  # support armv7, unlike cloudflared.
+  #
+  # network_mode: host is required by go2rtc itself for WebRTC to work
+  # (it needs direct access to the host's network for ICE/UDP, which
+  # can't be meaningfully proxied through Docker's default bridge
+  # networking or through Cloudflare Tunnel - WebRTC is peer-to-peer,
+  # not a plain HTTP request). This means live video only works when
+  # viewing the dashboard from the same local network as the Pi - see
+  # docs/cctv_camera_setup.md for what happens when accessed remotely.
+  go2rtc:
+    image: alexxit/go2rtc:latest
+    network_mode: host
+    volumes:
+      - ./docker/go2rtc.yaml:/config/go2rtc.yaml:ro
+    environment:
+      TAPO_CAMERA_USER: ${TAPO_CAMERA_USER:-}
+      TAPO_CAMERA_PASS: ${TAPO_CAMERA_PASS:-}
+      TAPO_CAMERA_IP: ${TAPO_CAMERA_IP:-}
+    restart: unless-stopped
+    profiles:
+      - camera
+
 volumes:
   vanos-data:
