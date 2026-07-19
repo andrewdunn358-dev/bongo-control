@@ -1,14 +1,26 @@
 # Camera (USB Webcam) Live View
 
-Live video from a USB webcam plugged directly into the Pi, via
-[go2rtc](https://github.com/AlexxIT/go2rtc)'s native V4L2 (USB camera)
-support — no separate streaming tool needed, and it's the same
-well-tested go2rtc already confirmed working for BLE-adjacent camera
-work on this Pi, just pointed at a different source.
+Live video from a USB webcam plugged directly into the Pi — streamed
+**natively by the backend itself** (ffmpeg + MJPEG-over-HTTP), no
+separate relay service at all.
 
-(This replaced an earlier Tapo C113 RTSP setup — the Tapo moved to
-house use instead. The old config is kept commented in
-`docker/go2rtc.yaml` in case a second camera gets added back later.)
+## Why this approach, not go2rtc/WebRTC
+
+An earlier version of this used go2rtc for a networked Tapo camera,
+then kept using it once the setup switched to a USB webcam attached
+directly to the Pi. That was solving the wrong problem: go2rtc/WebRTC/
+MSE exist specifically to get video *across a network* and through
+browser codec negotiation. A webcam plugged into the same machine the
+backend already runs on has no network hop to solve for — so all of
+that (a second container, a reverse-proxy path, WebRTC-with-MSE-
+fallback, base_path config) was solved complexity for a problem that
+didn't apply here.
+
+MJPEG-over-HTTP is just an ordinary streaming HTTP response — a live
+sequence of JPEG images. It rides on exactly the same `/api/` proxy
+every other endpoint in this app already uses. No mixed-content
+concerns, no separate reverse-proxy path, works identically over plain
+HTTP and through the Cloudflare Tunnel's HTTPS with zero special-casing.
 
 ## 1. Confirm the device path and supported format
 
@@ -18,12 +30,11 @@ v4l2-ctl --list-devices
 v4l2-ctl --list-formats -d /dev/video0
 ```
 
-Most USB webcams show up as `/dev/video0` unless something else on the
-Pi already claims that path. The format list matters — `docker/go2rtc.yaml`
-requests `input_format=mjpeg` deliberately (far less USB bandwidth than
-raw YUYV, which matters on a Pi 2), but not every webcam supports MJPEG
-capture. If `v4l2-ctl --list-formats` doesn't show `MJPG` in the list,
-edit `docker/go2rtc.yaml` and drop the `input_format=mjpeg` parameter.
+If `v4l2-ctl --list-formats` shows `MJPG` in the list (most webcams
+do), no changes needed — that's what's requested by default. If it
+only lists `YUYV`, edit `input_format` in
+`backend/app/services/camera_service.py`'s `CameraService.__init__`
+default.
 
 ## 2. Configure the Pi (only if the device isn't `/dev/video0`)
 
@@ -33,37 +44,41 @@ echo "WEBCAM_DEVICE=/dev/videoX" >> .env
 
 ## 3. Run it
 
-```bash
-docker compose --profile camera up -d --build
-```
+No profile flag needed — the camera endpoint is just part of the
+backend now:
 
-(Combine with other profiles as needed, e.g. `--profile camera --profile cloudflare-tunnel`.)
+```bash
+docker compose up -d --build
+```
 
 ## 4. Verify
 
 ```bash
-docker compose ps        # go2rtc should show Up
-docker compose logs go2rtc --tail=30
+curl -sI http://localhost:8000/api/camera/stream
+```
+A `200` with `Content-Type: multipart/x-mixed-replace...` means it's
+working. A `503` means ffmpeg couldn't open the device — check:
+
+```bash
+docker compose logs backend --tail=30
 ```
 
-Look for a line confirming the `cctv` stream picked up the device. A
-"no such file or directory" or permission error here usually means the
-device path is wrong (recheck step 1) or `devices:` in
-`docker-compose.yml` isn't mapping to the actual path.
+Then open the dashboard → **Camera**. Same address works identically
+on the van's WiFi and through the Cloudflare Tunnel.
 
-Then open the dashboard → **Camera**. Same address works whether you're
-on the van's WiFi (real-time WebRTC) or connecting remotely through the
-Cloudflare Tunnel (automatic MSE fallback, slightly delayed) — go2rtc
-is proxied through nginx under the same origin as the rest of the app
-either way, so there's nothing extra to configure for either case.
+## Known limitation
+
+V4L2 devices generally only support one consumer at a time. This
+spawns a fresh `ffmpeg` process per request rather than a shared
+broadcaster — fine for one viewer at a time (the realistic case here),
+but a second person opening the Camera page simultaneously will get a
+503 rather than sharing the existing stream. Worth revisiting if that
+becomes a real problem.
 
 ## Troubleshooting
 
-- **Blank iframe**: check `docker compose logs go2rtc` first — wrong
-  device path or unsupported format both show up there clearly.
-- **Works on WiFi, blank remotely**: check the nginx `/camera/` proxy —
-  `docker compose logs frontend` for errors, and confirm
-  `base_path: /camera` in `docker/go2rtc.yaml` matches nginx's location
-  block in `docker/nginx.conf`.
-- **High CPU / choppy video on the Pi**: try a lower resolution — add
-  `&video_size=640x480` to the stream URL in `docker/go2rtc.yaml`.
+- **Blank image, 503 on the endpoint**: `docker compose logs backend`
+  for the actual ffmpeg error - usually a wrong device path (recheck
+  step 1) or the device being held open by something else.
+- **High CPU / choppy video on the Pi**: try a lower resolution — the
+  default is 640x480; edit `size` in `CameraService.__init__`.

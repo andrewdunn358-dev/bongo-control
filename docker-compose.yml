@@ -17,12 +17,19 @@ services:
     # on a Raspberry Pi 2. See docs/victron_ble_integration.md if it
     # doesn't work on a different setup.
     network_mode: host
+    # /dev/video0 passthrough is for the USB webcam (app/services/
+    # camera_service.py uses ffmpeg to capture from it directly) -
+    # harmless if no webcam is attached, the camera endpoint just
+    # returns a clear 503 rather than the whole backend failing.
+    devices:
+      - "${WEBCAM_DEVICE:-/dev/video0}:${WEBCAM_DEVICE:-/dev/video0}"
     volumes:
       - vanos-data:/app/data
       - /var/run/dbus:/var/run/dbus
     environment:
       VANOS_ENVIRONMENT: production
       VANOS_DATABASE_URL: sqlite:///./data/vanos.db
+      WEBCAM_DEVICE: ${WEBCAM_DEVICE:-/dev/video0}
     restart: unless-stopped
 
   frontend:
@@ -64,38 +71,6 @@ services:
     restart: unless-stopped
     profiles:
       - cloudflare-tunnel
-
-  # Optional: RTSP-to-WebRTC/MSE relay for a local CCTV camera (Tapo
-  # C113). Only starts doing anything useful once TAPO_CAMERA_IP/USER/PASS
-  # are set in a root .env file. go2rtc only remuxes the existing
-  # compressed video (doesn't re-encode it), so it's genuinely light on
-  # a Pi 2 despite doing "video streaming" - confirmed to officially
-  # support armv7, unlike cloudflared.
-  #
-  # network_mode: host is required by go2rtc itself for WebRTC to work
-  # (it needs direct access to the host's network for ICE/UDP, which
-  # can't be meaningfully proxied through Docker's default bridge
-  # networking or through Cloudflare Tunnel - WebRTC is peer-to-peer,
-  # not a plain HTTP request). This means live video only works when
-  # viewing the dashboard from the same local network as the Pi - see
-  # docs/cctv_camera_setup.md for what happens when accessed remotely.
-  # Optional: relay for a USB webcam connected directly to the Pi, using
-  # go2rtc's native v4l2 support (no separate streaming tool needed).
-  # Only starts doing anything useful once the "camera" profile is
-  # active. Device path defaults to /dev/video0 - override WEBCAM_DEVICE
-  # in .env if `ls /dev/video*` shows something else on your Pi.
-  go2rtc:
-    image: alexxit/go2rtc:latest
-    network_mode: host
-    devices:
-      - "${WEBCAM_DEVICE:-/dev/video0}:${WEBCAM_DEVICE:-/dev/video0}"
-    volumes:
-      - ./docker/go2rtc.yaml:/config/go2rtc.yaml:ro
-    environment:
-      WEBCAM_DEVICE: ${WEBCAM_DEVICE:-/dev/video0}
-    restart: unless-stopped
-    profiles:
-      - camera
 
 volumes:
   vanos-data:

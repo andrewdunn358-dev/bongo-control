@@ -26,9 +26,12 @@ RUN pip install --no-cache-dir \
 # Runtime-only packages belong BELOW the pip layer. network-manager
 # (which provides nmcli for WiFi switching) is not needed to build any
 # Python package - having it above cost a full ~11 minute pip recompile
-# the first time WiFi support was added, for no reason.
+# the first time WiFi support was added, for no reason. ffmpeg is here
+# for the same reason - needed only at runtime, to capture MJPEG from
+# a USB webcam (see app/services/camera_service.py).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     network-manager \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/app ./app
