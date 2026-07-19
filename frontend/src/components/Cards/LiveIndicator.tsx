@@ -27,18 +27,18 @@ export default function LiveIndicator({ lastUpdated, connected }: LiveIndicatorP
   return (
     <div
       className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-[0.68rem] font-bold uppercase tracking-[0.18em] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ${
-        connected ? "border-[#37D67A]/25 bg-[#37D67A]/10 text-[#37D67A]" : "border-[#FF4B55]/30 bg-[#FF4B55]/10 text-[#FF4B55]"
+        connected ? "border-success/25 bg-success/10 text-success" : "border-alert/30 bg-alert/10 text-alert"
       }`}
     >
       <span className="relative flex h-2.5 w-2.5">
         {connected && !reduceMotion && (
           <motion.span
-            className="absolute inline-flex h-full w-full rounded-full bg-[#37D67A]"
+            className="absolute inline-flex h-full w-full rounded-full bg-success"
             animate={{ opacity: [0.55, 0, 0.55], scale: [1, 2.1, 1] }}
             transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
           />
         )}
-        <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${connected ? "bg-[#37D67A]" : "bg-[#FF4B55]"}`} />
+        <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${connected ? "bg-success" : "bg-alert"}`} />
       </span>
       <span>{connected ? "Live" : "Offline"}</span>
       {lastUpdated !== null && connected && <span className="hidden text-white/45 sm:inline">{relativeTime(lastUpdated)}</span>}

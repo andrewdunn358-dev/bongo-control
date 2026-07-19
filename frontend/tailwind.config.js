@@ -6,11 +6,13 @@ export default {
     extend: {
       colors: {
         // Deep navy-charcoal, not pure black — Tesla/EcoFlow instrument-panel feel.
-        base: "#0a0e14",
+        // Updated from #0a0e14 during the V3 luminous redesign - slightly
+        // cooler/deeper, increases separation from surface.raised.
+        base: "#0b0e12",
         surface: {
-          DEFAULT: "#0a0e14",
+          DEFAULT: "#0b0e12",
           raised: "#10151d",
-          card: "#161c26",
+          card: "#151a21",
           cardHover: "#1b222e",
         },
         border: {
@@ -21,17 +23,23 @@ export default {
           secondary: "#8a93a6",
           muted: "#5b6472",
         },
-        // Two accents tied to meaning, not decoration:
+        // Domain accents tied to meaning, not decoration:
         solar: {
-          DEFAULT: "#f0a84e", // sunlight / production
+          DEFAULT: "#ffb000", // sunlight / production
           dim: "#7a5a2c",
         },
         battery: {
-          DEFAULT: "#46d2c4", // electric / storage
+          DEFAULT: "#00c2a8", // electric / storage
           dim: "#2b6e68",
         },
         alert: {
-          DEFAULT: "#ff6b6a",
+          DEFAULT: "#ff4b55",
+        },
+        // Status green — distinct from battery teal. Used for "charging" /
+        // "ready" / "good" states, never for section identity, so it never
+        // competes with battery's domain color.
+        success: {
+          DEFAULT: "#37d67a",
         },
       },
       fontFamily: {

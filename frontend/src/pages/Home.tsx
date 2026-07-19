@@ -8,6 +8,7 @@ import PowerFlowDiagram from "../components/PowerFlow/PowerFlowDiagram";
 import PowerBudgetCard from "../components/Cards/PowerBudgetCard";
 import RecentEventsCard from "../components/Cards/RecentEventsCard";
 import { useTelemetry } from "../context/TelemetryContext";
+import { colors } from "../theme/colors";
 
 function formatClock(date: Date): string {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -20,9 +21,9 @@ function formatStatus(s?: string | null): string {
 
 function temperatureState(temp?: number): { label: string; color: string } {
   if (temp === undefined) return { label: "Awaiting", color: "text-white/42" };
-  if (temp < 4 || temp > 32) return { label: "Extreme", color: "text-[#FF4B55]" };
-  if (temp < 10 || temp > 27) return { label: "Watch", color: "text-[#FFB000]" };
-  return { label: "Comfort", color: "text-[#37D67A]" };
+  if (temp < 4 || temp > 32) return { label: "Extreme", color: "text-alert" };
+  if (temp < 10 || temp > 27) return { label: "Watch", color: "text-solar" };
+  return { label: "Comfort", color: "text-success" };
 }
 
 function batteryStatus(soc: number | null | undefined, voltage: number | undefined): { label: string; tone: "ready" | "charging" | "warning" | "critical" } {
@@ -40,10 +41,10 @@ function batteryStatus(soc: number | null | undefined, voltage: number | undefin
 }
 
 function ringColor(tone: "ready" | "charging" | "warning" | "critical") {
-  if (tone === "critical") return "#FF4B55";
-  if (tone === "warning") return "#FFB000";
-  if (tone === "charging") return "#37D67A";
-  return "#00C2A8";
+  if (tone === "critical") return colors.alert;
+  if (tone === "warning") return colors.solar;
+  if (tone === "charging") return colors.success;
+  return colors.battery;
 }
 
 function BatteryGauge({ value, charging }: { value: number | null | undefined; charging: boolean }) {
@@ -60,7 +61,7 @@ function BatteryGauge({ value, charging }: { value: number | null | undefined; c
           cy="60"
           r="44"
           fill="none"
-          stroke={charging ? "#37D67A" : "#00C2A8"}
+          stroke={charging ? colors.success : colors.battery}
           strokeWidth="9"
           strokeDasharray={`${dash} ${circumference}`}
           strokeLinecap="round"
@@ -133,9 +134,9 @@ export default function Home() {
 
   return (
     <div className="space-y-5">
-      <header className="flex flex-wrap items-center justify-between gap-4 rounded-[2rem] border border-white/[0.07] bg-[#151A21]/58 px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-sm">
+      <header className="flex flex-wrap items-center justify-between gap-4 rounded-[2rem] border border-white/[0.07] bg-surface-card/58 px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-sm">
         <div>
-          <div className="text-[0.68rem] font-bold uppercase tracking-[0.28em] text-[#00C2A8]">Mazda Bongo</div>
+          <div className="text-[0.68rem] font-bold uppercase tracking-[0.28em] text-battery">Mazda Bongo</div>
           <h1 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-white md:text-4xl">Expedition Control</h1>
         </div>
         <div className="flex items-center gap-3">
@@ -151,7 +152,7 @@ export default function Home() {
           <div className="flex flex-col justify-between gap-8">
             <div>
               <div className="flex items-center gap-3 text-[0.7rem] font-bold uppercase tracking-[0.28em] text-white/42">
-                <Gauge size={15} className="text-[#00C2A8]" /> SIT REP
+                <Gauge size={15} className="text-battery" /> SIT REP
               </div>
               <motion.div
                 initial={{ opacity: 0, y: 12 }}
@@ -175,10 +176,10 @@ export default function Home() {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
-            <div className="rounded-[2rem] border border-white/[0.07] bg-[#0B0E12]/42 p-5 sm:col-span-3 xl:col-span-1">
+            <div className="rounded-[2rem] border border-white/[0.07] bg-base/42 p-5 sm:col-span-3 xl:col-span-1">
               <div className="mb-5 flex items-center justify-between">
                 <span className="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-white/42">Warnings</span>
-                <AlertTriangle size={17} className={activeWarning ? "text-[#FFB000]" : "text-[#37D67A]"} />
+                <AlertTriangle size={17} className={activeWarning ? "text-solar" : "text-success"} />
               </div>
               <div className="text-2xl font-semibold tracking-[-0.04em] text-white">
                 {activeWarning ? activeWarning.message.payload.title : "No active warnings"}
@@ -187,14 +188,14 @@ export default function Home() {
                 {activeWarning ? activeWarning.message.payload.message : "Vehicle telemetry is stable across monitored systems."}
               </p>
             </div>
-            <div className="rounded-[2rem] border border-white/[0.07] bg-[#0B0E12]/42 p-5">
+            <div className="rounded-[2rem] border border-white/[0.07] bg-base/42 p-5">
               <div className="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-white/42">Net Power</div>
               <div className="mt-4 font-mono text-4xl font-semibold tracking-[-0.07em] text-white tabular-nums">
                 {energy ? <AnimatedNumber value={Math.abs(energy.net_watts)} decimals={0} prefix={energy.net_watts >= 0 ? "+" : "-"} suffix="W" /> : "—"}
               </div>
               <div className="mt-2 text-sm font-semibold uppercase tracking-[0.18em] text-white/38">{energy ? (energy.net_watts >= 0 ? "Charging" : "Discharging") : "Awaiting"}</div>
             </div>
-            <div className="rounded-[2rem] border border-white/[0.07] bg-[#0B0E12]/42 p-5">
+            <div className="rounded-[2rem] border border-white/[0.07] bg-base/42 p-5">
               <div className="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-white/42">Signal</div>
               <div className="mt-4 font-mono text-4xl font-semibold tracking-[-0.07em] text-white tabular-nums">
                 {connectivity ? <AnimatedNumber value={connectivity.signal_strength_pct} decimals={0} suffix="%" /> : "—"}
@@ -232,10 +233,10 @@ export default function Home() {
                   <div className="font-mono text-7xl font-semibold leading-none tracking-[-0.09em] text-white tabular-nums">
                     {solar ? <AnimatedNumber value={solar.watts} decimals={0} /> : "—"}
                   </div>
-                  <div className="mt-2 text-xl font-semibold uppercase tracking-[0.18em] text-[#FFB000]">Watts PV</div>
+                  <div className="mt-2 text-xl font-semibold uppercase tracking-[0.18em] text-solar">Watts PV</div>
                 </div>
-                <div className="rounded-full border border-[#FFB000]/25 bg-[#FFB000]/12 p-4 shadow-[0_0_30px_rgba(255,176,0,0.12)]">
-                  <Sun size={34} className="text-[#FFB000]" />
+                <div className="rounded-full border border-solar/25 bg-solar/12 p-4 shadow-[0_0_30px_rgba(255,176,0,0.12)]">
+                  <Sun size={34} className="text-solar" />
                 </div>
               </div>
             </div>
@@ -278,7 +279,7 @@ export default function Home() {
                 <span className={`text-lg font-semibold ${climate.color}`}>{climate.label}</span>
               </div>
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/[0.08]">
-                <div className="h-full rounded-full bg-gradient-to-r from-[#00C2A8] via-[#37D67A] to-[#FFB000]" style={{ width: environment ? `${Math.min(100, Math.max(0, environment.humidity_pct))}%` : "0%" }} />
+                <div className="h-full rounded-full bg-gradient-to-r from-battery via-success to-solar" style={{ width: environment ? `${Math.min(100, Math.max(0, environment.humidity_pct))}%` : "0%" }} />
               </div>
               <div className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/35">Humidity {environment ? `${Math.round(environment.humidity_pct)}%` : "—"}</div>
             </div>

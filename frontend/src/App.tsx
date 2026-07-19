@@ -1,6 +1,7 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { TelemetryProvider } from "./context/TelemetryContext";
 import AppLayout from "./components/Layout/AppLayout";
+import ErrorBoundary from "./components/ErrorBoundary";
 import Home from "./pages/Home";
 import Energy from "./pages/Energy";
 import Battery from "./pages/Battery";
@@ -8,8 +9,6 @@ import Solar from "./pages/Solar";
 import Nearby from "./pages/Nearby";
 import Weather from "./pages/Weather";
 import History from "./pages/History";
-import Environment from "./pages/Environment";
-import Connectivity from "./pages/Connectivity";
 import SettingsLayout from "./pages/settings/SettingsLayout";
 import General from "./pages/settings/General";
 import Appearance from "./pages/settings/Appearance";
@@ -20,34 +19,46 @@ import Notifications from "./pages/settings/Notifications";
 import Developer from "./pages/settings/Developer";
 import About from "./pages/settings/About";
 
+function AppRoutes() {
+  // Keyed by pathname: a plain class-based ErrorBoundary doesn't reset
+  // itself when children change, so without this key, a crash on one
+  // page would stay stuck on the error screen even after navigating
+  // elsewhere - defeating the point of "use the menu to go elsewhere".
+  const location = useLocation();
+
+  return (
+    <ErrorBoundary key={location.pathname}>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/energy" element={<Energy />} />
+        <Route path="/battery" element={<Battery />} />
+        <Route path="/solar" element={<Solar />} />
+        <Route path="/weather" element={<Weather />} />
+        <Route path="/nearby" element={<Nearby />} />
+        <Route path="/history" element={<History />} />
+
+        <Route path="/settings" element={<SettingsLayout />}>
+          <Route index element={<Navigate to="general" replace />} />
+          <Route path="general" element={<General />} />
+          <Route path="appearance" element={<Appearance />} />
+          <Route path="hardware" element={<Hardware />} />
+          <Route path="network" element={<Network />} />
+          <Route path="plugins" element={<Plugins />} />
+          <Route path="notifications" element={<Notifications />} />
+          <Route path="developer" element={<Developer />} />
+          <Route path="about" element={<About />} />
+        </Route>
+      </Routes>
+    </ErrorBoundary>
+  );
+}
+
 export default function App() {
   return (
     <TelemetryProvider>
       <BrowserRouter>
         <AppLayout>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/energy" element={<Energy />} />
-            <Route path="/battery" element={<Battery />} />
-            <Route path="/solar" element={<Solar />} />
-            <Route path="/weather" element={<Weather />} />
-            <Route path="/nearby" element={<Nearby />} />
-            <Route path="/history" element={<History />} />
-            <Route path="/environment" element={<Environment />} />
-            <Route path="/connectivity" element={<Connectivity />} />
-
-            <Route path="/settings" element={<SettingsLayout />}>
-              <Route index element={<Navigate to="general" replace />} />
-              <Route path="general" element={<General />} />
-              <Route path="appearance" element={<Appearance />} />
-              <Route path="hardware" element={<Hardware />} />
-              <Route path="network" element={<Network />} />
-              <Route path="plugins" element={<Plugins />} />
-              <Route path="notifications" element={<Notifications />} />
-              <Route path="developer" element={<Developer />} />
-              <Route path="about" element={<About />} />
-            </Route>
-          </Routes>
+          <AppRoutes />
         </AppLayout>
       </BrowserRouter>
     </TelemetryProvider>

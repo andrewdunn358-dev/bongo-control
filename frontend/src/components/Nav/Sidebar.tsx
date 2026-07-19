@@ -18,10 +18,10 @@ export default function Sidebar() {
     ) || null;
 
   return (
-    <aside className="relative z-20 hidden w-[5.75rem] shrink-0 flex-col border-r border-white/[0.07] bg-[#0B0E12]/82 px-3 py-4 backdrop-blur-xl md:flex xl:w-72 xl:px-5">
+    <aside className="relative z-20 hidden w-[5.75rem] shrink-0 flex-col border-r border-white/[0.07] bg-base/82 px-3 py-4 backdrop-blur-xl md:flex xl:w-72 xl:px-5">
       <div className="mb-7 flex items-center justify-center gap-3 xl:justify-start">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#00C2A8]/25 bg-[#00C2A8]/12 shadow-[0_0_26px_rgba(0,194,168,0.18)]">
-          <Gauge size={22} className="text-[#00C2A8]" />
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-battery/25 bg-battery/12 shadow-[0_0_26px_rgba(0,194,168,0.18)]">
+          <Gauge size={22} className="text-battery" />
         </div>
         <div className="hidden xl:block">
           <div className="text-sm font-bold uppercase tracking-[0.2em] text-white">Bongo</div>
@@ -44,11 +44,11 @@ export default function Sidebar() {
               {isActive && (
                 <motion.span
                   layoutId="sidebar-active-pill"
-                  className="absolute inset-0 rounded-2xl border border-[#00C2A8]/20 bg-[#00C2A8]/12 shadow-[0_0_30px_rgba(0,194,168,0.13)]"
+                  className="absolute inset-0 rounded-2xl border border-battery/20 bg-battery/12 shadow-[0_0_30px_rgba(0,194,168,0.13)]"
                   transition={{ type: "spring", stiffness: 420, damping: 34 }}
                 />
               )}
-              <Icon size={21} className={`relative z-10 ${isActive ? "text-[#00C2A8]" : ""}`} />
+              <Icon size={21} className={`relative z-10 ${isActive ? "text-battery" : ""}`} />
               <span className={`relative z-10 hidden text-sm font-semibold xl:inline ${isActive ? "text-white" : ""}`}>{item.label}</span>
             </NavLink>
           );
