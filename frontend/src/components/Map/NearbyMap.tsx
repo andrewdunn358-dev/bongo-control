@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { api } from "../../services/api";
+import { useLocationContext } from "../../context/LocationContext";
 
 interface PoiResult {
   id: number;
@@ -84,11 +85,17 @@ export default function NearbyMap() {
   const [cachedAt, setCachedAt] = useState<number | null>(null);
   const [fromCache, setFromCache] = useState(false);
 
+  const { ensureFresh } = useLocationContext();
+
   useEffect(() => {
-    api.location
-      .get()
+    // Refreshes GPS first if the stored location looks stale, then
+    // reads whatever's current - fixes "I moved and it's still showing
+    // where I was an hour ago" without a manual Settings tap every time.
+    ensureFresh()
+      .then(() => api.location.get())
       .then(setLocation)
       .catch(() => setError("No location set — configure one in Settings → General first."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Mount the map once we have a location to center it on.

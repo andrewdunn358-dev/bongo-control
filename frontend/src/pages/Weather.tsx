@@ -1,9 +1,11 @@
 import { motion } from "framer-motion";
+import { useEffect } from "react";
 import { CloudSun, Sunrise, Sunset, Droplets, Thermometer, Sun as SunIcon } from "lucide-react";
 import Card from "../components/Cards/Card";
 import AnimatedNumber from "../components/Cards/AnimatedNumber";
 import WeatherIcon, { sceneFromCode } from "../components/Weather/WeatherIcon";
 import { useTelemetry } from "../context/TelemetryContext";
+import { useLocationContext } from "../context/LocationContext";
 import type { DailyWeather } from "../types/telemetry";
 
 function timeOnly(iso: string | null): string {
@@ -101,8 +103,19 @@ function ForecastCard({ label, day, index }: { label: string; day: DailyWeather;
 
 export default function Weather() {
   const { state } = useTelemetry();
+  const { ensureFresh } = useLocationContext();
   const weather = state.weather?.payload;
   const outlook = state.system?.payload.tomorrow_outlook;
+
+  useEffect(() => {
+    // Keeps the stored location current for the WeatherPlugin's next
+    // scheduled poll (it runs independently on its own ~30min cycle
+    // using whatever location is stored) - this does NOT instantly
+    // refresh the weather numbers already on screen, only what the
+    // backend fetches next time it polls.
+    ensureFresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!weather) {
     return (

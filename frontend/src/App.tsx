@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { TelemetryProvider } from "./context/TelemetryContext";
 import { ThemeProvider } from "./context/ThemeContext";
+import { LocationProvider } from "./context/LocationContext";
 import AppLayout from "./components/Layout/AppLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
 import UpdateBanner from "./components/UpdateBanner";
@@ -60,14 +61,16 @@ function AppRoutes() {
 export default function App() {
   return (
     <ThemeProvider>
-      <TelemetryProvider>
-        <BrowserRouter>
-          <UpdateBanner />
-          <AppLayout>
-            <AppRoutes />
-          </AppLayout>
-        </BrowserRouter>
-      </TelemetryProvider>
+      <LocationProvider>
+        <TelemetryProvider>
+          <BrowserRouter>
+            <UpdateBanner />
+            <AppLayout>
+              <AppRoutes />
+            </AppLayout>
+          </BrowserRouter>
+        </TelemetryProvider>
+      </LocationProvider>
     </ThemeProvider>
   );
 }
