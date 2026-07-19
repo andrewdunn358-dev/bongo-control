@@ -73,3 +73,25 @@ class PoiFetchLog(Base):
     longitude: Mapped[float] = mapped_column(Float)
     radius_m: Mapped[int] = mapped_column(Integer)
     fetched_at: Mapped[float] = mapped_column(Float, index=True)
+
+
+class CachedAiRecommendations(Base):
+    """Cached AI-generated 'cool stuff nearby' recommendations.
+
+    This calls a paid LLM API per genuinely-new location, unlike the
+    free OSM-backed POI cache above - caching aggressively here isn't
+    just a performance nicety, it's the main safeguard against
+    unnecessary API cost. "What's interesting near here" doesn't change
+    day to day, so a long TTL (see ai_recommendations_service.py) costs
+    nothing in usefulness.
+    """
+
+    __tablename__ = "cached_ai_recommendations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    latitude: Mapped[float] = mapped_column(Float, index=True)
+    longitude: Mapped[float] = mapped_column(Float, index=True)
+    place_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    recommendations_json: Mapped[str] = mapped_column(Text)
+    model_used: Mapped[str] = mapped_column(String(64))
+    cached_at: Mapped[float] = mapped_column(Float)

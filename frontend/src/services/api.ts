@@ -122,6 +122,16 @@ export const api = {
       }),
   },
 
+  ai: {
+    status: () => request<{ configured: boolean }>("/api/ai/status"),
+    nearbyRecommendations: () =>
+      request<{
+        place_name: string | null;
+        recommendations: { name: string; description: string; category: string }[];
+        from_cache: boolean;
+        cached_at: number | null;
+      }>("/api/ai/nearby-recommendations"),
+  },
   intelligence: {
     missionBrief: () =>
       request<{
