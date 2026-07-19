@@ -46,6 +46,46 @@ class CameraService:
         self.input_format = input_format
         self.size = size
 
+    async def capture_snapshot(self) -> bytes:
+        """Captures exactly one JPEG frame and returns its raw bytes -
+        the basis for an auto-refreshing snapshot approach (a plain
+        <img> re-fetched on a timer) rather than a continuous
+        multipart stream. Deliberately the fallback here:
+        multipart/x-mixed-replace has a long, genuinely inconsistent
+        history across browsers and platforms (Chrome dropped support
+        for it as a top-level navigation in 2013, mobile Safari and
+        some Android WebView contexts have had their own gaps) - a
+        single ordinary image fetch, repeated on an interval, has
+        nothing platform-specific left to go wrong. Costs smoothness
+        (a slideshow, not video) for universal reliability.
+        """
+        try:
+            process = await asyncio.create_subprocess_exec(
+                "ffmpeg",
+                "-f",
+                "v4l2",
+                "-input_format",
+                self.input_format,
+                "-video_size",
+                self.size,
+                "-i",
+                self.device,
+                "-frames:v",
+                "1",
+                "-f",
+                "image2",
+                "-",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+        except FileNotFoundError as e:
+            raise CameraUnavailableError("ffmpeg not found in this container") from e
+
+        stdout, stderr = await process.communicate()
+        if process.returncode != 0 or not stdout:
+            raise CameraUnavailableError(f"ffmpeg snapshot failed: {stderr.decode(errors='replace')[-500:]}")
+        return stdout
+
     async def open(self) -> asyncio.subprocess.Process:
         """Starts ffmpeg and confirms the process itself launched.
         Separated from mjpeg_frames() deliberately: that's an async
