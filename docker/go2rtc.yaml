@@ -1,16 +1,28 @@
-## go2rtc config - RTSP-to-WebRTC/MSE relay for the Tapo C113 CCTV camera.
+## go2rtc config - relay for a USB webcam connected directly to the Pi.
 #
-# ${VAR} substitution is go2rtc's own built-in feature (reads real
-# environment variables passed to the container) - this file is safe
-# to commit, since no actual credentials live in it.
+# Originally set up for a Tapo C113 over RTSP - switched to a direct
+# USB webcam instead (the Tapo moved to house use). go2rtc supports
+# USB cameras natively via its v4l2 source, no separate tool needed -
+# same well-tested go2rtc already confirmed working here, just pointed
+# at a different source.
 #
-# stream2 (not stream1) is used deliberately: it's the Tapo's lower-
-# resolution substream, which matters on a Pi 2 - go2rtc only remuxes
-# (repackages the existing compressed video, doesn't re-encode it), so
-# CPU cost is low either way, but the substream is still lighter on
-# both the Pi's network stack and whatever's viewing it.
+# ${VAR:default} substitution is go2rtc's own built-in feature (reads
+# real environment variables passed to the container) - this file is
+# safe to commit either way, no secrets in it now that it's a local
+# USB device rather than RTSP credentials.
+#
+# input_format=mjpeg is deliberate, not arbitrary: most USB webcams
+# support both raw YUYV and compressed MJPEG capture, and MJPEG uses
+# far less USB bandwidth - matters on a Pi 2. Check what your specific
+# webcam actually supports with:
+#   v4l2-ctl --list-formats -d /dev/video0
+# and adjust here if it doesn't list MJPG.
 streams:
-  cctv: rtsp://${TAPO_CAMERA_USER}:${TAPO_CAMERA_PASS}@${TAPO_CAMERA_IP}:554/stream2
+  cctv: v4l2:device?video=${WEBCAM_DEVICE:/dev/video0}&input_format=mjpeg
+
+  # Previous Tapo RTSP setup, kept as a commented reference in case a
+  # second camera gets added back later:
+  # cctv2: rtsp://${TAPO_CAMERA_USER}:${TAPO_CAMERA_PASS}@${TAPO_CAMERA_IP}:554/stream2
 
 api:
   listen: ":1984"

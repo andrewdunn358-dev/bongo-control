@@ -21,8 +21,8 @@ export default function Camera() {
           remotely it falls back to a slightly-delayed stream automatically - both go through the same address.
         </p>
 
-        <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-black">
-          <iframe src={STREAM_URL} title="CCTV camera live view" className="aspect-video w-full" allow="autoplay" />
+        <div className="max-h-[60vh] overflow-hidden rounded-2xl border border-white/[0.08] bg-black">
+          <iframe src={STREAM_URL} title="CCTV camera live view" className="aspect-video max-h-[60vh] w-full" allow="autoplay" />
         </div>
         <p className="text-xs text-text-muted">
           Blank or not loading? Check the camera's powered on, and that the camera relay is running (it's a separate

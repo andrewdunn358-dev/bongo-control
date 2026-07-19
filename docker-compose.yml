@@ -79,15 +79,20 @@ services:
   # not a plain HTTP request). This means live video only works when
   # viewing the dashboard from the same local network as the Pi - see
   # docs/cctv_camera_setup.md for what happens when accessed remotely.
+  # Optional: relay for a USB webcam connected directly to the Pi, using
+  # go2rtc's native v4l2 support (no separate streaming tool needed).
+  # Only starts doing anything useful once the "camera" profile is
+  # active. Device path defaults to /dev/video0 - override WEBCAM_DEVICE
+  # in .env if `ls /dev/video*` shows something else on your Pi.
   go2rtc:
     image: alexxit/go2rtc:latest
     network_mode: host
+    devices:
+      - "${WEBCAM_DEVICE:-/dev/video0}:${WEBCAM_DEVICE:-/dev/video0}"
     volumes:
       - ./docker/go2rtc.yaml:/config/go2rtc.yaml:ro
     environment:
-      TAPO_CAMERA_USER: ${TAPO_CAMERA_USER:-}
-      TAPO_CAMERA_PASS: ${TAPO_CAMERA_PASS:-}
-      TAPO_CAMERA_IP: ${TAPO_CAMERA_IP:-}
+      WEBCAM_DEVICE: ${WEBCAM_DEVICE:-/dev/video0}
     restart: unless-stopped
     profiles:
       - camera

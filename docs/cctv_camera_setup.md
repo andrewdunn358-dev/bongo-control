@@ -1,104 +1,69 @@
-# CCTV Camera (Tapo C113) Live View
+# Camera (USB Webcam) Live View
 
-Live video from a Tapo C113 via [go2rtc](https://github.com/AlexxIT/go2rtc) —
-confirmed the C113 supports RTSP + ONVIF directly (it's wired, not one
-of the battery-only Tapo models that lack this).
+Live video from a USB webcam plugged directly into the Pi, via
+[go2rtc](https://github.com/AlexxIT/go2rtc)'s native V4L2 (USB camera)
+support — no separate streaming tool needed, and it's the same
+well-tested go2rtc already confirmed working for BLE-adjacent camera
+work on this Pi, just pointed at a different source.
 
-**On remote access**: go2rtc is proxied through nginx under the same
-origin as the rest of the app (`/camera/`), the same trick that already
-made the dashboard itself work identically on the LAN and through the
-Cloudflare Tunnel. This should mean: real-time WebRTC on the van's own
-WiFi, and an automatic fallback to a slightly-delayed MSE stream when
-accessed remotely (MSE is WebSocket-based, so — unlike raw WebRTC,
-which is peer-to-peer UDP and can't be tunneled — it can traverse the
-same route the dashboard's telemetry already uses).
+(This replaced an earlier Tapo C113 RTSP setup — the Tapo moved to
+house use instead. The old config is kept commented in
+`docker/go2rtc.yaml` in case a second camera gets added back later.)
 
-**Honesty note**: this reverse-proxy setup is verified correct at the
-config level (tested with a real nginx binary and a stand-in upstream,
-confirming the request path go2rtc expects is preserved end-to-end),
-but not against an actual camera/go2rtc instance — no camera exists in
-the environment this was built in. If remote viewing doesn't work in
-practice, check `docker compose logs go2rtc` first; go2rtc's own
-GitHub has open discussion of real-world quirks running it behind a
-reverse proxy, so there may be more to it than the config alone.
-
-## 1. Create a local Camera Account (Tapo app)
-
-This is a **separate credential** from your Tapo cloud login:
-
-1. Open the Tapo app → tap the camera → gear icon (Settings)
-2. **Advanced Settings → Camera Account**
-3. Create a username and password here
-
-## 2. Find the camera's local IP
-
-Same Camera Settings screen → **Device Info**, or check your router's
-DHCP client list. Worth setting a DHCP reservation for it so the IP
-doesn't change later and silently break the stream.
-
-## 3. Configure the Pi
-
-Add to your `.env` file (same one used for the Cloudflare Tunnel setup):
+## 1. Confirm the device path and supported format
 
 ```bash
-TAPO_CAMERA_USER=your-camera-account-username
-TAPO_CAMERA_PASS=your-camera-account-password
-TAPO_CAMERA_IP=192.168.x.x
+ls /dev/video*
+v4l2-ctl --list-devices
+v4l2-ctl --list-formats -d /dev/video0
 ```
 
-## 4. Run it
+Most USB webcams show up as `/dev/video0` unless something else on the
+Pi already claims that path. The format list matters — `docker/go2rtc.yaml`
+requests `input_format=mjpeg` deliberately (far less USB bandwidth than
+raw YUYV, which matters on a Pi 2), but not every webcam supports MJPEG
+capture. If `v4l2-ctl --list-formats` doesn't show `MJPG` in the list,
+edit `docker/go2rtc.yaml` and drop the `input_format=mjpeg` parameter.
 
-The `go2rtc` service only starts with the `camera` profile:
+## 2. Configure the Pi (only if the device isn't `/dev/video0`)
+
+```bash
+echo "WEBCAM_DEVICE=/dev/videoX" >> .env
+```
+
+## 3. Run it
 
 ```bash
 docker compose --profile camera up -d --build
 ```
 
-(Combine profiles if you're also using Cloudflare Tunnel: `docker
-compose --profile camera --profile cloudflare-tunnel up -d --build`)
+(Combine with other profiles as needed, e.g. `--profile camera --profile cloudflare-tunnel`.)
 
-## 5. Verify
-
-```bash
-docker compose ps
-```
-Should show `go2rtc` as `Up`.
+## 4. Verify
 
 ```bash
+docker compose ps        # go2rtc should show Up
 docker compose logs go2rtc --tail=30
 ```
-Look for a line confirming the `cctv` stream connected — if it instead
-shows a connection/auth error, double check the Camera Account
-credentials and IP.
 
-Then, **on the van's WiFi**, open the dashboard at its local address
-(`http://<pi-ip>:8090`, not the `https://` tunnel address — see the
-limitation above) and go to **Camera**.
+Look for a line confirming the `cctv` stream picked up the device. A
+"no such file or directory" or permission error here usually means the
+device path is wrong (recheck step 1) or `devices:` in
+`docker-compose.yml` isn't mapping to the actual path.
 
-## Why go2rtc's own player (an iframe), not a custom video component
-
-go2rtc ships a tested reference player (`stream.html`) that
-automatically tries WebRTC first and falls back to MSE if a direct
-peer-to-peer connection can't establish. Reimplementing that fallback
-logic from scratch with raw `RTCPeerConnection` calls would be redoing
-work go2rtc has already solved and tested — the iframe embed uses
-their code directly instead, served same-origin via nginx (`/camera/`)
-so there's no mixed-content issue and the MSE fallback can actually
-reach the outside world through the tunnel.
-
-## Why `/stream2`, not `/stream1`
-
-`docker/go2rtc.yaml` requests the Tapo's lower-resolution substream.
-go2rtc only *remuxes* video (repackages the existing compressed stream,
-never re-encodes it), so CPU cost is low either way on a Pi 2 — but the
-substream is still lighter on the Pi's network stack and whatever's
-viewing it, with no real downside for a "check the van" camera.
+Then open the dashboard → **Camera**. Same address works whether you're
+on the van's WiFi (real-time WebRTC) or connecting remotely through the
+Cloudflare Tunnel (automatic MSE fallback, slightly delayed) — go2rtc
+is proxied through nginx under the same origin as the rest of the app
+either way, so there's nothing extra to configure for either case.
 
 ## Troubleshooting
 
-- **Blank iframe, dashboard loaded fine**: check `docker compose logs
-  go2rtc`. A wrong password/IP shows up there clearly.
-- **Works on WiFi, not remotely**: check the nginx `/camera/` proxy is
-  actually reaching go2rtc — `docker compose logs frontend` for nginx
-  errors, and confirm go2rtc's `base_path: /camera` in
-  `docker/go2rtc.yaml` matches nginx's location block.
+- **Blank iframe**: check `docker compose logs go2rtc` first — wrong
+  device path or unsupported format both show up there clearly.
+- **Works on WiFi, blank remotely**: check the nginx `/camera/` proxy —
+  `docker compose logs frontend` for errors, and confirm
+  `base_path: /camera` in `docker/go2rtc.yaml` matches nginx's location
+  block in `docker/nginx.conf`.
+- **High CPU / choppy video on the Pi**: try a lower resolution — add
+  `&video_size=640x480` to the stream URL in `docker/go2rtc.yaml`.
