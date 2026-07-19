@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { X, CheckCircle2, AlertTriangle, AlertCircle } from "lucide-react";
+import { X, CheckCircle2, AlertTriangle, AlertCircle, Sparkles, Landmark, Mountain, Utensils, MapPinned, ExternalLink } from "lucide-react";
 import { api } from "../../services/api";
 
 const SESSION_FLAG = "bongo-mission-brief-seen";
@@ -18,6 +18,24 @@ interface MissionBrief {
   predictions: { key: string; label: string; value: number | null; unit: string | null; confidence: string | null }[];
 }
 
+interface AiRecommendation {
+  name: string;
+  description: string;
+  category: string;
+}
+
+const CATEGORY_ICON: Record<string, typeof Landmark> = {
+  landmark: Landmark,
+  walk: Mountain,
+  food: Utensils,
+  view: Mountain,
+  other: MapPinned,
+};
+
+function mapsSearchUrl(name: string): string {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name)}`;
+}
+
 /**
  * Shown once per browser session (sessionStorage, not localStorage -
  * should reappear each new session/day, not be permanently dismissed
@@ -27,6 +45,16 @@ interface MissionBrief {
 export default function MissionBriefModal() {
   const [brief, setBrief] = useState<MissionBrief | null>(null);
   const [visible, setVisible] = useState(false);
+
+  // AI recommendations are deliberately NOT fetched automatically
+  // alongside the brief - the brief itself is free (rule-based, no
+  // LLM), but this calls a paid API per genuinely-new location. Kept
+  // as an explicit tap here too, same cost-safety reasoning as the
+  // Nearby page's version of this same feature.
+  const [aiConfigured, setAiConfigured] = useState<boolean | null>(null);
+  const [aiRecommendations, setAiRecommendations] = useState<AiRecommendation[] | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!sessionStorage.getItem(SESSION_FLAG)) {
@@ -62,6 +90,29 @@ export default function MissionBriefModal() {
   const dismiss = () => {
     sessionStorage.setItem(SESSION_FLAG, "1");
     setVisible(false);
+  };
+
+  useEffect(() => {
+    if (!visible) return;
+    // Cheap status check only - never fetches actual recommendations
+    // automatically, since each of those costs real money per call.
+    api.ai
+      .status()
+      .then((s) => setAiConfigured(s.configured))
+      .catch(() => setAiConfigured(false));
+  }, [visible]);
+
+  const fetchAiRecommendations = async () => {
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const result = await api.ai.nearbyRecommendations();
+      setAiRecommendations(result.recommendations);
+    } catch {
+      setAiError("Couldn't get recommendations right now.");
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   if (!visible || !brief) return null;
@@ -117,6 +168,58 @@ export default function MissionBriefModal() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {aiConfigured && (
+            <div className="mt-5 border-t border-white/[0.06] pt-5">
+              <div className="mb-3 flex items-center gap-2">
+                <Sparkles size={14} className="text-solar" />
+                <span className="text-xs font-bold uppercase tracking-[0.14em] text-text-muted">Cool Stuff Nearby</span>
+              </div>
+
+              {!aiRecommendations && (
+                <button
+                  onClick={fetchAiRecommendations}
+                  disabled={aiLoading}
+                  className="w-full rounded-xl bg-solar/15 py-2.5 text-sm font-semibold text-solar transition-all duration-150 hover:bg-solar/20 active:scale-95 disabled:opacity-50"
+                >
+                  {aiLoading ? "Thinking…" : "What's cool nearby?"}
+                </button>
+              )}
+
+              {aiError && <p className="text-sm text-alert">{aiError}</p>}
+
+              {aiRecommendations && aiRecommendations.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[11px] text-text-muted">AI-generated - worth double-checking details.</p>
+                  {aiRecommendations.map((rec, i) => {
+                    const RecIcon = CATEGORY_ICON[rec.category] ?? MapPinned;
+                    return (
+                      <a
+                        key={i}
+                        href={mapsSearchUrl(rec.name)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-start gap-2.5 rounded-xl bg-surface-raised p-2.5 transition-colors hover:bg-white/[0.06]"
+                      >
+                        <RecIcon size={14} className="mt-0.5 shrink-0 text-solar" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 text-sm font-medium text-text-primary">
+                            {rec.name}
+                            <ExternalLink size={10} className="shrink-0 text-text-muted" />
+                          </div>
+                          <div className="mt-0.5 text-xs text-text-secondary">{rec.description}</div>
+                        </div>
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
+
+              {aiRecommendations && aiRecommendations.length === 0 && (
+                <p className="text-sm text-text-muted">No specific suggestions came back - try again later.</p>
+              )}
             </div>
           )}
 
