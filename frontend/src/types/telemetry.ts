@@ -95,6 +95,8 @@ export interface DailyWeather {
 export interface WeatherPayload {
   current_temp_c: number | null;
   current_cloud_cover_pct: number | null;
+  current_weather_code: number | null;
+  current_weather_description: string;
   today: DailyWeather;
   tomorrow: DailyWeather;
   tomorrow_vs_today_radiation_ratio: number | null;

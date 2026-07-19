@@ -114,7 +114,7 @@ export default function Weather() {
     );
   }
 
-  const scene = sceneFromCode(weather.today.weather_code);
+  const scene = sceneFromCode(weather.current_weather_code);
 
   return (
     <div className="space-y-4">
@@ -128,7 +128,7 @@ export default function Weather() {
             <div className="font-mono text-5xl font-semibold tabular-nums text-text-primary md:text-6xl">
               {weather.current_temp_c !== null ? <AnimatedNumber value={weather.current_temp_c} decimals={0} suffix="°" /> : "—"}
             </div>
-            <div className="mt-1 text-lg capitalize text-text-secondary">{weather.today.weather_description}</div>
+            <div className="mt-1 text-lg capitalize text-text-secondary">{weather.current_weather_description}</div>
             {weather.current_cloud_cover_pct !== null && (
               <div className="mt-1 text-sm text-text-muted">{Math.round(weather.current_cloud_cover_pct)}% cloud cover</div>
             )}

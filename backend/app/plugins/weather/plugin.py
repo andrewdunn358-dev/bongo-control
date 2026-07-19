@@ -25,7 +25,7 @@ from typing import Any
 import httpx
 
 from app.plugins.base import Plugin, PluginStatus
-from app.services.configuration_service import configuration_service
+from app.services import configuration_service, location_service
 from app.telemetry.bus import TelemetryBus
 from app.telemetry.models import TelemetryDomain, TelemetryMessage, TelemetrySource
 
@@ -115,8 +115,18 @@ class WeatherPlugin(Plugin):
     async def _fetch_and_publish(self) -> None:
         location = configuration_service.get("location")
         if not location or "latitude" not in location:
-            self.record_error("No location set — grant location access or set one manually in Settings → General")
-            return
+            # Auto-detect from the Pi's own internet connection rather
+            # than requiring someone to manually tap "Use My Location"
+            # on a phone first - the Pi already has real internet
+            # access, and this infrastructure already existed
+            # (Settings -> General's manual IP-fallback button) but was
+            # never triggered automatically anywhere.
+            try:
+                location = await location_service.refresh_ip_fallback()
+                logger.info("No location was set - auto-detected one from the Pi's own connection: %s", location.get("city"))
+            except Exception as e:
+                self.record_error(f"No location set, and automatic IP-based detection failed: {e}")
+                return
 
         params = {
             "latitude": location["latitude"],
@@ -157,6 +167,15 @@ class WeatherPlugin(Plugin):
         payload = {
             "current_temp_c": current.get("temperature_2m"),
             "current_cloud_cover_pct": current.get("cloud_cover"),
+            # We already requested this from Open-Meteo's "current"
+            # params but never used it - the hero display was using
+            # today's DAILY AGGREGATE code instead (the day's overall
+            # dominant condition, not literally right now), which is
+            # exactly why "Overcast" could show up next to "0% cloud
+            # cover": two genuinely different data points shown as if
+            # they were the same one.
+            "current_weather_code": current.get("weather_code"),
+            "current_weather_description": describe_weather_code(current.get("weather_code")),
             "today": {
                 "weather_code": daily_value("weather_code", 0),
                 "weather_description": describe_weather_code(daily_value("weather_code", 0)),
