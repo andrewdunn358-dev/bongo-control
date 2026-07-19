@@ -4,8 +4,8 @@ import { primaryNavItems } from "./navConfig";
 export default function BottomNav() {
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-20 flex border-t border-border-hairline bg-surface-raised/95 backdrop-blur md:hidden"
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      className="fixed inset-x-3 bottom-3 z-30 flex rounded-[1.6rem] border border-white/[0.08] bg-[#151A21]/92 p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl md:hidden"
+      style={{ paddingBottom: "calc(0.375rem + env(safe-area-inset-bottom))" }}
     >
       {primaryNavItems.map((item) => {
         const Icon = item.icon;
@@ -15,13 +15,12 @@ export default function BottomNav() {
             to={item.path}
             end={item.path === "/"}
             className={({ isActive }) =>
-              `flex flex-1 flex-col items-center gap-1 py-3 text-[11px] transition-colors ${
-                isActive ? "text-solar" : "text-text-muted"
+              `flex min-h-14 flex-1 flex-col items-center justify-center gap-1 rounded-2xl text-[0.65rem] font-bold uppercase tracking-[0.12em] transition-all ${
+                isActive ? "bg-[#00C2A8]/14 text-[#00C2A8] shadow-[inset_0_0_0_1px_rgba(0,194,168,0.14)]" : "text-white/38"
               }`
             }
           >
-            {/* min 44px touch target per side padding, per accessibility guidance */}
-            <Icon size={22} />
+            <Icon size={21} />
             {item.label}
           </NavLink>
         );
