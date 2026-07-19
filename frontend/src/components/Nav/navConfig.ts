@@ -23,8 +23,10 @@ export const navItems: NavItem[] = [
 
 // A shorter set for the mobile bottom tab bar — 9 tabs would be
 // cramped and defeats "large touch targets". The rest remain reachable
-// via the sidebar on larger screens; mobile users get the primary five,
+// via the sidebar on larger screens; mobile users get the primary six,
 // consistent with how Tesla/EcoFlow mobile apps prioritize their tab bars.
+// Camera included deliberately - "check on the van remotely" is one of
+// the more obviously mobile-first use cases in the whole app.
 export const primaryNavItems: NavItem[] = navItems.filter((item) =>
-  ["/", "/battery", "/weather", "/nearby", "/settings"].includes(item.path)
+  ["/", "/battery", "/weather", "/nearby", "/camera", "/settings"].includes(item.path)
 );
