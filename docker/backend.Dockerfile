@@ -29,19 +29,29 @@ RUN pip install --no-cache-dir \
 # the first time WiFi support was added, for no reason. ffmpeg is here
 # for the same reason - needed only at runtime, to capture MJPEG from
 # a USB webcam (see app/services/camera_service.py).
-#
-# liblgpio1 provides liblgpio.so.1, the native library the `lgpio` pip
-# package is merely a Python wrapper around. Installing lgpio via pip
-# does NOT reliably bring the shared library with it on ARM - without
-# this, gpiozero falls back through every pin factory in turn (lgpio,
-# RPi.GPIO, pigpio, native) and fails with the unhelpfully generic
-# "Unable to load any default pin factory!", even when /dev/gpiochip0
-# is correctly passed through to the container.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     network-manager \
     ffmpeg \
-    liblgpio1 \
     && rm -rf /var/lib/apt/lists/*
+
+# liblgpio.so.1 - the native C library the `lgpio` pip package is only
+# a wrapper around. Built from source deliberately: it is NOT packaged
+# in Debian (the 2021 ITP for liblgpio1 never landed in a release), so
+# `apt-get install liblgpio1` fails with "Unable to locate package".
+# Without this library gpiozero falls through every pin factory in turn
+# and reports the unhelpfully generic "Unable to load any default pin
+# factory!", even with /dev/gpiochip0 correctly passed through.
+#
+# Small and quick to compile. build-essential is already present from
+# the layer above. Downloaded with Python's own urllib rather than
+# curl/wget - neither is present in python:*-slim, but Python
+# obviously is.
+RUN python -c "import urllib.request; urllib.request.urlretrieve('https://github.com/joan2937/lg/archive/refs/heads/master.tar.gz', '/tmp/lg.tar.gz')" \
+    && mkdir -p /tmp/lg && tar -xzf /tmp/lg.tar.gz -C /tmp/lg --strip-components=1 \
+    && make -C /tmp/lg \
+    && make -C /tmp/lg install \
+    && ldconfig \
+    && rm -rf /tmp/lg /tmp/lg.tar.gz
 
 COPY backend/app ./app
 
