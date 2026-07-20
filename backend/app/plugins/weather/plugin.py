@@ -136,7 +136,12 @@ class WeatherPlugin(Plugin):
                 "temperature_2m_max,temperature_2m_min,precipitation_sum,"
                 "precipitation_probability_max,shortwave_radiation_sum,weather_code,sunrise,sunset"
             ),
-            "forecast_days": 2,
+            # 5 days: enough for a proper forecast row without making
+            # the response heavy. today/tomorrow are still exposed
+            # separately below (PowerBudgetService and the solar
+            # outlook both depend on them by name), the extra days are
+            # additive.
+            "forecast_days": 5,
             "timezone": "auto",
         }
 
@@ -164,6 +169,19 @@ class WeatherPlugin(Plugin):
             (tomorrow_radiation / today_radiation) if today_radiation and tomorrow_radiation and today_radiation > 0 else None
         )
 
+        def build_day(index: int) -> dict:
+            return {
+                "date": daily_value("time", index),
+                "weather_code": daily_value("weather_code", index),
+                "weather_description": describe_weather_code(daily_value("weather_code", index)),
+                "temp_max_c": daily_value("temperature_2m_max", index),
+                "temp_min_c": daily_value("temperature_2m_min", index),
+                "shortwave_radiation_sum_mj": daily_value("shortwave_radiation_sum", index),
+                "precipitation_probability_max_pct": daily_value("precipitation_probability_max", index),
+                "sunrise": daily_value("sunrise", index),
+                "sunset": daily_value("sunset", index),
+            }
+
         payload = {
             "current_temp_c": current.get("temperature_2m"),
             "current_cloud_cover_pct": current.get("cloud_cover"),
@@ -176,26 +194,15 @@ class WeatherPlugin(Plugin):
             # they were the same one.
             "current_weather_code": current.get("weather_code"),
             "current_weather_description": describe_weather_code(current.get("weather_code")),
-            "today": {
-                "weather_code": daily_value("weather_code", 0),
-                "weather_description": describe_weather_code(daily_value("weather_code", 0)),
-                "temp_max_c": daily_value("temperature_2m_max", 0),
-                "temp_min_c": daily_value("temperature_2m_min", 0),
-                "shortwave_radiation_sum_mj": today_radiation,
-                "precipitation_probability_max_pct": daily_value("precipitation_probability_max", 0),
-                "sunrise": daily_value("sunrise", 0),
-                "sunset": daily_value("sunset", 0),
-            },
-            "tomorrow": {
-                "weather_code": daily_value("weather_code", 1),
-                "weather_description": describe_weather_code(daily_value("weather_code", 1)),
-                "temp_max_c": daily_value("temperature_2m_max", 1),
-                "temp_min_c": daily_value("temperature_2m_min", 1),
-                "shortwave_radiation_sum_mj": tomorrow_radiation,
-                "precipitation_probability_max_pct": daily_value("precipitation_probability_max", 1),
-                "sunrise": daily_value("sunrise", 1),
-                "sunset": daily_value("sunset", 1),
-            },
+            # today/tomorrow kept as named keys deliberately, not
+            # replaced by forecast[0]/forecast[1]: PowerBudgetService
+            # and the intelligence providers both read them by name,
+            # and breaking that to save a little duplication would be a
+            # poor trade.
+            "today": build_day(0),
+            "tomorrow": build_day(1),
+            # Full multi-day forecast for the day-tile row.
+            "forecast": [build_day(i) for i in range(len(daily.get("weather_code", [])))],
             "tomorrow_vs_today_radiation_ratio": radiation_ratio,
         }
 

@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useEffect } from "react";
-import { CloudSun, Sunrise, Sunset, Droplets, Thermometer, Sun as SunIcon } from "lucide-react";
+import { CloudSun, Sunrise, Sunset, Droplets, Sun as SunIcon } from "lucide-react";
 import Card from "../components/Cards/Card";
 import AnimatedNumber from "../components/Cards/AnimatedNumber";
 import WeatherIcon, { sceneFromCode } from "../components/Weather/WeatherIcon";
@@ -15,6 +15,17 @@ function timeOnly(iso: string | null): string {
   // it in the browser's timezone and shift it).
   const t = iso.split("T")[1];
   return t ? t.slice(0, 5) : "—";
+}
+
+/** Day label from the forecast array index rather than the date string -
+ *  index 0 is always today by definition, so this can't drift or break
+ *  if the API stops returning a date field. */
+function dayLabel(index: number): string {
+  if (index === 0) return "Today";
+  if (index === 1) return "Tomorrow";
+  const d = new Date();
+  d.setDate(d.getDate() + index);
+  return d.toLocaleDateString(undefined, { weekday: "short" });
 }
 
 /** Fraction of daylight elapsed, 0 before sunrise to 1 after sunset. */
@@ -36,7 +47,6 @@ function dayProgress(sunrise: string | null, sunset: string | null): number | nu
 
 function SunArc({ sunrise, sunset }: { sunrise: string | null; sunset: string | null }) {
   const progress = dayProgress(sunrise, sunset);
-  // Semicircle from (20,90) to (200,90), peaking at the top.
   const angle = Math.PI * (progress ?? 0);
   const cx = 110 - 90 * Math.cos(angle);
   const cy = 90 - 60 * Math.sin(angle);
@@ -50,7 +60,7 @@ function SunArc({ sunrise, sunset }: { sunrise: string | null; sunset: string | 
           <path
             d="M 20 90 A 90 60 0 0 1 200 90"
             fill="none"
-            stroke="#f0a84e"
+            stroke="#ffb000"
             strokeWidth={2}
             strokeDasharray={`${progress * 283} 283`}
             opacity={0.55}
@@ -59,8 +69,8 @@ function SunArc({ sunrise, sunset }: { sunrise: string | null; sunset: string | 
         <line x1={16} y1={90} x2={204} y2={90} stroke="rgba(255,255,255,0.10)" strokeWidth={1} />
         {isDaytime && (
           <>
-            <circle cx={cx} cy={cy} r={11} fill="#f0a84e" opacity={0.25} />
-            <circle cx={cx} cy={cy} r={6} fill="#f0a84e" />
+            <circle cx={cx} cy={cy} r={11} fill="#ffb000" opacity={0.25} />
+            <circle cx={cx} cy={cy} r={6} fill="#ffb000" />
           </>
         )}
       </svg>
@@ -76,28 +86,35 @@ function SunArc({ sunrise, sunset }: { sunrise: string | null; sunset: string | 
   );
 }
 
-function ForecastCard({ label, day, index }: { label: string; day: DailyWeather; index: number }) {
+/** One day in the forecast row. Deliberately compact and uniform -
+ *  the whole point of the tile row is that it scans left-to-right at a
+ *  glance, which breaks the moment tiles differ in size or detail. */
+function DayTile({ day, index }: { day: DailyWeather; index: number }) {
+  const isToday = index === 0;
   return (
-    <Card label={label} icon={<CloudSun size={14} />} index={index}>
-      <div className="flex items-center gap-4">
-        <WeatherIcon scene={sceneFromCode(day.weather_code)} size={72} />
-        <div className="min-w-0">
-          <div className="font-mono text-xl font-semibold tabular-nums text-text-primary">
-            {day.temp_max_c !== null ? `${Math.round(day.temp_max_c)}°` : "—"}
-            <span className="ml-2 text-base font-normal text-text-muted">
-              {day.temp_min_c !== null ? `${Math.round(day.temp_min_c)}°` : "—"}
-            </span>
-          </div>
-          <div className="truncate text-sm capitalize text-text-secondary">{day.weather_description}</div>
-          {day.precipitation_probability_max_pct !== null && (
-            <div className="mt-1 flex items-center gap-1 text-xs text-text-muted">
-              <Droplets size={11} className="text-[#4a9eea]" />
-              {day.precipitation_probability_max_pct}% chance of rain
-            </div>
-          )}
-        </div>
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.05, duration: 0.3 }}
+      className={`flex flex-col items-center gap-2 rounded-2xl border p-3 text-center transition-colors ${
+        isToday ? "border-solar/25 bg-solar/[0.07]" : "border-white/[0.06] bg-white/[0.02]"
+      }`}
+    >
+      <div className={`text-[0.65rem] font-bold uppercase tracking-[0.16em] ${isToday ? "text-solar" : "text-text-muted"}`}>
+        {dayLabel(index)}
       </div>
-    </Card>
+      <WeatherIcon scene={sceneFromCode(day.weather_code)} size={46} />
+      <div className="font-mono text-lg font-semibold leading-none text-text-primary">
+        {day.temp_max_c != null ? `${Math.round(day.temp_max_c)}°` : "—"}
+      </div>
+      <div className="font-mono text-xs text-text-muted">{day.temp_min_c != null ? `${Math.round(day.temp_min_c)}°` : "—"}</div>
+      {day.precipitation_probability_max_pct != null && day.precipitation_probability_max_pct > 0 && (
+        <div className="flex items-center gap-0.5 text-[0.65rem] text-[#6FA5D2]">
+          <Droplets size={9} />
+          {day.precipitation_probability_max_pct}%
+        </div>
+      )}
+    </motion.div>
   );
 }
 
@@ -108,11 +125,6 @@ export default function Weather() {
   const outlook = state.system?.payload.tomorrow_outlook;
 
   useEffect(() => {
-    // Keeps the stored location current for the WeatherPlugin's next
-    // scheduled poll (it runs independently on its own ~30min cycle
-    // using whatever location is stored) - this does NOT instantly
-    // refresh the weather numbers already on screen, only what the
-    // backend fetches next time it polls.
     ensureFresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -128,80 +140,82 @@ export default function Weather() {
   }
 
   const scene = sceneFromCode(weather.current_weather_code);
+  // Fall back to today/tomorrow if an older backend hasn't got the
+  // forecast array yet - avoids an empty row mid-upgrade.
+  const forecast = weather.forecast?.length ? weather.forecast : [weather.today, weather.tomorrow];
 
   return (
     <div className="space-y-4">
-      {/* Hero: big animated conditions, MagicMirror-style */}
-      <Card label="Right Now" accent="solar" index={0}>
-        <div className="flex flex-col items-center gap-2 py-2 sm:flex-row sm:justify-center sm:gap-10">
-          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }}>
-            <WeatherIcon scene={scene} size={150} />
-          </motion.div>
+      {/* Hero - signage-style: one dominant number, readable across the van,
+          minimal chrome. Everything else is support. */}
+      <div className="relative overflow-hidden rounded-[1.75rem] border border-white/[0.07] bg-surface-card">
+        <div
+          className="pointer-events-none absolute -inset-1/2 opacity-70"
+          style={{
+            background:
+              scene === "clear" || scene === "partly"
+                ? "radial-gradient(circle at 70% 25%, rgba(255,176,0,0.16), transparent 55%)"
+                : "radial-gradient(circle at 70% 25%, rgba(111,165,210,0.14), transparent 55%)",
+          }}
+        />
+        <div className="relative flex flex-col items-center gap-6 p-7 sm:flex-row sm:justify-between sm:gap-10 sm:p-9">
           <div className="text-center sm:text-left">
-            <div className="font-mono text-5xl font-semibold tabular-nums text-text-primary md:text-6xl">
-              {weather.current_temp_c !== null ? <AnimatedNumber value={weather.current_temp_c} decimals={0} suffix="°" /> : "—"}
+            <div className="text-[0.7rem] font-bold uppercase tracking-[0.22em] text-text-muted">Right now</div>
+            <div className="mt-3 font-mono text-7xl font-semibold leading-none tracking-[-0.05em] text-white sm:text-8xl">
+              {weather.current_temp_c != null ? <AnimatedNumber value={weather.current_temp_c} decimals={0} suffix="°" /> : "—"}
             </div>
-            <div className="mt-1 text-lg capitalize text-text-secondary">{weather.current_weather_description}</div>
-            {weather.current_cloud_cover_pct !== null && (
+            <div className="mt-3 text-xl capitalize text-text-secondary">{weather.current_weather_description}</div>
+            {weather.current_cloud_cover_pct != null && (
               <div className="mt-1 text-sm text-text-muted">{Math.round(weather.current_cloud_cover_pct)}% cloud cover</div>
             )}
           </div>
+          <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }}>
+            <WeatherIcon scene={scene} size={150} />
+          </motion.div>
         </div>
-      </Card>
-
-      {/* Daylight arc — genuinely useful here, not decoration: it's the
-          window in which solar can actually produce anything. */}
-      <Card label="Daylight" icon={<SunIcon size={14} />} accent="solar" index={1}>
-        <SunArc sunrise={weather.today.sunrise} sunset={weather.today.sunset} />
-      </Card>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <ForecastCard label="Today" day={weather.today} index={2} />
-        <ForecastCard label="Tomorrow" day={weather.tomorrow} index={3} />
       </div>
 
-      {outlook && (
-        <Card label="Solar Outlook" icon={<SunIcon size={14} />} accent="battery" index={4}>
-          <div className="space-y-3">
-            <p className="text-sm text-text-primary">{outlook.recommendation}</p>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="rounded-lg bg-surface-raised px-3 py-2">
-                <div className="text-xs uppercase tracking-wide text-text-muted">Solar energy today</div>
-                <div className="font-mono text-text-primary">
-                  {weather.today.shortwave_radiation_sum_mj !== null
-                    ? `${weather.today.shortwave_radiation_sum_mj.toFixed(1)} MJ/m²`
-                    : "—"}
-                </div>
-              </div>
-              <div className="rounded-lg bg-surface-raised px-3 py-2">
-                <div className="text-xs uppercase tracking-wide text-text-muted">Tomorrow</div>
-                <div className="font-mono text-text-primary">
-                  {weather.tomorrow.shortwave_radiation_sum_mj !== null
-                    ? `${weather.tomorrow.shortwave_radiation_sum_mj.toFixed(1)} MJ/m²`
-                    : "—"}
-                </div>
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      <Card label="Temperature Range" icon={<Thermometer size={14} />} index={5}>
-        <div className="flex items-center justify-around text-center">
-          <div>
-            <div className="text-xs uppercase tracking-wide text-text-muted">Today high</div>
-            <div className="font-mono text-2xl tabular-nums text-solar">
-              {weather.today.temp_max_c !== null ? `${Math.round(weather.today.temp_max_c)}°` : "—"}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-wide text-text-muted">Tonight low</div>
-            <div className="font-mono text-2xl tabular-nums text-[#4a9eea]">
-              {weather.today.temp_min_c !== null ? `${Math.round(weather.today.temp_min_c)}°` : "—"}
-            </div>
-          </div>
+      {/* Forecast tile row - the Xibo-style bit: scans left to right,
+          uniform tiles, no card chrome between them. */}
+      <div className="rounded-[1.75rem] border border-white/[0.07] bg-surface-card p-4 sm:p-5">
+        <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-5">
+          {forecast.slice(0, 5).map((day, i) => (
+            <DayTile key={day.date ?? i} day={day} index={i} />
+          ))}
         </div>
-      </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card label="Daylight" icon={<SunIcon size={14} />} accent="solar" index={2}>
+          <SunArc sunrise={weather.today.sunrise} sunset={weather.today.sunset} />
+        </Card>
+
+        {outlook && (
+          <Card label="Solar Outlook" icon={<SunIcon size={14} />} accent="battery" index={3}>
+            <div className="space-y-3">
+              <p className="text-sm text-text-primary">{outlook.recommendation}</p>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-lg bg-surface-raised px-3 py-2">
+                  <div className="text-xs uppercase tracking-wide text-text-muted">Today</div>
+                  <div className="font-mono text-text-primary">
+                    {weather.today.shortwave_radiation_sum_mj != null
+                      ? `${weather.today.shortwave_radiation_sum_mj.toFixed(1)} MJ/m²`
+                      : "—"}
+                  </div>
+                </div>
+                <div className="rounded-lg bg-surface-raised px-3 py-2">
+                  <div className="text-xs uppercase tracking-wide text-text-muted">Tomorrow</div>
+                  <div className="font-mono text-text-primary">
+                    {weather.tomorrow.shortwave_radiation_sum_mj != null
+                      ? `${weather.tomorrow.shortwave_radiation_sum_mj.toFixed(1)} MJ/m²`
+                      : "—"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }

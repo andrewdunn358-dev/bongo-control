@@ -97,6 +97,7 @@ export interface SystemPayload {
 }
 
 export interface DailyWeather {
+  date?: string | null;
   weather_code: number | null;
   weather_description: string;
   temp_max_c: number | null;
@@ -114,6 +115,10 @@ export interface WeatherPayload {
   current_weather_description: string;
   today: DailyWeather;
   tomorrow: DailyWeather;
+  // Multi-day forecast for the day-tile row. today/tomorrow above are
+  // kept as named keys because PowerBudgetService and the intelligence
+  // providers read them by name.
+  forecast?: DailyWeather[];
   tomorrow_vs_today_radiation_ratio: number | null;
 }
 
