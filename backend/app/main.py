@@ -11,6 +11,7 @@ from app.api.routes import auth as auth_routes
 from app.api.routes import camera as camera_routes
 from app.api.routes import config as config_routes
 from app.api.routes import intelligence as intelligence_routes
+from app.api.routes import relays as relay_routes
 from app.api.routes import health, location as location_routes, plugins as plugins_routes, poi as poi_routes, settings as settings_routes, telemetry, wifi as wifi_routes
 from app.api.websocket import router as websocket_router
 from app.core.config import settings
@@ -23,6 +24,7 @@ from app.intelligence.providers.solar_outlook import SolarOutlookSignalProvider
 from app.intelligence.runner import IntelligenceRunner
 from app.plugins.manager import PluginManager
 from app.services import battery_service, configuration_service, history_service, notification_service, power_budget_service, telemetry_service
+from app.services.relay_service import relay_service
 from app.telemetry.bus import bus
 
 configure_logging()
@@ -74,9 +76,19 @@ async def lifespan(app: FastAPI):
     await intelligence_runner.start()
     logger.info("Intelligence engine started")
 
+    # Non-fatal if there's no GPIO hardware - relay control simply
+    # reports itself unavailable rather than taking the backend down.
+    relay_config = configuration_service.get("relays", {})
+    relay_service.configure(
+        channels=relay_config.get("channels"),
+        active_high=relay_config.get("active_high", True),
+    )
+    relay_service.start()
+
     yield
 
     logger.info("Shutting down")
+    relay_service.stop()
     await intelligence_runner.stop()
     await power_budget_service.stop()
     await history_service.stop()
@@ -112,6 +124,7 @@ app.include_router(wifi_routes.router)
 app.include_router(auth_routes.router)
 app.include_router(ai_routes.router)
 app.include_router(intelligence_routes.router)
+app.include_router(relay_routes.router)
 app.include_router(websocket_router)
 
 

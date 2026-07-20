@@ -23,6 +23,12 @@ services:
     # returns a clear 503 rather than the whole backend failing.
     devices:
       - "${WEBCAM_DEVICE:-/dev/video0}:${WEBCAM_DEVICE:-/dev/video0}"
+      # GPIO character device, for relay control. /dev/gpiochip0 exists
+      # on every current Raspberry Pi OS install regardless of whether
+      # anything uses it, so unlike the 1-Wire sysfs paths this is safe
+      # to bind directly without risking container startup on machines
+      # that aren't using relays.
+      - "/dev/gpiochip0:/dev/gpiochip0"
     volumes:
       - vanos-data:/app/data
       - /var/run/dbus:/var/run/dbus

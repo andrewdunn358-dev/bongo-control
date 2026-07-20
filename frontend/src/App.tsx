@@ -15,6 +15,7 @@ import Solar from "./pages/Solar";
 import Nearby from "./pages/Nearby";
 import Weather from "./pages/Weather";
 import Camera from "./pages/Camera";
+import Relays from "./pages/Relays";
 import History from "./pages/History";
 import SettingsLayout from "./pages/settings/SettingsLayout";
 import General from "./pages/settings/General";
@@ -42,6 +43,7 @@ function AppRoutes() {
         <Route path="/solar" element={<Solar />} />
         <Route path="/weather" element={<Weather />} />
         <Route path="/nearby" element={<Nearby />} />
+        <Route path="/switches" element={<Relays />} />
         <Route path="/camera" element={<Camera />} />
         <Route path="/history" element={<History />} />
 

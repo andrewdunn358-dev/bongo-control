@@ -132,6 +132,23 @@ export const api = {
         cached_at: number | null;
       }>("/api/ai/nearby-recommendations"),
   },
+  relays: {
+    list: () =>
+      request<{
+        available: boolean;
+        reason: string | null;
+        state_is_commanded_only: boolean;
+        channels: { id: number; gpio: number; name: string; commanded_on: boolean }[];
+      }>("/api/relays"),
+    set: (id: number, on: boolean) =>
+      request<{ channels: { id: number; gpio: number; name: string; commanded_on: boolean }[] }>(`/api/relays/${id}/set`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ on }),
+      }),
+    allOff: () => request<{ channels: { id: number; commanded_on: boolean }[] }>("/api/relays/all-off", { method: "POST" }),
+  },
+
   intelligence: {
     missionBrief: () =>
       request<{
