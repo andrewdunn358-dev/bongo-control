@@ -26,6 +26,16 @@ services:
     volumes:
       - vanos-data:/app/data
       - /var/run/dbus:/var/run/dbus
+      # Read-only /sys, for the 1-Wire temperature sensor plugin
+      # (DS18B20). The kernel exposes each detected probe under
+      # /sys/bus/w1/devices/, but those entries are symlinks into
+      # /sys/devices/w1_bus_master1/ - mounting the two paths
+      # individually would break container startup entirely on any
+      # system without 1-Wire enabled (Docker can't create a missing
+      # path under sysfs), so the whole tree is mounted read-only
+      # instead. Harmless when no sensors are present: the plugin just
+      # finds nothing and reports that cleanly.
+      - /sys:/sys:ro
     environment:
       VANOS_ENVIRONMENT: production
       VANOS_DATABASE_URL: sqlite:///./data/vanos.db
