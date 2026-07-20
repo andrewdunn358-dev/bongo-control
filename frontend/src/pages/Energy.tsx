@@ -37,11 +37,18 @@ export default function Energy() {
       </div>
 
       <Card label="Active Loads" icon={<Zap size={14} />} index={3}>
-        <div>
-          {Object.entries(energy.loads).map(([name, on]) => (
-            <StatRow key={name} label={name.replace(/_/g, " ")} value={on ? "On" : "Off"} dotColor={on ? "bg-battery" : "bg-white/20"} />
-          ))}
-        </div>
+        {energy.loads && Object.keys(energy.loads).length > 0 ? (
+          <div>
+            {Object.entries(energy.loads).map(([name, on]) => (
+              <StatRow key={name} label={name.replace(/_/g, " ")} value={on ? "On" : "Off"} dotColor={on ? "bg-battery" : "bg-white/20"} />
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-text-muted">
+            No per-appliance breakdown available - the load figure above is a single aggregate reading (e.g. from the
+            MPPT's LOAD output), not broken down by individual device.
+          </p>
+        )}
       </Card>
     </div>
   );

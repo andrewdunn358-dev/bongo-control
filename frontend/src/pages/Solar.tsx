@@ -58,6 +58,16 @@ export default function Solar() {
               value={titleCase(solar.charger_error)}
             />
           )}
+          {solar.load_power_w != null && (
+            <MetricCard
+              index={6}
+              label="Load via MPPT"
+              icon={<Zap size={14} />}
+              value={solar.load_power_w}
+              unit="W"
+              subtext={solar.load_current_a != null ? `${solar.load_current_a} A` : undefined}
+            />
+          )}
         </>
       )}
     </div>

@@ -256,6 +256,14 @@ class VictronMPPTPlugin(Plugin):
         battery_voltage = data.get_battery_voltage()
         battery_current = data.get_battery_charging_current()
         yield_today_wh = data.get_yield_today()
+        # Confirmed available (checked the installed library directly,
+        # not assumed): current drawn from the MPPT's own LOAD output
+        # terminal specifically - e.g. an inverter wired to it. This is
+        # NOT the van's total power consumption if anything else draws
+        # power straight from the battery bus rather than through this
+        # terminal - labelled honestly as "load_via_mppt" rather than a
+        # generic "van load" to avoid implying more than it measures.
+        load_current_a = data.get_external_device_load()
 
         now = time.time()
 
@@ -268,6 +276,8 @@ class VictronMPPTPlugin(Plugin):
         # concept (no real cloud sensor here). peak_today_watts is a
         # genuine running max we compute ourselves, not a hardcoded
         # constant like the simulation's.
+        load_power_w = round(load_current_a * battery_voltage, 1) if (load_current_a is not None and battery_voltage is not None) else None
+
         await emit(
             TelemetryDomain.SOLAR,
             {
@@ -278,8 +288,32 @@ class VictronMPPTPlugin(Plugin):
                 "charger_error": (
                     None if (charger_error is None or charger_error.name == "NO_ERROR") else charger_error.name.lower()
                 ),
+                "load_current_a": round(load_current_a, 2) if load_current_a is not None else None,
+                "load_power_w": load_power_w,
             },
         )
+
+        # Published here for the first time on real hardware - before
+        # this, only the simulation plugin ever published ENERGY, so
+        # the "Van Loads" figure in Energy Flow showed nothing real at
+        # all when running against actual hardware. This specifically
+        # reflects whatever's wired through the MPPT's own LOAD output
+        # terminal (e.g. an inverter) - NOT the van's total consumption
+        # if anything else draws straight from the battery bus instead.
+        # "loads" is deliberately an empty dict, not omitted: a single
+        # aggregate current reading can't be broken down per-appliance
+        # the way the simulation's synthetic on/off switches can, and
+        # the frontend's Active Loads panel expects this key to exist.
+        if load_power_w is not None:
+            await emit(
+                TelemetryDomain.ENERGY,
+                {
+                    "solar_watts": round(solar_power, 1),
+                    "load_watts": load_power_w,
+                    "net_watts": round(solar_power - load_power_w, 1),
+                    "loads": {},
+                },
+            )
 
         if battery_voltage is not None:
             charging_power_w = (

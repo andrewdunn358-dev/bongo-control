@@ -49,6 +49,12 @@ export interface SolarPayload {
   yield_today_wh?: number | null;
   charge_state?: string | null;
   charger_error?: string | null;
+  // Current/power drawn from the MPPT's own LOAD output terminal
+  // specifically (e.g. an inverter wired to it) — NOT the van's total
+  // consumption if anything else draws power straight from the
+  // battery bus rather than through this terminal.
+  load_current_a?: number | null;
+  load_power_w?: number | null;
 }
 
 export interface EnvironmentPayload {
