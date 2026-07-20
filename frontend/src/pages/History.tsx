@@ -81,26 +81,26 @@ export default function History() {
   return (
     <Card label="History" icon={<HistoryIcon size={14} />}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-1 rounded-lg bg-white/5 p-1">
+        <div className="flex gap-1 rounded-lg bg-ink/5 p-1">
           {DOMAIN_OPTIONS.map((opt) => (
             <button
               key={opt.key}
               onClick={() => setDomain(opt.key)}
               className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
-                domain === opt.key ? "bg-white/10 text-text-primary" : "text-text-secondary hover:text-text-primary"
+                domain === opt.key ? "bg-ink/10 text-text-primary" : "text-text-secondary hover:text-text-primary"
               }`}
             >
               {opt.label}
             </button>
           ))}
         </div>
-        <div className="flex gap-1 rounded-lg bg-white/5 p-1">
+        <div className="flex gap-1 rounded-lg bg-ink/5 p-1">
           {TIME_RANGES.map((r) => (
             <button
               key={r.label}
               onClick={() => setHours(r.hours)}
               className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
-                hours === r.hours ? "bg-white/10 text-text-primary" : "text-text-secondary hover:text-text-primary"
+                hours === r.hours ? "bg-ink/10 text-text-primary" : "text-text-secondary hover:text-text-primary"
               }`}
             >
               {r.label}

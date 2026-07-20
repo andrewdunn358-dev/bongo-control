@@ -37,8 +37,8 @@ export default function UpdateBanner() {
         <RefreshCw size={16} className="text-battery" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-semibold text-white">Update available</div>
-        <div className="text-xs text-white/50">A new version is ready to install.</div>
+        <div className="text-sm font-semibold text-ink">Update available</div>
+        <div className="text-xs text-ink/50">A new version is ready to install.</div>
       </div>
       <button
         onClick={() => updateServiceWorker(true)}

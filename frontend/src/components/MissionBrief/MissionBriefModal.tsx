@@ -123,7 +123,7 @@ export default function MissionBriefModal() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
       <div
-        className="relative w-full max-w-md overflow-hidden rounded-[1.75rem] border border-white/[0.08] bg-surface-card p-7 shadow-[0_24px_60px_rgba(0,0,0,0.6)]"
+        className="relative w-full max-w-md overflow-hidden rounded-[1.75rem] border border-ink/[0.08] bg-surface-card p-7 shadow-[0_24px_60px_rgba(0,0,0,0.6)]"
         style={{ boxShadow: `inset 0 1px 0 rgba(255,255,255,0.06), 0 24px 60px rgba(0,0,0,0.6)` }}
       >
         <div
@@ -172,7 +172,7 @@ export default function MissionBriefModal() {
           )}
 
           {aiConfigured && (
-            <div className="mt-5 border-t border-white/[0.06] pt-5">
+            <div className="mt-5 border-t border-ink/[0.06] pt-5">
               <div className="mb-3 flex items-center gap-2">
                 <Sparkles size={14} className="text-solar" />
                 <span className="text-xs font-bold uppercase tracking-[0.14em] text-text-muted">Cool Stuff Nearby</span>
@@ -201,7 +201,7 @@ export default function MissionBriefModal() {
                         href={mapsSearchUrl(rec.name)}
                         target="_blank"
                         rel="noreferrer"
-                        className="flex items-start gap-2.5 rounded-xl bg-surface-raised p-2.5 transition-colors hover:bg-white/[0.06]"
+                        className="flex items-start gap-2.5 rounded-xl bg-surface-raised p-2.5 transition-colors hover:bg-ink/[0.06]"
                       >
                         <RecIcon size={14} className="mt-0.5 shrink-0 text-solar" />
                         <div className="min-w-0 flex-1">
@@ -225,7 +225,7 @@ export default function MissionBriefModal() {
 
           <button
             onClick={dismiss}
-            className="mt-6 w-full rounded-xl bg-white/[0.06] py-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-white/[0.1]"
+            className="mt-6 w-full rounded-xl bg-ink/[0.06] py-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-ink/[0.1]"
           >
             Got it
           </button>

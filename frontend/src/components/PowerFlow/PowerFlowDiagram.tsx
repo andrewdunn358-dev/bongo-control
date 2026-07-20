@@ -18,7 +18,7 @@ import { colors } from "../../theme/colors";
 
 function Connector({ color, active, reverse }: { color: string; active: boolean; reverse: boolean }) {
   return (
-    <div className="relative mx-auto h-8 w-1 shrink-0 overflow-hidden rounded-full bg-white/[0.06] lg:mx-0 lg:h-1 lg:w-full lg:flex-1">
+    <div className="relative mx-auto h-8 w-1 shrink-0 overflow-hidden rounded-full bg-ink/[0.06] lg:mx-0 lg:h-1 lg:w-full lg:flex-1">
       {active && (
         <div
           className="flow-connector-anim absolute inset-x-0 top-0 h-10 w-full lg:inset-y-0 lg:left-0 lg:h-full lg:w-10"
@@ -86,12 +86,12 @@ function Node({ icon, value, label, sublabel, glowColor, decoration, animatePuls
         {decoration}
         <span className="relative z-10">{icon}</span>
       </motion.div>
-      <div className="min-w-0 break-words font-mono text-xl font-semibold leading-none tracking-[-0.03em] text-white sm:text-2xl lg:text-3xl">
+      <div className="min-w-0 break-words font-mono text-xl font-semibold leading-none tracking-[-0.03em] text-ink sm:text-2xl lg:text-3xl">
         {value}
       </div>
-      <div className="min-w-0 break-words text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">
+      <div className="min-w-0 break-words text-[10px] font-bold uppercase tracking-[0.18em] text-ink/45">
         {label}
-        {sublabel && <span className="block text-white/60">{sublabel}</span>}
+        {sublabel && <span className="block text-ink/60">{sublabel}</span>}
       </div>
     </div>
   );
@@ -106,7 +106,7 @@ export default function PowerFlowDiagram() {
   const batteryPct = battery?.soc_pct ?? (battery ? Math.min(100, Math.max(0, ((battery.voltage - 11.8) / (14.4 - 11.8)) * 100)) : 0);
 
   return (
-    <div className="relative overflow-hidden rounded-[1.75rem] border border-white/[0.07] bg-base/55 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)] sm:p-7">
+    <div className="relative overflow-hidden rounded-[1.75rem] border border-ink/[0.07] bg-base/55 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)] sm:p-7">
       {/* Aurora backdrop - slow drifting gradient, purely decorative */}
       <div
         className="flow-aurora-anim pointer-events-none absolute -inset-1/2 opacity-70"
@@ -117,9 +117,9 @@ export default function PowerFlowDiagram() {
       />
 
       <div className="relative flex items-center justify-between gap-2 lg:hidden">
-        <div className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-surface-card/85 px-3 py-1.5">
-          <Cpu size={11} className="text-white/40" />
-          <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/45">MPPT</span>
+        <div className="flex items-center gap-1.5 rounded-full border border-ink/[0.08] bg-surface-card/85 px-3 py-1.5">
+          <Cpu size={11} className="text-ink/40" />
+          <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-ink/45">MPPT</span>
         </div>
       </div>
 
@@ -157,7 +157,7 @@ export default function PowerFlowDiagram() {
         <Connector color={colors.battery} active={loadWatts > 5} reverse={!charging} />
 
         <Node
-          icon={<HomeIcon size={24} className="text-white/70 lg:h-7 lg:w-7" />}
+          icon={<HomeIcon size={24} className="text-ink/70 lg:h-7 lg:w-7" />}
           value={<AnimatedNumber value={loadWatts} decimals={0} suffix="W" />}
           label="Van Loads"
           glowColor="#ffffff"
@@ -167,11 +167,11 @@ export default function PowerFlowDiagram() {
 
         {/* External Battery — honest stub, not fabricated data. Milestone 6. */}
         <div className="flex min-w-0 flex-1 flex-col items-center gap-2 text-center opacity-40 lg:gap-2.5">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-dashed border-white/20 bg-white/[0.03] lg:h-20 lg:w-20">
-            <BatteryWarning size={20} className="text-white/40" />
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-dashed border-ink/20 bg-ink/[0.03] lg:h-20 lg:w-20">
+            <BatteryWarning size={20} className="text-ink/40" />
           </div>
-          <div className="text-[10px] font-bold uppercase leading-tight tracking-[0.18em] text-white/40">External Battery</div>
-          <div className="text-[9px] leading-tight text-white/35">Not installed</div>
+          <div className="text-[10px] font-bold uppercase leading-tight tracking-[0.18em] text-ink/40">External Battery</div>
+          <div className="text-[9px] leading-tight text-ink/35">Not installed</div>
         </div>
       </div>
     </div>

@@ -41,7 +41,7 @@ export default function LiveIndicator({ lastUpdated, connected }: LiveIndicatorP
         <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${connected ? "bg-success" : "bg-alert"}`} />
       </span>
       <span>{connected ? "Live" : "Offline"}</span>
-      {lastUpdated !== null && connected && <span className="hidden text-white/45 sm:inline">{relativeTime(lastUpdated)}</span>}
+      {lastUpdated !== null && connected && <span className="hidden text-ink/45 sm:inline">{relativeTime(lastUpdated)}</span>}
     </div>
   );
 }

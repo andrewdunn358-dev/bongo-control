@@ -103,7 +103,7 @@ export default function AiRecommendationsCard() {
                     href={mapsSearchUrl(rec.name)}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-start gap-3 rounded-xl bg-surface-raised p-3 transition-colors hover:bg-white/[0.06]"
+                    className="flex items-start gap-3 rounded-xl bg-surface-raised p-3 transition-colors hover:bg-ink/[0.06]"
                   >
                     <Icon size={16} className="mt-0.5 shrink-0 text-solar" />
                     <div className="min-w-0 flex-1">

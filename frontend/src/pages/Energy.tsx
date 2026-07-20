@@ -40,7 +40,7 @@ export default function Energy() {
         {energy.loads && Object.keys(energy.loads).length > 0 ? (
           <div>
             {Object.entries(energy.loads).map(([name, on]) => (
-              <StatRow key={name} label={name.replace(/_/g, " ")} value={on ? "On" : "Off"} dotColor={on ? "bg-battery" : "bg-white/20"} />
+              <StatRow key={name} label={name.replace(/_/g, " ")} value={on ? "On" : "Off"} dotColor={on ? "bg-battery" : "bg-ink/20"} />
             ))}
           </div>
         ) : (

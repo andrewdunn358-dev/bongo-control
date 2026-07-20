@@ -184,7 +184,7 @@ export default function NearbyMap() {
             key={key}
             onClick={() => toggleCategory(key)}
             className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all duration-150 ${
-              activeCategories.has(key) ? "bg-white/10 text-text-primary" : "bg-white/5 text-text-muted opacity-50"
+              activeCategories.has(key) ? "bg-ink/10 text-text-primary" : "bg-ink/5 text-text-muted opacity-50"
             }`}
           >
             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: meta.color }} />
@@ -195,7 +195,7 @@ export default function NearbyMap() {
 
       {error && <p className="text-sm text-alert">{error}</p>}
 
-      <div ref={mapContainerRef} className="h-[420px] w-full overflow-hidden rounded-xl2 border border-white/10" />
+      <div ref={mapContainerRef} className="h-[420px] w-full overflow-hidden rounded-xl2 border border-ink/10" />
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-text-muted">
         <span>

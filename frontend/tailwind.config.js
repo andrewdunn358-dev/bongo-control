@@ -50,6 +50,15 @@ export default {
         success: {
           DEFAULT: "rgb(var(--color-success) / <alpha-value>)",
         },
+        // Theme-aware "ink": white in dark mode, near-black in light.
+        // This exists because the UI was originally written dark-only
+        // and used literal `text-white`, `bg-white/[0.05]`,
+        // `border-white/[0.07]` etc. in ~170 places. Those are correct
+        // on a dark background and invisible on a light one - which is
+        // exactly what broke light mode. Swapping them to `ink` keeps
+        // every opacity variant working in both themes from one
+        // definition.
+        ink: "rgb(var(--color-ink) / <alpha-value>)",
       },
       fontFamily: {
         display: ["Sora", "system-ui", "sans-serif"],

@@ -97,7 +97,7 @@ function DayTile({ day, index }: { day: DailyWeather; index: number }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05, duration: 0.3 }}
       className={`flex flex-col items-center gap-2 rounded-2xl border p-3 text-center transition-colors ${
-        isToday ? "border-solar/25 bg-solar/[0.07]" : "border-white/[0.06] bg-white/[0.02]"
+        isToday ? "border-solar/25 bg-solar/[0.07]" : "border-ink/[0.06] bg-ink/[0.02]"
       }`}
     >
       <div className={`text-[0.65rem] font-bold uppercase tracking-[0.16em] ${isToday ? "text-solar" : "text-text-muted"}`}>
@@ -148,7 +148,7 @@ export default function Weather() {
     <div className="space-y-4">
       {/* Hero - signage-style: one dominant number, readable across the van,
           minimal chrome. Everything else is support. */}
-      <div className="relative overflow-hidden rounded-[1.75rem] border border-white/[0.07] bg-surface-card">
+      <div className="relative overflow-hidden rounded-[1.75rem] border border-ink/[0.07] bg-surface-card">
         <div
           className="pointer-events-none absolute -inset-1/2 opacity-70"
           style={{
@@ -161,7 +161,7 @@ export default function Weather() {
         <div className="relative flex flex-col items-center gap-6 p-7 sm:flex-row sm:justify-between sm:gap-10 sm:p-9">
           <div className="text-center sm:text-left">
             <div className="text-[0.7rem] font-bold uppercase tracking-[0.22em] text-text-muted">Right now</div>
-            <div className="mt-3 font-mono text-7xl font-semibold leading-none tracking-[-0.05em] text-white sm:text-8xl">
+            <div className="mt-3 font-mono text-7xl font-semibold leading-none tracking-[-0.05em] text-ink sm:text-8xl">
               {weather.current_temp_c != null ? <AnimatedNumber value={weather.current_temp_c} decimals={0} suffix="°" /> : "—"}
             </div>
             <div className="mt-3 text-xl capitalize text-text-secondary">{weather.current_weather_description}</div>
@@ -177,7 +177,7 @@ export default function Weather() {
 
       {/* Forecast tile row - the Xibo-style bit: scans left to right,
           uniform tiles, no card chrome between them. */}
-      <div className="rounded-[1.75rem] border border-white/[0.07] bg-surface-card p-4 sm:p-5">
+      <div className="rounded-[1.75rem] border border-ink/[0.07] bg-surface-card p-4 sm:p-5">
         <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-5">
           {forecast.slice(0, 5).map((day, i) => (
             <DayTile key={day.date ?? i} day={day} index={i} />

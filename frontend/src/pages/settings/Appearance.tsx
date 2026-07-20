@@ -26,7 +26,7 @@ export default function Appearance() {
                 className={`flex flex-col items-center gap-2 rounded-2xl border p-4 text-center transition-all duration-150 active:scale-95 ${
                   active
                     ? "border-battery/30 bg-battery/10 text-text-primary"
-                    : "border-white/[0.08] bg-white/[0.03] text-text-secondary hover:bg-white/[0.06]"
+                    : "border-ink/[0.08] bg-ink/[0.03] text-text-secondary hover:bg-ink/[0.06]"
                 }`}
               >
                 <span className={active ? "text-battery" : "text-text-muted"}>{option.icon}</span>

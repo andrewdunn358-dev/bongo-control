@@ -28,6 +28,9 @@
   --color-text-secondary: 138 147 166;
   --color-text-muted: 91 100 114;
   --color-hairline: 255 255 255;
+  /* Theme-aware ink - white here, near-black in .light below. Used by
+     every `text-ink`, `bg-ink/[x]`, `border-ink/[x]` in the app. */
+  --color-ink: 255 255 255;
 
   --color-solar: 255 176 0;
   --color-solar-dim: 122 90 44;
@@ -50,6 +53,7 @@
   --color-text-secondary: 91 100 114;
   --color-text-muted: 138 147 166;
   --color-hairline: 20 24 31;
+  --color-ink: 20 24 31;
 
   --color-base-deep: 233 235 238;
 }

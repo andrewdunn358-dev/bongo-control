@@ -101,7 +101,7 @@ function LocationCard() {
           <button
             onClick={useIpFallback}
             disabled={busy}
-            className="rounded-lg bg-white/10 px-4 py-2 text-sm text-text-primary transition-all duration-150 hover:bg-white/15 active:scale-95 disabled:opacity-50"
+            className="rounded-lg bg-ink/10 px-4 py-2 text-sm text-text-primary transition-all duration-150 hover:bg-ink/15 active:scale-95 disabled:opacity-50"
           >
             Use Approximate (IP-based)
           </button>

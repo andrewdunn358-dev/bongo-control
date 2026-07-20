@@ -79,7 +79,7 @@ export default function Hardware() {
                 value={encryptionKey}
                 onChange={(e) => setEncryptionKey(e.target.value)}
                 placeholder="32-character hex key from VictronConnect"
-                className="w-full rounded-lg border border-white/10 bg-surface-raised px-3 py-2 font-mono text-sm text-text-primary placeholder:text-text-muted focus:border-solar focus:outline-none"
+                className="w-full rounded-lg border border-ink/10 bg-surface-raised px-3 py-2 font-mono text-sm text-text-primary placeholder:text-text-muted focus:border-solar focus:outline-none"
               />
             </div>
 
@@ -90,7 +90,7 @@ export default function Hardware() {
                 value={macAddress}
                 onChange={(e) => setMacAddress(e.target.value)}
                 placeholder="Leave blank to use the first Victron device found"
-                className="w-full rounded-lg border border-white/10 bg-surface-raised px-3 py-2 font-mono text-sm text-text-primary placeholder:text-text-muted focus:border-solar focus:outline-none"
+                className="w-full rounded-lg border border-ink/10 bg-surface-raised px-3 py-2 font-mono text-sm text-text-primary placeholder:text-text-muted focus:border-solar focus:outline-none"
               />
             </div>
 
@@ -117,7 +117,7 @@ export default function Hardware() {
           <button
             onClick={scan}
             disabled={scanning}
-            className="rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-text-primary transition-colors hover:bg-white/15 disabled:opacity-50"
+            className="rounded-lg bg-ink/10 px-4 py-2 text-sm font-medium text-text-primary transition-colors hover:bg-ink/15 disabled:opacity-50"
           >
             {scanning ? "Scanning (8s)..." : "Scan for Devices"}
           </button>

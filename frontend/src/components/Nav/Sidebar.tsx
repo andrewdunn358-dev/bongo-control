@@ -18,14 +18,14 @@ export default function Sidebar() {
     ) || null;
 
   return (
-    <aside className="relative z-20 hidden w-[5.75rem] shrink-0 flex-col border-r border-white/[0.07] bg-base/82 px-3 py-4 backdrop-blur-xl lg:flex xl:w-72 xl:px-5">
+    <aside className="relative z-20 hidden w-[5.75rem] shrink-0 flex-col border-r border-ink/[0.07] bg-base/82 px-3 py-4 backdrop-blur-xl lg:flex xl:w-72 xl:px-5">
       <div className="mb-7 flex items-center justify-center gap-3 xl:justify-start">
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-battery/25 bg-battery/12 shadow-[0_0_26px_rgba(0,194,168,0.18)]">
           <Gauge size={22} className="text-battery" />
         </div>
         <div className="hidden xl:block">
-          <div className="text-sm font-bold uppercase tracking-[0.2em] text-white">Bongo</div>
-          <div className="text-[0.65rem] font-semibold uppercase tracking-[0.24em] text-white/38">Control OS</div>
+          <div className="text-sm font-bold uppercase tracking-[0.2em] text-ink">Bongo</div>
+          <div className="text-[0.65rem] font-semibold uppercase tracking-[0.24em] text-ink/38">Control OS</div>
         </div>
       </div>
 
@@ -39,7 +39,7 @@ export default function Sidebar() {
               to={item.path}
               end={item.path === "/"}
               aria-label={item.label}
-              className="group relative flex h-14 items-center justify-center rounded-2xl text-white/42 transition-colors duration-200 hover:text-white xl:justify-start xl:gap-3 xl:px-4"
+              className="group relative flex h-14 items-center justify-center rounded-2xl text-ink/42 transition-colors duration-200 hover:text-ink xl:justify-start xl:gap-3 xl:px-4"
             >
               {isActive && (
                 <motion.span
@@ -49,13 +49,13 @@ export default function Sidebar() {
                 />
               )}
               <Icon size={21} className={`relative z-10 ${isActive ? "text-battery" : ""}`} />
-              <span className={`relative z-10 hidden text-sm font-semibold xl:inline ${isActive ? "text-white" : ""}`}>{item.label}</span>
+              <span className={`relative z-10 hidden text-sm font-semibold xl:inline ${isActive ? "text-ink" : ""}`}>{item.label}</span>
             </NavLink>
           );
         })}
       </nav>
 
-      <div className="flex justify-center border-t border-white/[0.07] pt-4 xl:justify-start">
+      <div className="flex justify-center border-t border-ink/[0.07] pt-4 xl:justify-start">
         <LiveIndicator lastUpdated={lastUpdated} connected={connected} />
       </div>
     </aside>

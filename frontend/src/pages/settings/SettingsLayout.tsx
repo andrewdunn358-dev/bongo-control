@@ -21,7 +21,7 @@ const sections = [
 export default function SettingsLayout() {
   return (
     <div className="space-y-4">
-      <nav className="flex gap-1 overflow-x-auto border-b border-white/10 pb-px">
+      <nav className="flex gap-1 overflow-x-auto border-b border-ink/10 pb-px">
         {sections.map((s) => {
           const Icon = s.icon;
           return (

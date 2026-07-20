@@ -12,7 +12,7 @@ interface StatRowProps {
  */
 export default function StatRow({ label, value, dotColor }: StatRowProps) {
   return (
-    <div className="flex items-center justify-between border-b border-white/5 py-2 text-sm last:border-b-0">
+    <div className="flex items-center justify-between border-b border-ink/5 py-2 text-sm last:border-b-0">
       <span className="flex items-center gap-2 capitalize text-text-secondary">
         {dotColor && <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`} />}
         {label}

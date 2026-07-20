@@ -17,8 +17,8 @@ function relativeTime(unixSeconds: number | null): string {
 const statusDot: Record<string, string> = {
   running: "bg-battery",
   starting: "bg-solar",
-  stopped: "bg-white/20",
-  disabled: "bg-white/20",
+  stopped: "bg-ink/20",
+  disabled: "bg-ink/20",
   error: "bg-alert",
 };
 
@@ -80,7 +80,7 @@ export default function Plugins() {
           <Card key={plugin.name} label={plugin.display_name} accent={plugin.status === "error" ? "alert" : "neutral"} index={i}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <span className={`h-2 w-2 rounded-full ${statusDot[plugin.status] ?? "bg-white/20"}`} />
+                <span className={`h-2 w-2 rounded-full ${statusDot[plugin.status] ?? "bg-ink/20"}`} />
                 <span className="text-sm text-text-primary capitalize">{plugin.status}</span>
                 <span className="text-sm text-text-muted">· v{plugin.version}</span>
                 <span className="text-sm text-text-muted">· last update {relativeTime(plugin.last_heartbeat)}</span>
@@ -91,7 +91,7 @@ export default function Plugins() {
                   onClick={() => toggle(plugin)}
                   disabled={busy === plugin.name}
                   className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-150 active:scale-95 disabled:opacity-50 ${
-                    plugin.enabled ? "bg-white/10 text-text-primary hover:bg-white/15" : "bg-solar text-black hover:opacity-90"
+                    plugin.enabled ? "bg-ink/10 text-text-primary hover:bg-ink/15" : "bg-solar text-black hover:opacity-90"
                   }`}
                 >
                   {plugin.enabled ? "Disable" : "Enable"}
@@ -99,7 +99,7 @@ export default function Plugins() {
                 {configRoute ? (
                   <Link
                     to={configRoute}
-                    className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-sm text-text-primary hover:bg-white/15"
+                    className="flex items-center gap-1.5 rounded-lg bg-ink/10 px-3 py-1.5 text-sm text-text-primary hover:bg-ink/15"
                   >
                     <Settings2 size={14} />
                     Configure
@@ -108,7 +108,7 @@ export default function Plugins() {
                   <button
                     disabled
                     title="Nothing to configure for this plugin"
-                    className="flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-sm text-text-muted opacity-50"
+                    className="flex items-center gap-1.5 rounded-lg bg-ink/5 px-3 py-1.5 text-sm text-text-muted opacity-50"
                   >
                     <Settings2 size={14} />
                     Configure

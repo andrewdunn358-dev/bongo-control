@@ -59,7 +59,7 @@ export default function Camera() {
       <div className="space-y-3">
         <p className="text-sm text-text-secondary">Live from the van's webcam (updates every {REFRESH_INTERVAL_MS / 1000}s).</p>
 
-        <div className="max-h-[60vh] overflow-hidden rounded-2xl border border-white/[0.08] bg-black">
+        <div className="max-h-[60vh] overflow-hidden rounded-2xl border border-ink/[0.08] bg-black">
           {displayUrl ? (
             <img src={displayUrl} alt="Live camera feed" className="max-h-[60vh] w-full object-contain" />
           ) : (

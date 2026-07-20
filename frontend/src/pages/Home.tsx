@@ -27,7 +27,7 @@ function temperatureState(temp?: number | null): { label: string; color: string 
   // correctly sends null when a sensor role isn't assigned or a
   // reading failed, and `null < 4` evaluates TRUE in JavaScript - which
   // showed a confident "Extreme" for data that simply didn't exist.
-  if (temp === undefined || temp === null) return { label: "Awaiting", color: "text-white/42" };
+  if (temp === undefined || temp === null) return { label: "Awaiting", color: "text-ink/42" };
   if (temp < 4 || temp > 32) return { label: "Extreme", color: "text-alert" };
   if (temp < 10 || temp > 27) return { label: "Watch", color: "text-solar" };
   return { label: "Comfort", color: "text-success" };
@@ -75,10 +75,10 @@ function BatteryGauge({ value, charging }: { value: number | null | undefined; c
         />
       </svg>
       <div className="text-center">
-        <div className="font-mono text-5xl font-semibold tracking-[-0.08em] text-white tabular-nums">
+        <div className="font-mono text-5xl font-semibold tracking-[-0.08em] text-ink tabular-nums">
           {value !== null && value !== undefined ? <AnimatedNumber value={value} decimals={0} suffix="%" /> : "—"}
         </div>
-        <div className="mt-2 text-[0.65rem] font-bold uppercase tracking-[0.24em] text-white/40">Leisure</div>
+        <div className="mt-2 text-[0.65rem] font-bold uppercase tracking-[0.24em] text-ink/40">Leisure</div>
       </div>
     </div>
   );
@@ -87,9 +87,9 @@ function BatteryGauge({ value, charging }: { value: number | null | undefined; c
 function SystemPill({ label, value, tone = "ready" }: { label: string; value: string; tone?: "ready" | "charging" | "warning" | "critical" }) {
   const color = ringColor(tone);
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-white/[0.045] px-4 py-3">
-      <div className="text-[0.62rem] font-bold uppercase tracking-[0.22em] text-white/36">{label}</div>
-      <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-white">
+    <div className="rounded-2xl border border-ink/[0.07] bg-ink/[0.045] px-4 py-3">
+      <div className="text-[0.62rem] font-bold uppercase tracking-[0.22em] text-ink/36">{label}</div>
+      <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-ink">
         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color, boxShadow: `0 0 14px ${color}` }} />
         {value}
       </div>
@@ -142,13 +142,13 @@ export default function Home() {
   return (
     <div className="space-y-5">
       <SimulatedDataBanner />
-      <header className="flex flex-wrap items-center justify-between gap-4 rounded-[2rem] border border-white/[0.07] bg-surface-card/58 px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-sm">
+      <header className="flex flex-wrap items-center justify-between gap-4 rounded-[2rem] border border-ink/[0.07] bg-surface-card/58 px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-sm">
         <div>
           <div className="text-[0.68rem] font-bold uppercase tracking-[0.28em] text-battery">Mazda Bongo</div>
-          <h1 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-white md:text-4xl">Expedition Control</h1>
+          <h1 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-ink md:text-4xl">Expedition Control</h1>
         </div>
         <div className="flex items-center gap-3">
-          <div className="hidden rounded-full border border-white/[0.08] bg-white/[0.04] px-4 py-2 font-mono text-lg font-semibold text-white sm:block">
+          <div className="hidden rounded-full border border-ink/[0.08] bg-ink/[0.04] px-4 py-2 font-mono text-lg font-semibold text-ink sm:block">
             {formatClock(now)}
           </div>
           <LiveIndicator lastUpdated={lastUpdated} connected={connected} />
@@ -163,17 +163,17 @@ export default function Home() {
         <div className="grid min-h-[34vh] gap-7 xl:grid-cols-[1.05fr_0.95fr] xl:items-stretch">
           <div className="flex min-w-0 flex-col justify-between gap-8">
             <div className="min-w-0">
-              <div className="flex items-center gap-3 text-[0.7rem] font-bold uppercase tracking-[0.28em] text-white/42">
+              <div className="flex items-center gap-3 text-[0.7rem] font-bold uppercase tracking-[0.28em] text-ink/42">
                 <Gauge size={15} className="text-battery" /> SIT REP
               </div>
               <motion.div
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mt-7 break-words text-4xl font-semibold leading-none tracking-[-0.06em] text-white sm:text-6xl md:text-7xl xl:text-9xl xl:tracking-[-0.09em]"
+                className="mt-7 hyphens-none break-normal text-4xl font-semibold leading-none tracking-[-0.06em] text-ink sm:text-6xl md:text-7xl xl:text-8xl xl:tracking-[-0.08em]"
               >
                 {sitRep.state}
               </motion.div>
-              <div className="mt-5 flex items-start gap-3 text-xl font-medium text-white/62 md:text-2xl">
+              <div className="mt-5 flex items-start gap-3 text-xl font-medium text-ink/62 md:text-2xl">
                 <span
                   className="mt-2 h-3 w-3 shrink-0 rounded-full"
                   style={{ backgroundColor: sitRepColor, boxShadow: `0 0 22px ${sitRepColor}` }}
@@ -191,31 +191,31 @@ export default function Home() {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
-            <div className="rounded-[2rem] border border-white/[0.07] bg-base/42 p-5 sm:col-span-3 xl:col-span-1">
+            <div className="rounded-[2rem] border border-ink/[0.07] bg-base/42 p-5 sm:col-span-3 xl:col-span-1">
               <div className="mb-5 flex items-center justify-between">
-                <span className="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-white/42">Warnings</span>
+                <span className="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-ink/42">Warnings</span>
                 <AlertTriangle size={17} className={activeWarning ? "text-solar" : "text-success"} />
               </div>
-              <div className="text-2xl font-semibold tracking-[-0.04em] text-white">
+              <div className="text-2xl font-semibold tracking-[-0.04em] text-ink">
                 {activeWarning ? activeWarning.message.payload.title : "No active warnings"}
               </div>
-              <p className="mt-3 line-clamp-2 text-sm text-white/48">
+              <p className="mt-3 line-clamp-2 text-sm text-ink/48">
                 {activeWarning ? activeWarning.message.payload.message : "Vehicle telemetry is stable across monitored systems."}
               </p>
             </div>
-            <div className="rounded-[2rem] border border-white/[0.07] bg-base/42 p-5">
-              <div className="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-white/42">Net Power</div>
-              <div className="mt-4 font-mono text-4xl font-semibold tracking-[-0.07em] text-white tabular-nums">
+            <div className="rounded-[2rem] border border-ink/[0.07] bg-base/42 p-5">
+              <div className="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-ink/42">Net Power</div>
+              <div className="mt-4 font-mono text-4xl font-semibold tracking-[-0.07em] text-ink tabular-nums">
                 {energy ? <AnimatedNumber value={Math.abs(energy.net_watts)} decimals={0} prefix={energy.net_watts >= 0 ? "+" : "-"} suffix="W" /> : "—"}
               </div>
-              <div className="mt-2 text-sm font-semibold uppercase tracking-[0.18em] text-white/38">{energy ? (energy.net_watts >= 0 ? "Charging" : "Discharging") : "Awaiting"}</div>
+              <div className="mt-2 text-sm font-semibold uppercase tracking-[0.18em] text-ink/38">{energy ? (energy.net_watts >= 0 ? "Charging" : "Discharging") : "Awaiting"}</div>
             </div>
-            <div className="rounded-[2rem] border border-white/[0.07] bg-base/42 p-5">
-              <div className="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-white/42">Signal</div>
-              <div className="mt-4 font-mono text-4xl font-semibold tracking-[-0.07em] text-white tabular-nums">
+            <div className="rounded-[2rem] border border-ink/[0.07] bg-base/42 p-5">
+              <div className="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-ink/42">Signal</div>
+              <div className="mt-4 font-mono text-4xl font-semibold tracking-[-0.07em] text-ink tabular-nums">
                 {connectivity ? <AnimatedNumber value={connectivity.signal_strength_pct} decimals={0} suffix="%" /> : "—"}
               </div>
-              <div className="mt-2 text-sm font-semibold uppercase tracking-[0.18em] text-white/38">{connectivity ? formatStatus(connectivity.connection_type) : "Awaiting"}</div>
+              <div className="mt-2 text-sm font-semibold uppercase tracking-[0.18em] text-ink/38">{connectivity ? formatStatus(connectivity.connection_type) : "Awaiting"}</div>
             </div>
           </div>
         </div>
@@ -225,17 +225,17 @@ export default function Home() {
         <Card label="Battery" icon={<BatteryMedium size={16} />} accent="battery" index={1} className="min-h-[21rem]">
           <BatteryGauge value={batteryPrimary} charging={Boolean(battery?.charging)} />
           <div className="mt-6 grid grid-cols-3 gap-3 text-center">
-            <div className="rounded-2xl bg-white/[0.045] p-3">
-              <div className="text-[0.62rem] font-bold uppercase tracking-[0.2em] text-white/36">Voltage</div>
-              <div className="mt-2 font-mono text-lg text-white">{battery ? `${battery.voltage.toFixed(2)}V` : "—"}</div>
+            <div className="rounded-2xl bg-ink/[0.045] p-3">
+              <div className="text-[0.62rem] font-bold uppercase tracking-[0.2em] text-ink/36">Voltage</div>
+              <div className="mt-2 font-mono text-lg text-ink">{battery ? `${battery.voltage.toFixed(2)}V` : "—"}</div>
             </div>
-            <div className="rounded-2xl bg-white/[0.045] p-3">
-              <div className="text-[0.62rem] font-bold uppercase tracking-[0.2em] text-white/36">Status</div>
-              <div className="mt-2 text-sm font-semibold text-white">{battery?.charging ? "Charging" : battery ? "Discharge" : "—"}</div>
+            <div className="rounded-2xl bg-ink/[0.045] p-3">
+              <div className="text-[0.62rem] font-bold uppercase tracking-[0.2em] text-ink/36">Status</div>
+              <div className="mt-2 text-sm font-semibold text-ink">{battery?.charging ? "Charging" : battery ? "Discharge" : "—"}</div>
             </div>
-            <div className="rounded-2xl bg-white/[0.045] p-3">
-              <div className="text-[0.62rem] font-bold uppercase tracking-[0.2em] text-white/36">Power</div>
-              <div className="mt-2 font-mono text-lg text-white">{battery?.charging_power_w != null ? `${battery.charging_power_w.toFixed(0)}W` : "—"}</div>
+            <div className="rounded-2xl bg-ink/[0.045] p-3">
+              <div className="text-[0.62rem] font-bold uppercase tracking-[0.2em] text-ink/36">Power</div>
+              <div className="mt-2 font-mono text-lg text-ink">{battery?.charging_power_w != null ? `${battery.charging_power_w.toFixed(0)}W` : "—"}</div>
             </div>
           </div>
         </Card>
@@ -245,7 +245,7 @@ export default function Home() {
             <div>
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="break-words font-mono text-5xl font-semibold leading-none tracking-[-0.06em] text-white tabular-nums sm:text-6xl md:text-7xl">
+                  <div className="break-words font-mono text-5xl font-semibold leading-none tracking-[-0.06em] text-ink tabular-nums sm:text-6xl md:text-7xl">
                     {solar ? <AnimatedNumber value={solar.watts} decimals={0} /> : "—"}
                   </div>
                   <div className="mt-2 text-xl font-semibold uppercase tracking-[0.18em] text-solar">Watts PV</div>
@@ -256,17 +256,17 @@ export default function Home() {
               </div>
             </div>
             <div className="grid grid-cols-3 gap-3 text-center">
-              <div className="rounded-2xl bg-white/[0.045] p-3">
-                <div className="text-[0.62rem] font-bold uppercase tracking-[0.2em] text-white/36">Peak</div>
-                <div className="mt-2 font-mono text-lg text-white">{solar ? `${Math.round(solar.peak_today_watts)}W` : "—"}</div>
+              <div className="rounded-2xl bg-ink/[0.045] p-3">
+                <div className="text-[0.62rem] font-bold uppercase tracking-[0.2em] text-ink/36">Peak</div>
+                <div className="mt-2 font-mono text-lg text-ink">{solar ? `${Math.round(solar.peak_today_watts)}W` : "—"}</div>
               </div>
-              <div className="rounded-2xl bg-white/[0.045] p-3">
-                <div className="text-[0.62rem] font-bold uppercase tracking-[0.2em] text-white/36">Yield</div>
-                <div className="mt-2 font-mono text-lg text-white">{solar?.yield_today_wh != null ? `${(solar.yield_today_wh / 1000).toFixed(1)}kWh` : "—"}</div>
+              <div className="rounded-2xl bg-ink/[0.045] p-3">
+                <div className="text-[0.62rem] font-bold uppercase tracking-[0.2em] text-ink/36">Yield</div>
+                <div className="mt-2 font-mono text-lg text-ink">{solar?.yield_today_wh != null ? `${(solar.yield_today_wh / 1000).toFixed(1)}kWh` : "—"}</div>
               </div>
-              <div className="rounded-2xl bg-white/[0.045] p-3">
-                <div className="text-[0.62rem] font-bold uppercase tracking-[0.2em] text-white/36">Stage</div>
-                <div className="mt-2 truncate text-sm font-semibold text-white">{formatStatus(solar?.charge_state)}</div>
+              <div className="rounded-2xl bg-ink/[0.045] p-3">
+                <div className="text-[0.62rem] font-bold uppercase tracking-[0.2em] text-ink/36">Stage</div>
+                <div className="mt-2 truncate text-sm font-semibold text-ink">{formatStatus(solar?.charge_state)}</div>
               </div>
             </div>
           </div>
@@ -276,8 +276,8 @@ export default function Home() {
           <div className="flex h-full flex-col justify-between gap-8">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <div className="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-white/38">Inside</div>
-                <div className="mt-3 font-mono text-6xl font-semibold tracking-[-0.09em] text-white tabular-nums">
+                <div className="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-ink/38">Inside</div>
+                <div className="mt-3 font-mono text-6xl font-semibold tracking-[-0.09em] text-ink tabular-nums">
                   {environment?.internal_temp_c != null ? (
                     <AnimatedNumber value={environment.internal_temp_c} decimals={0} suffix="°" />
                   ) : (
@@ -286,8 +286,8 @@ export default function Home() {
                 </div>
               </div>
               <div>
-                <div className="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-white/38">Outside</div>
-                <div className="mt-3 font-mono text-6xl font-semibold tracking-[-0.09em] text-white/70 tabular-nums">
+                <div className="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-ink/38">Outside</div>
+                <div className="mt-3 font-mono text-6xl font-semibold tracking-[-0.09em] text-ink/70 tabular-nums">
                   {environment?.external_temp_c != null ? (
                     <AnimatedNumber value={environment.external_temp_c} decimals={0} suffix="°" />
                   ) : (
@@ -296,12 +296,12 @@ export default function Home() {
                 </div>
               </div>
             </div>
-            <div className="rounded-[1.5rem] border border-white/[0.07] bg-white/[0.045] p-4">
+            <div className="rounded-[1.5rem] border border-ink/[0.07] bg-ink/[0.045] p-4">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-sm font-bold uppercase tracking-[0.2em] text-white/40">Cabin state</span>
+                <span className="text-sm font-bold uppercase tracking-[0.2em] text-ink/40">Cabin state</span>
                 <span className={`text-lg font-semibold ${climate.color}`}>{climate.label}</span>
               </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/[0.08]">
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-ink/[0.08]">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-battery via-success to-solar"
                   style={{
@@ -312,7 +312,7 @@ export default function Home() {
                   }}
                 />
               </div>
-              <div className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/35">
+              <div className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-ink/35">
                 {/* A DS18B20 is temperature-only - it has no humidity sensor
                     at all, so this is genuinely absent rather than zero. */}
                 Humidity {environment?.humidity_pct != null ? `${Math.round(environment.humidity_pct)}%` : "—"}

@@ -118,7 +118,7 @@ export default function Network() {
           <button
             onClick={scan}
             disabled={scanning}
-            className="flex items-center gap-1.5 rounded-lg bg-white/10 px-4 py-2 text-sm text-text-primary transition-all duration-150 hover:bg-white/15 active:scale-95 disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg bg-ink/10 px-4 py-2 text-sm text-text-primary transition-all duration-150 hover:bg-ink/15 active:scale-95 disabled:opacity-50"
           >
             <RefreshCw size={14} className={scanning ? "animate-spin" : ""} />
             {scanning ? "Scanning…" : "Scan for Networks"}
@@ -136,7 +136,7 @@ export default function Network() {
                       setPassword("");
                       setConnectError(null);
                     }}
-                    className="flex w-full items-center justify-between gap-3 py-2.5 text-left transition-colors hover:bg-white/[0.03]"
+                    className="flex w-full items-center justify-between gap-3 py-2.5 text-left transition-colors hover:bg-ink/[0.03]"
                   >
                     <span className="flex min-w-0 items-center gap-2">
                       <span className="font-mono text-sm text-text-primary truncate">{n.ssid}</span>
@@ -165,7 +165,7 @@ export default function Network() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Network password"
                 autoFocus
-                className="w-full rounded-lg border border-white/10 bg-surface-raised px-3 py-2 font-mono text-sm text-text-primary placeholder:text-text-muted focus:border-solar focus:outline-none"
+                className="w-full rounded-lg border border-ink/10 bg-surface-raised px-3 py-2 font-mono text-sm text-text-primary placeholder:text-text-muted focus:border-solar focus:outline-none"
               />
             )}
             {status?.known_networks.includes(selected.ssid) && (
@@ -182,7 +182,7 @@ export default function Network() {
               </button>
               <button
                 onClick={() => setSelected(null)}
-                className="rounded-lg bg-white/10 px-4 py-2 text-sm text-text-primary transition-all duration-150 hover:bg-white/15 active:scale-95"
+                className="rounded-lg bg-ink/10 px-4 py-2 text-sm text-text-primary transition-all duration-150 hover:bg-ink/15 active:scale-95"
               >
                 Cancel
               </button>

@@ -44,7 +44,7 @@ export default function UnlockScreen() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-base px-4">
-      <div className="w-full max-w-xs rounded-2xl border border-white/[0.08] bg-surface-card p-7 text-center shadow-[0_16px_40px_rgba(0,0,0,0.5)]">
+      <div className="w-full max-w-xs rounded-2xl border border-ink/[0.08] bg-surface-card p-7 text-center shadow-[0_16px_40px_rgba(0,0,0,0.5)]">
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-battery/12">
           <Lock size={20} className="text-battery" />
         </div>
@@ -58,7 +58,7 @@ export default function UnlockScreen() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Password"
-            className="w-full rounded-lg border border-white/10 bg-surface-raised px-3 py-2.5 text-center font-mono text-sm text-text-primary placeholder:text-text-muted focus:border-battery focus:outline-none"
+            className="w-full rounded-lg border border-ink/10 bg-surface-raised px-3 py-2.5 text-center font-mono text-sm text-text-primary placeholder:text-text-muted focus:border-battery focus:outline-none"
           />
           {error && <p className="text-sm text-alert">{error}</p>}
           <button

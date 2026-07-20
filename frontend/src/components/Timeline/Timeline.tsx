@@ -25,11 +25,11 @@ export default function Timeline({ items, emptyMessage }: { items: TimelineItem[
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="group relative flex gap-3 rounded-lg pb-4 pl-1 pr-2 pt-0.5 transition-colors duration-200 hover:bg-white/[0.03] last:pb-1"
+            className="group relative flex gap-3 rounded-lg pb-4 pl-1 pr-2 pt-0.5 transition-colors duration-200 hover:bg-ink/[0.03] last:pb-1"
           >
             <div className="flex flex-col items-center">
               <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-battery transition-transform duration-200 group-hover:scale-125" />
-              {i < items.length - 1 && <span className="w-px flex-1 bg-white/10" />}
+              {i < items.length - 1 && <span className="w-px flex-1 bg-ink/10" />}
             </div>
             <div className="-mt-0.5">
               <div className="font-mono text-xs tabular-nums text-text-muted">

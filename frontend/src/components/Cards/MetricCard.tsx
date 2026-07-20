@@ -30,10 +30,10 @@ export default function MetricCard({
 
   return (
     <Card label={label} icon={icon} accent={accent} index={index} compact>
-      <div className={`font-mono ${sizeClass} font-semibold leading-none tracking-[-0.05em] tabular-nums text-white`}>
+      <div className={`font-mono ${sizeClass} font-semibold leading-none tracking-[-0.05em] tabular-nums text-ink`}>
         {typeof value === "number" ? <AnimatedNumber value={value} decimals={decimals} prefix={prefix} suffix={unit} /> : value}
       </div>
-      {subtext && <div className="mt-4 min-h-6 text-sm font-medium uppercase tracking-[0.16em] text-white/45">{subtext}</div>}
+      {subtext && <div className="mt-4 min-h-6 text-sm font-medium uppercase tracking-[0.16em] text-ink/45">{subtext}</div>}
     </Card>
   );
 }
