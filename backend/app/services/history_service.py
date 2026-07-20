@@ -40,6 +40,23 @@ PERSISTED_DOMAINS = {
 }
 
 DEFAULT_SAMPLE_INTERVAL_SECONDS = 60
+# Per-domain overrides. Sampling rate should match how fast the
+# underlying thing actually changes - storing a temperature every
+# minute is 60x the rows for no extra insight, and every row is an SD
+# card write on a Pi.
+#
+# Battery/solar/energy deliberately stay at the 60s default: solar
+# production curves through the day and overnight battery discharge
+# are exactly the cases where minute-level resolution earns its keep.
+DOMAIN_SAMPLE_INTERVALS: dict[str, float] = {
+    # Ambient temperature moves slowly enough that hourly is plenty -
+    # especially in a UK climate.
+    TelemetryDomain.ENVIRONMENT.value: 3600,
+    # Online/offline state is event-shaped rather than a curve; a
+    # reading every 10 minutes is more than enough to see outage
+    # windows without logging near-identical rows all day.
+    TelemetryDomain.CONNECTIVITY.value: 600,
+}
 DEFAULT_RETENTION_DAYS = 30
 PRUNE_INTERVAL_SECONDS = 6 * 3600  # every 6 hours is plenty for a daily-scale retention window
 
@@ -80,7 +97,8 @@ class HistoryService:
                     continue
 
                 now = time.time()
-                if now - self._last_sampled_at.get(message.domain, 0) < self._sample_interval:
+                interval = DOMAIN_SAMPLE_INTERVALS.get(message.domain, self._sample_interval)
+                if now - self._last_sampled_at.get(message.domain, 0) < interval:
                     continue  # sampled recently enough, skip this one
 
                 self._last_sampled_at[message.domain] = now
