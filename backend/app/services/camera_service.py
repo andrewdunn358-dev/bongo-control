@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 
 logger = logging.getLogger("vanos.camera_service")
 
@@ -45,6 +46,43 @@ class CameraService:
         self.device = device
         self.input_format = input_format
         self.size = size
+        # Rotation in degrees, for a camera that's physically mounted
+        # upside down or on its side. Applied server-side rather than
+        # with a CSS transform in the browser so it's correct
+        # everywhere the image is consumed - the web UI, a future
+        # dash-mounted display, or anything else that fetches the
+        # snapshot endpoint directly.
+        self.rotation = self._parse_rotation(os.environ.get("CAMERA_ROTATION", "0"))
+
+    @staticmethod
+    def _parse_rotation(value: str) -> int:
+        try:
+            degrees = int(value)
+        except ValueError:
+            logger.warning("Invalid CAMERA_ROTATION %r - ignoring, using 0", value)
+            return 0
+        if degrees not in (0, 90, 180, 270):
+            logger.warning("CAMERA_ROTATION must be 0, 90, 180 or 270 (got %s) - ignoring, using 0", degrees)
+            return 0
+        return degrees
+
+    def _rotation_args(self) -> list[str]:
+        """ffmpeg filter args for the configured rotation, or none at
+        all when rotation is 0 - passing an identity filter would make
+        ffmpeg decode and re-encode the frame for no reason, which
+        matters on a Pi.
+        """
+        if self.rotation == 0:
+            return []
+        # transpose=1 is 90 clockwise, =2 is 90 counter-clockwise.
+        # 180 is two transposes, but hflip+vflip is cheaper and avoids
+        # the dimension swap that two transposes would imply.
+        filters = {
+            90: "transpose=1",
+            180: "hflip,vflip",
+            270: "transpose=2",
+        }
+        return ["-vf", filters[self.rotation]]
 
     async def capture_snapshot(self) -> bytes:
         """Captures exactly one JPEG frame and returns its raw bytes -
@@ -70,6 +108,7 @@ class CameraService:
                 self.size,
                 "-i",
                 self.device,
+                *self._rotation_args(),
                 "-frames:v",
                 "1",
                 "-f",
@@ -115,6 +154,7 @@ class CameraService:
                 self.size,
                 "-i",
                 self.device,
+                *self._rotation_args(),
                 "-f",
                 "mjpeg",
                 "-q:v",
