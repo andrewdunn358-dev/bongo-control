@@ -1,0 +1,41 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Rounded-square app-icon background, matching the app's own dark
+       base color rather than transparent/white, so it looks
+       intentional on a home screen or browser tab. -->
+  <rect width="512" height="512" rx="112" fill="#0b0e12"/>
+
+  <!-- Campervan silhouette, deliberately reduced to the fewest shapes
+       that still read unambiguously as "campervan" at 16px: a body
+       with a distinctly raised roof over the back half (the single
+       strongest classic-camper visual cue), one big window, two bold
+       wheels. Earlier version had a headlight, bumper, split
+       windshield and a sun - all of it turned to mud below 32px and
+       was cut for exactly that reason. -->
+
+  <!-- Main body: low nose at front (left), tall roof over the back -->
+  <path
+    d="M 80 300
+       L 80 210
+       Q 80 190 100 190
+       L 300 190
+       L 300 150
+       Q 300 130 320 130
+       L 400 130
+       Q 420 130 420 150
+       L 420 300
+       Z"
+    fill="#00c2a8"
+  />
+
+  <!-- Window, one bold rectangle -->
+  <rect x="320" y="160" width="80" height="80" rx="14" fill="#0b0e12"/>
+
+  <!-- Wheels -->
+  <circle cx="160" cy="316" r="46" fill="#0b0e12"/>
+  <circle cx="160" cy="316" r="22" fill="#ffb000"/>
+  <circle cx="360" cy="316" r="46" fill="#0b0e12"/>
+  <circle cx="360" cy="316" r="22" fill="#ffb000"/>
+
+  <!-- Ground line -->
+  <rect x="60" y="330" width="392" height="10" rx="5" fill="#0b0e12" opacity="0.5"/>
+</svg>
