@@ -34,7 +34,25 @@ async def get_config(section: str) -> dict:
 
 @router.put("/{section}")
 async def set_config(section: str, body: ConfigUpdate) -> dict:
+    """Merges the supplied keys into the section rather than replacing
+    it wholesale.
+
+    This used to replace the entire section, which was a genuine
+    footgun: PUTting a single plugin's config silently wiped every
+    OTHER plugin's settings in that section - including their `enabled`
+    flags, which meant a disabled plugin (the simulation) reverted to
+    its default and started publishing again, overwriting real hardware
+    telemetry with simulated data. Merging is what every caller
+    actually wanted, and matches how update_plugin_config() on
+    /api/plugins/{name}/config already behaves.
+
+    Note this is a shallow merge - it replaces whole top-level keys
+    within the section, not deeply. For plugin config specifically,
+    prefer PUT /api/plugins/{name}/config, which scopes the update to
+    one plugin and can't disturb its neighbours at all.
+    """
     if section not in VALID_SECTIONS:
         raise HTTPException(status_code=404, detail=f"Unknown config section '{section}'")
-    configuration_service.set(section, body.value)
+    merged = {**configuration_service.get(section, {}), **body.value}
+    configuration_service.set(section, merged)
     return configuration_service.get(section, {})

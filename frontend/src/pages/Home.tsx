@@ -9,6 +9,7 @@ import PowerBudgetCard from "../components/Cards/PowerBudgetCard";
 import RecentEventsCard from "../components/Cards/RecentEventsCard";
 import RecommendationsPanel from "../components/MissionBrief/RecommendationsPanel";
 import PredictionsPanel from "../components/MissionBrief/PredictionsPanel";
+import SimulatedDataBanner from "../components/SimulatedDataBanner";
 import { useTelemetry } from "../context/TelemetryContext";
 import { colors } from "../theme/colors";
 
@@ -140,6 +141,7 @@ export default function Home() {
 
   return (
     <div className="space-y-5">
+      <SimulatedDataBanner />
       <header className="flex flex-wrap items-center justify-between gap-4 rounded-[2rem] border border-white/[0.07] bg-surface-card/58 px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-sm">
         <div>
           <div className="text-[0.68rem] font-bold uppercase tracking-[0.28em] text-battery">Mazda Bongo</div>
