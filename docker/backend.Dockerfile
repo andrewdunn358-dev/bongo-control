@@ -29,9 +29,18 @@ RUN pip install --no-cache-dir \
 # the first time WiFi support was added, for no reason. ffmpeg is here
 # for the same reason - needed only at runtime, to capture MJPEG from
 # a USB webcam (see app/services/camera_service.py).
+#
+# liblgpio1 provides liblgpio.so.1, the native library the `lgpio` pip
+# package is merely a Python wrapper around. Installing lgpio via pip
+# does NOT reliably bring the shared library with it on ARM - without
+# this, gpiozero falls back through every pin factory in turn (lgpio,
+# RPi.GPIO, pigpio, native) and fails with the unhelpfully generic
+# "Unable to load any default pin factory!", even when /dev/gpiochip0
+# is correctly passed through to the container.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     network-manager \
     ffmpeg \
+    liblgpio1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/app ./app
