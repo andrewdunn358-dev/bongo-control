@@ -30,9 +30,9 @@ export default function Energy() {
           label="Net"
           icon={<Gauge size={14} />}
           value={Math.abs(net)}
-          prefix={net >= 0 ? "+" : "-"}
+          prefix={net > 0 ? "+" : net < 0 ? "-" : ""}
           unit="W"
-          subtext={net >= 0 ? "Charging" : "Discharging"}
+          subtext={net > 0 ? "Charging" : net < 0 ? "Discharging" : "Idle"}
         />
       </div>
 

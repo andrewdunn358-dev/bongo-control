@@ -206,9 +206,11 @@ export default function Home() {
             <div className="rounded-[2rem] border border-ink/[0.07] bg-base/42 p-5">
               <div className="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-ink/42">Net Power</div>
               <div className="mt-4 font-mono text-4xl font-semibold tracking-[-0.07em] text-ink tabular-nums">
-                {energy ? <AnimatedNumber value={Math.abs(energy.net_watts)} decimals={0} prefix={energy.net_watts >= 0 ? "+" : "-"} suffix="W" /> : "—"}
+                {energy ? <AnimatedNumber value={Math.abs(energy.net_watts)} decimals={0} prefix={energy.net_watts > 0 ? "+" : energy.net_watts < 0 ? "-" : ""} suffix="W" /> : "—"}
               </div>
-              <div className="mt-2 text-sm font-semibold uppercase tracking-[0.18em] text-ink/38">{energy ? (energy.net_watts >= 0 ? "Charging" : "Discharging") : "Awaiting"}</div>
+              <div className="mt-2 text-sm font-semibold uppercase tracking-[0.18em] text-ink/38">
+                {energy ? (energy.net_watts > 0 ? "Charging" : energy.net_watts < 0 ? "Discharging" : "Idle") : "Awaiting"}
+              </div>
             </div>
             <div className="rounded-[2rem] border border-ink/[0.07] bg-base/42 p-5">
               <div className="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-ink/42">Signal</div>
