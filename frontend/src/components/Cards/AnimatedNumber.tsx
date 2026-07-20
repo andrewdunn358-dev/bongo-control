@@ -17,19 +17,27 @@ interface AnimatedNumberProps {
  */
 export default function AnimatedNumber({ value, decimals = 0, suffix = "", prefix = "", className }: AnimatedNumberProps) {
   const reduceMotion = useReducedMotion();
-  const motionValue = useMotionValue(value);
+  // Belt-and-braces against NaN. Callers are typed to pass a real
+  // number and should guard nulls themselves (showing "—" reads far
+  // better than a zero, since a missing reading isn't the same as a
+  // reading of zero) - but this component is used in a dozen places,
+  // and one unguarded caller shouldn't be able to render "NaN°" to
+  // someone in a van. Which is exactly what happened when the first
+  // real temperature sensor reported a null the simulation never did.
+  const safeValue = Number.isFinite(value) ? value : 0;
+  const motionValue = useMotionValue(safeValue);
   const spring = useSpring(motionValue, { stiffness: 120, damping: 20, mass: 0.5 });
   const display = useTransform(spring, (v) => `${prefix}${v.toFixed(decimals)}${suffix}`);
   const isFirstRender = useRef(true);
 
   useEffect(() => {
     if (reduceMotion || isFirstRender.current) {
-      motionValue.jump(value);
+      motionValue.jump(safeValue);
       isFirstRender.current = false;
     } else {
-      motionValue.set(value);
+      motionValue.set(safeValue);
     }
-  }, [value, motionValue, reduceMotion]);
+  }, [safeValue, motionValue, reduceMotion]);
 
   return <motion.span className={className}>{display}</motion.span>;
 }

@@ -58,9 +58,18 @@ export interface SolarPayload {
 }
 
 export interface EnvironmentPayload {
-  internal_temp_c: number;
-  external_temp_c: number;
-  humidity_pct: number;
+  // All nullable: the 1-Wire plugin sends null when a sensor's role
+  // isn't assigned yet, when a reading fails its CRC check, or - for
+  // humidity - when the hardware simply can't measure it (a DS18B20 is
+  // temperature-only). The simulation always sent real numbers, which
+  // is why these were originally typed as non-null and the UI showed
+  // "NaN°" the first time real hardware reported a null.
+  internal_temp_c: number | null;
+  external_temp_c: number | null;
+  humidity_pct: number | null;
+  // Present from the 1-Wire plugin: every detected probe with its raw
+  // reading, including ones with no role assigned yet.
+  sensors?: { id: string; temperature_c: number | null; role: string | null }[];
 }
 
 export interface ConnectivityPayload {

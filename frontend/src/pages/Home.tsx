@@ -21,8 +21,12 @@ function formatStatus(s?: string | null): string {
   return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function temperatureState(temp?: number): { label: string; color: string } {
-  if (temp === undefined) return { label: "Awaiting", color: "text-white/42" };
+function temperatureState(temp?: number | null): { label: string; color: string } {
+  // Must check null explicitly, not just undefined: the 1-Wire plugin
+  // correctly sends null when a sensor role isn't assigned or a
+  // reading failed, and `null < 4` evaluates TRUE in JavaScript - which
+  // showed a confident "Extreme" for data that simply didn't exist.
+  if (temp === undefined || temp === null) return { label: "Awaiting", color: "text-white/42" };
   if (temp < 4 || temp > 32) return { label: "Extreme", color: "text-alert" };
   if (temp < 10 || temp > 27) return { label: "Watch", color: "text-solar" };
   return { label: "Comfort", color: "text-success" };
@@ -272,13 +276,21 @@ export default function Home() {
               <div>
                 <div className="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-white/38">Inside</div>
                 <div className="mt-3 font-mono text-6xl font-semibold tracking-[-0.09em] text-white tabular-nums">
-                  {environment ? <AnimatedNumber value={environment.internal_temp_c} decimals={0} suffix="°" /> : "—"}
+                  {environment?.internal_temp_c != null ? (
+                    <AnimatedNumber value={environment.internal_temp_c} decimals={0} suffix="°" />
+                  ) : (
+                    "—"
+                  )}
                 </div>
               </div>
               <div>
                 <div className="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-white/38">Outside</div>
                 <div className="mt-3 font-mono text-6xl font-semibold tracking-[-0.09em] text-white/70 tabular-nums">
-                  {environment ? <AnimatedNumber value={environment.external_temp_c} decimals={0} suffix="°" /> : "—"}
+                  {environment?.external_temp_c != null ? (
+                    <AnimatedNumber value={environment.external_temp_c} decimals={0} suffix="°" />
+                  ) : (
+                    "—"
+                  )}
                 </div>
               </div>
             </div>
@@ -288,9 +300,21 @@ export default function Home() {
                 <span className={`text-lg font-semibold ${climate.color}`}>{climate.label}</span>
               </div>
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/[0.08]">
-                <div className="h-full rounded-full bg-gradient-to-r from-battery via-success to-solar" style={{ width: environment ? `${Math.min(100, Math.max(0, environment.humidity_pct))}%` : "0%" }} />
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-battery via-success to-solar"
+                  style={{
+                    width:
+                      environment?.humidity_pct != null
+                        ? `${Math.min(100, Math.max(0, environment.humidity_pct))}%`
+                        : "0%",
+                  }}
+                />
               </div>
-              <div className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/35">Humidity {environment ? `${Math.round(environment.humidity_pct)}%` : "—"}</div>
+              <div className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/35">
+                {/* A DS18B20 is temperature-only - it has no humidity sensor
+                    at all, so this is genuinely absent rather than zero. */}
+                Humidity {environment?.humidity_pct != null ? `${Math.round(environment.humidity_pct)}%` : "—"}
+              </div>
             </div>
           </div>
         </Card>
