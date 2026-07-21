@@ -44,7 +44,7 @@ export function Settings() {
 
   const st = wifi.data;
   const nets = scan.data?.networks || [];
-  const p = plugins.data?.plugins || [];
+  const p = plugins.data ?? [];
 
   return (
     <div data-testid={SET.root} className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-10 py-6 lg:py-10">
@@ -152,25 +152,39 @@ export function Settings() {
                 key={plg.name}
                 className={cn(
                   'rounded-2xl p-4 ring-1 ring-inset',
-                  plg.status === 'healthy'
+                  plg.status === 'running'
                     ? 'bg-emerald-500/5 ring-emerald-400/20'
-                    : plg.status === 'degraded'
+                    : plg.status === 'starting'
                       ? 'bg-amber-500/5 ring-amber-400/25'
-                      : plg.status === 'disabled'
+                      : plg.status === 'disabled' || plg.status === 'stopped'
                         ? 'bg-ink/[0.03] ring-ink/10'
                         : 'bg-red-500/5 ring-red-400/25',
                 )}
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <div className="text-sm font-medium">{plg.name}</div>
-                    <div className="text-[11px] text-ink-faint num mt-0.5">v{plg.version}</div>
+                    <div className="text-sm font-medium">{plg.display_name || plg.name}</div>
+                    <div className="text-[11px] text-ink-faint num mt-0.5">
+                      v{plg.version}
+                      {plg.device_name ? ` · ${plg.device_name}` : ''}
+                    </div>
                   </div>
-                  <StatusPill tone={plg.status === 'healthy' ? 'green' : plg.status === 'degraded' ? 'amber' : plg.status === 'disabled' ? 'slate' : 'red'}>
+                  <StatusPill tone={plg.status === 'running' ? 'green' : plg.status === 'starting' ? 'amber' : plg.status === 'disabled' || plg.status === 'stopped' ? 'slate' : 'red'}>
                     {plg.status.toUpperCase()}
                   </StatusPill>
                 </div>
-                <div className="text-[11px] text-ink-muted mt-2">last seen {plg.last_seen}</div>
+                {/* Show the actual error when there is one - it's far more
+                    useful than a heartbeat timestamp, and it's how the
+                    "no encryption key configured" case surfaces. */}
+                {plg.last_error ? (
+                  <div className="text-[11px] text-status-red mt-2">{plg.last_error}</div>
+                ) : (
+                  <div className="text-[11px] text-ink-muted mt-2">
+                    {plg.last_heartbeat
+                      ? `last seen ${new Date(plg.last_heartbeat * 1000).toLocaleTimeString()}`
+                      : 'no data yet'}
+                  </div>
+                )}
               </div>
             ))}
             {p.length === 0 && <div className="col-span-full text-sm text-ink-muted">No plugin data.</div>}

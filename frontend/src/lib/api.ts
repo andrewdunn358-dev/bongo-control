@@ -126,6 +126,6 @@ export const api = {
       body: JSON.stringify({ ssid, password }),
     }),
 
-  plugins: () => request<{ plugins: PluginInfo[] }>('/plugins'),
+  plugins: () => request<PluginInfo[]>('/plugins'),
   settings: () => request<{ theme: string; nearby_radius_m?: number }>('/settings'),
 };

@@ -17,10 +17,10 @@ const RANGES = [
 ] as const;
 
 const DOMAINS = [
-  { key: 'battery', label: 'Battery voltage', unit: 'V', color: '#22d3ee', chart: 'line' as const, glow: 'teal' as const },
-  { key: 'solar', label: 'Solar power', unit: 'W', color: '#a855f7', chart: 'area' as const, glow: 'purple' as const },
-  { key: 'environment', label: 'Interior temperature', unit: '°C', color: '#f472b6', chart: 'line' as const, glow: undefined },
-  { key: 'energy', label: 'Net energy', unit: 'W', color: '#38bdf8', chart: 'area' as const, glow: undefined },
+  { key: 'battery', label: 'Battery voltage', unit: 'V', field: 'voltage', color: '#22d3ee', chart: 'line' as const, glow: 'teal' as const },
+  { key: 'solar', label: 'Solar power', unit: 'W', field: 'watts', color: '#a855f7', chart: 'area' as const, glow: 'purple' as const },
+  { key: 'environment', label: 'Interior temperature', unit: '°C', field: 'internal_temp_c', color: '#f472b6', chart: 'line' as const, glow: undefined },
+  { key: 'energy', label: 'Net energy', unit: 'W', field: 'net_watts', color: '#38bdf8', chart: 'area' as const, glow: undefined },
 ] as const;
 
 export function HistoryScreen() {
@@ -55,7 +55,7 @@ export function HistoryScreen() {
 
       <div className="grid grid-cols-12 gap-4 lg:gap-6">
         {DOMAINS.map((d) => (
-          <HistoryPanel key={d.key} domainKey={d.key} label={d.label} unit={d.unit} color={d.color} chart={d.chart} glow={d.glow} hours={hours} colors={colors} />
+          <HistoryPanel key={d.key} domainKey={d.key} label={d.label} unit={d.unit} field={d.field} color={d.color} chart={d.chart} glow={d.glow} hours={hours} colors={colors} />
         ))}
       </div>
     </div>
@@ -63,11 +63,11 @@ export function HistoryScreen() {
 }
 
 function HistoryPanel({
-  domainKey, label, unit, color, chart, glow, hours, colors,
+  domainKey, label, unit, field, color, chart, glow, hours, colors,
 }: {
   domainKey: string; label: string; unit: string; color: string;
   chart: 'line' | 'area'; glow?: 'teal' | 'purple';
-  hours: string; colors: ReturnType<typeof useChartColors>;
+  field: string; hours: string; colors: ReturnType<typeof useChartColors>;
 }) {
   const { data, isLoading } = useQuery({
     queryKey: ['history', domainKey, hours],
@@ -82,7 +82,19 @@ function HistoryPanel({
     },
   });
 
-  const series = useMemo(() => (data?.series || []).map((s) => ({ ...s, t: fmtT(s.t, parseFloat(hours)) })), [data, hours]);
+  // The endpoint returns whole telemetry messages, so pull out the one
+  // payload field this chart plots. Points where that field is null are
+  // dropped rather than coerced to 0 - a missing reading is not a
+  // reading of zero, and plotting it as one would draw a cliff that
+  // never happened. (soc_pct is null on every battery sample here, for
+  // instance, which is exactly why battery charts voltage instead.)
+  const series = useMemo(() => {
+    const rows = Array.isArray(data) ? data : [];
+    return rows
+      .map((m) => ({ t: m.timestamp, value: (m.payload as Record<string, unknown>)?.[field] }))
+      .filter((pt): pt is { t: number; value: number } => typeof pt.value === 'number')
+      .map((pt) => ({ ...pt, t: fmtT(pt.t, parseFloat(hours)) }));
+  }, [data, hours, field]);
   const gradId = `hist-${domainKey}`;
 
   return (

@@ -101,37 +101,7 @@ export function CameraView() {
         )}
       </div>
 
-      {!unlocked ? (
-        <GlassCard glow="purple" className="p-8 max-w-md mx-auto" data-testid={CAM.gate}>
-          <div className="flex flex-col items-center text-center">
-            <div className="h-16 w-16 rounded-2xl grid place-items-center bg-aurora-purple/15 ring-1 ring-aurora-purple/40 text-aurora-purple">
-              <Lock size={26} />
-            </div>
-            <h2 className="text-xl font-semibold mt-4">Camera is locked</h2>
-            <p className="text-sm text-ink-muted mt-1">Enter the shared password.</p>
-            <div className="mt-6 w-full">
-              <input
-                type="password"
-                data-testid={CAM.passwordInput}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && unlock()}
-                placeholder="Password"
-                className="w-full rounded-xl bg-ink/[0.04] ring-1 ring-ink/10 focus:ring-aurora-teal/60 outline-none px-4 py-3 num"
-              />
-              <button
-                type="button"
-                data-testid={CAM.unlockBtn}
-                onClick={unlock}
-                disabled={busy || !password}
-                className="mt-3 w-full rounded-xl bg-gradient-to-r from-aurora-teal to-aurora-purple text-navy-900 font-semibold py-3 disabled:opacity-40 hover:brightness-110"
-              >
-                {busy ? 'Verifying…' : 'Unlock camera'}
-              </button>
-            </div>
-          </div>
-        </GlassCard>
-      ) : (
+      {(
         <div className="grid grid-cols-12 gap-4 lg:gap-6">
           <GlassCard className="col-span-12 lg:col-span-9 p-0 overflow-hidden" data-testid={CAM.frame}>
             <div className="relative bg-black/60 aspect-video">

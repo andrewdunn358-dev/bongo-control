@@ -216,12 +216,19 @@ export interface WifiStatus {
   ip: string | null;
 }
 
+/** Matches backend/app/plugins/base.py PluginStatus + Plugin.health(). */
 export interface PluginInfo {
   name: string;
+  display_name: string;
   version: string;
-  status: 'healthy' | 'degraded' | 'failed' | 'disabled';
-  last_seen: string;
+  status: 'stopped' | 'starting' | 'running' | 'error' | 'disabled';
+  /** Unix seconds, or null if the plugin has never reported. */
+  last_heartbeat: number | null;
+  last_error: string | null;
   enabled: boolean;
+  /** Victron only - present when a device has been identified. */
+  device_name?: string | null;
+  mac_address?: string | null;
 }
 
 export interface HistorySample {
@@ -229,11 +236,15 @@ export interface HistorySample {
   value: number | null;
 }
 
-export interface HistoryResponse {
-  domain: string;
-  hours: number;
-  series: HistorySample[];
-}
+/**
+ * The history endpoint returns a bare ARRAY of telemetry messages -
+ * the same {domain, source, timestamp, payload} shape the WebSocket
+ * pushes - not a pre-flattened {t, value} series. Charts pick whichever
+ * payload field they want out of it, which is what allows one endpoint
+ * to serve battery voltage, solar watts and temperature without the
+ * backend knowing what's being plotted.
+ */
+export type HistoryResponse = TelemetryMessage[];
 
 export interface HealthResponse {
   ok: boolean;

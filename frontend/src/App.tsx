@@ -5,6 +5,7 @@ import { NavShell } from '@/components/NavShell';
 import { SimBanner } from '@/components/SimBanner';
 import { UpdateBanner } from '@/components/UpdateBanner';
 import { RouteErrorBoundary } from '@/components/RouteErrorBoundary';
+import { AppGate } from '@/components/AppGate';
 import { useTelemetry } from '@/lib/telemetry';
 import { useTheme } from '@/lib/theme';
 import { Home } from '@/screens/Home';
@@ -24,6 +25,7 @@ export function App() {
   return (
     <>
       <AuroraBackground />
+      <AppGate>
       <BrowserRouter
         future={{
           // Opt in to the two v7 future flags — safe and silences the console.
@@ -49,6 +51,7 @@ export function App() {
           </RouteErrorBoundary>
         </NavShell>
       </BrowserRouter>
+      </AppGate>
       <UpdateBanner />
       <Toaster
         theme={theme}
