@@ -141,7 +141,21 @@ class HistoryService:
         finally:
             db.close()
 
-    def query(self, domain: str, since_timestamp: float) -> list[dict]:
+    def query(self, domain: str, since_timestamp: float, max_points: int | None = None) -> list[dict]:
+        """Persisted readings for a domain since a timestamp.
+
+        max_points optionally downsamples the result. This matters
+        because sampling intervals are per-domain: environment is
+        hourly (~720 points over 30 days, fine as-is) but battery and
+        solar sample every 60s (~43,000 points over 30 days), which is
+        far more than any chart can render usefully and a lot to push
+        over a slow connection to a phone.
+
+        Done server-side rather than in the browser deliberately: the
+        Pi is the weakest link, and sending 43,000 points so the client
+        can discard most of them wastes the Pi's CPU, the network, and
+        the phone's memory. Downsampling here benefits every client.
+        """
         db = SessionLocal()
         try:
             rows = (
@@ -150,7 +164,7 @@ class HistoryService:
                 .order_by(TelemetryReading.timestamp)
                 .all()
             )
-            return [
+            readings = [
                 {
                     "domain": r.domain,
                     "source": r.source,
@@ -161,3 +175,66 @@ class HistoryService:
             ]
         finally:
             db.close()
+
+        if max_points is None or len(readings) <= max_points:
+            return readings
+        return self._downsample(readings, max_points)
+
+    @staticmethod
+    def _downsample(readings: list[dict], max_points: int) -> list[dict]:
+        """Buckets readings by time and averages numeric fields within
+        each bucket.
+
+        Averaging rather than picking every Nth reading, because
+        dropping points loses spikes entirely - a brief high solar peak
+        would simply vanish if it happened to fall between kept
+        samples. Averaging preserves the shape of the curve.
+
+        Non-numeric fields (booleans, strings, nested dicts like a
+        weather forecast, the 1-Wire sensors array) are taken from the
+        LAST reading in each bucket rather than averaged, since
+        averaging them is meaningless. Booleans specifically: averaging
+        charging true/false into 0.6 would be nonsense, so the most
+        recent value in the bucket wins.
+        """
+        bucket_size = len(readings) / max_points
+        buckets: list[list[dict]] = [[] for _ in range(max_points)]
+        for i, reading in enumerate(readings):
+            index = min(int(i / bucket_size), max_points - 1)
+            buckets[index].append(reading)
+
+        result: list[dict] = []
+        for bucket in buckets:
+            if not bucket:
+                continue
+            last = bucket[-1]
+            merged_payload = dict(last["payload"])
+
+            # Average only genuinely numeric fields, and only where
+            # every reading in the bucket has a usable number - a field
+            # that's null in some readings (an unassigned sensor, a
+            # missing shunt) shouldn't be silently averaged over the
+            # subset that happens to have values.
+            for key, value in last["payload"].items():
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    continue
+                values = [
+                    r["payload"].get(key)
+                    for r in bucket
+                    if isinstance(r["payload"].get(key), (int, float)) and not isinstance(r["payload"].get(key), bool)
+                ]
+                if len(values) == len(bucket):
+                    merged_payload[key] = round(sum(values) / len(values), 3)
+
+            result.append(
+                {
+                    "domain": last["domain"],
+                    "source": last["source"],
+                    # Bucket midpoint, not the last timestamp - using the
+                    # end of the bucket would shift the whole series
+                    # rightward by up to one bucket width.
+                    "timestamp": (bucket[0]["timestamp"] + bucket[-1]["timestamp"]) / 2,
+                    "payload": merged_payload,
+                }
+            )
+        return result

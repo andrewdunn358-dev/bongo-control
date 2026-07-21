@@ -64,15 +64,21 @@ async def get_system() -> dict:
 
 
 @router.get("/history/{domain}")
-async def get_history(domain: TelemetryDomain, hours: float = 24.0) -> list[dict]:
+async def get_history(domain: TelemetryDomain, hours: float = 24.0, max_points: int | None = None) -> list[dict]:
     """Real, persisted history (Milestone 5) for domains worth graphing
     over time (battery, solar, energy, environment, connectivity) -
     backed by SQLite, sampled at a bounded interval rather than every
     tick (see HistoryService for why). Falls back to the bus's small
     in-memory ring buffer for domains that aren't persisted (currently
     just notification, which is event-shaped rather than a time series).
+
+    max_points optionally downsamples server-side, averaging numeric
+    fields within each time bucket. Worth using for long ranges on
+    high-frequency domains: battery/solar sample every 60s, so 30 days
+    is ~43,000 points - more than a chart can render usefully and a lot
+    to send to a phone. Environment samples hourly, so it rarely needs it.
     """
     if domain.value in PERSISTED_DOMAINS:
         since = time.time() - (hours * 3600)
-        return history_service.query(domain.value, since)
+        return history_service.query(domain.value, since, max_points=max_points)
     return [m.model_dump() for m in bus.history(domain)]
