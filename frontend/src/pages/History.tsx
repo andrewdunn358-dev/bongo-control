@@ -70,7 +70,12 @@ export default function History() {
   useEffect(() => {
     setLoading(true);
     api
-      .history(domain, hours)
+      // Only downsample the long ranges. 1h and 24h are small enough
+      // to send in full even at 60s sampling, and full resolution is
+      // genuinely useful there - a brief load spike matters when
+      // you're looking at the last hour. 7d/30d would otherwise be
+      // tens of thousands of points.
+      .history(domain, hours, hours >= 24 * 7 ? 500 : undefined)
       .then((rows) => setData(rows as HistoryPoint[]))
       .catch(() => setData([]))
       .finally(() => setLoading(false));

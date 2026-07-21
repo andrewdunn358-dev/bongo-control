@@ -63,7 +63,15 @@ export interface ScanResult {
 export const api = {
   health: () => request<Record<string, unknown>>("/api/health"),
   settings: () => request<Record<string, unknown>>("/api/settings"),
-  history: (domain: string, hours = 24) => request<unknown[]>(`/api/history/${domain}?hours=${hours}`),
+  // maxPoints asks the backend to downsample server-side (averaging
+  // within time buckets). Worth sending for long ranges on
+  // high-frequency domains: battery/solar/energy sample every 60s, so
+  // 30 days is ~43,000 points - more than a chart can render usefully
+  // and a lot to push to a phone over a slow link. Omitting it returns
+  // everything, and a value larger than the dataset is a no-op, so
+  // it's always safe to send.
+  history: (domain: string, hours = 24, maxPoints?: number) =>
+    request<unknown[]>(`/api/history/${domain}?hours=${hours}${maxPoints ? `&max_points=${maxPoints}` : ""}`),
 
   plugins: {
     list: () => request<PluginHealth[]>("/api/plugins"),

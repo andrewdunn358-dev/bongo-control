@@ -77,7 +77,21 @@ function Gate() {
   return (
     <LocationProvider>
       <TelemetryProvider>
-        <BrowserRouter>
+        {/* Opting into v7 behaviour early, which also silences React
+            Router's future-flag console warnings.
+
+            v7_relativeSplatPath was verified as inert here rather than
+            assumed: it only changes how RELATIVE paths resolve inside
+            SPLAT (`*`) parent routes. This app has no splat routes at
+            all, and the only <Link> under /settings (Plugins ->
+            Configure) uses absolute paths like "/settings/hardware".
+            Nothing to resolve relatively, so nothing to break. */}
+        <BrowserRouter
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true,
+          }}
+        >
           <UpdateBanner />
           <MissionBriefModal />
           <AppLayout>
