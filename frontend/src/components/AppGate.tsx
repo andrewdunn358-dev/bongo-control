@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Lock } from 'lucide-react';
 import { api, getToken, setToken, ApiError } from '@/lib/api';
-import { GlassCard } from '@/components/primitives/GlassCard';
 
 /**
  * App-wide password gate.
@@ -63,14 +62,20 @@ export function AppGate({ children }: { children: React.ReactNode }) {
   if (!required || token) return <>{children}</>;
 
   return (
+    // Explicit colours throughout rather than inherited tokens. This
+    // screen renders OUTSIDE NavShell and is the only thing on screen
+    // when it appears - if its contrast is wrong there is no way for
+    // the user to recover, because they can't reach Settings to change
+    // the theme. Belt and braces: it must be readable in both themes
+    // even if a token resolves unexpectedly.
     <div className="min-h-screen grid place-items-center px-4">
-      <GlassCard glow="purple" className="p-8 w-full max-w-md">
+      <div className="w-full max-w-md rounded-2xl border border-aurora-purple/30 bg-[#0f2942] p-8 shadow-[0_24px_60px_rgba(2,8,20,0.6)]">
         <div className="flex flex-col items-center text-center">
-          <div className="h-16 w-16 rounded-2xl grid place-items-center bg-aurora-purple/15 ring-1 ring-aurora-purple/40 text-aurora-purple">
-            <Lock size={26} />
+          <div className="h-16 w-16 rounded-2xl grid place-items-center bg-aurora-purple/20 ring-1 ring-aurora-purple/50">
+            <Lock size={26} className="text-[#c4b5fd]" />
           </div>
-          <h1 className="text-xl font-semibold mt-4">Bongo Control</h1>
-          <p className="text-sm text-ink-muted mt-1">Enter the shared password to continue.</p>
+          <h1 className="text-xl font-semibold mt-4 text-[#e6f0ff]">Bongo Control</h1>
+          <p className="text-sm mt-1 text-[#94a8c2]">Enter the shared password to continue.</p>
 
           <div className="mt-6 w-full">
             <input
@@ -80,23 +85,27 @@ export function AppGate({ children }: { children: React.ReactNode }) {
               onChange={(e) => setPassword(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && password && !busy && unlock()}
               placeholder="Password"
-              className="w-full rounded-xl bg-ink/[0.04] ring-1 ring-ink/10 focus:ring-aurora-teal/60 outline-none px-4 py-3"
+              className="w-full rounded-xl px-4 py-3 outline-none bg-[#0a1628] text-[#e6f0ff] placeholder:text-[#8296b0] border border-[#264c7a] focus:border-aurora-teal"
             />
-            {error && <div className="text-status-red text-sm mt-2">{error}</div>}
+            {error && <div className="text-sm mt-2 text-[#f87171]">{error}</div>}
             <button
               type="button"
               onClick={unlock}
               disabled={busy || !password}
-              className="mt-3 w-full rounded-xl bg-gradient-to-r from-aurora-teal to-aurora-purple text-navy-900 font-semibold py-3 disabled:opacity-40 hover:brightness-110"
+              /* Solid teal rather than a gradient, and a mid-navy
+                 disabled state rather than opacity - a 40%-opacity
+                 gradient on a dark card was almost invisible, which
+                 made the button look broken before anything was typed. */
+              className="mt-3 w-full rounded-xl py-3 font-semibold transition enabled:bg-aurora-teal enabled:text-[#06202b] enabled:hover:brightness-110 disabled:bg-[#1a3d66] disabled:text-[#a9bdd6] disabled:cursor-not-allowed"
             >
               {busy ? 'Checking…' : 'Unlock'}
             </button>
-            <p className="text-[11px] text-ink-faint mt-4">
+            <p className="text-[11px] mt-4 text-[#8296b0]">
               Asked once per device. The token is stored locally and reused.
             </p>
           </div>
         </div>
-      </GlassCard>
+      </div>
     </div>
   );
 }
