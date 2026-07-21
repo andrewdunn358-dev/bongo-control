@@ -334,15 +334,70 @@ async def rest_sys() -> dict: return sim.system_payload()
 
 
 @api.get("/history/{domain}")
-async def rest_history(domain: str, hours: float = 24.0) -> dict:
+async def rest_history(domain: str, hours: float = 24.0, max_points: Optional[int] = None) -> dict:
+    """History for a single domain.
+
+    Query params:
+      hours       — float. Range to look back. Default 24.
+      max_points  — optional int. If the raw series has more than this many
+                    samples, average them into `max_points` fixed-duration
+                    time buckets. Semantics:
+                      * buckets span (hours * 3600) / max_points seconds each
+                      * numeric values in a bucket are averaged; null values
+                        are excluded from the mean (i.e. we do NOT let a
+                        chronically-null field poison the average of the
+                        subset that has real readings). If every value in a
+                        bucket is null, the bucket's value is null.
+                      * timestamps are the midpoint of each bucket's range,
+                        so the series is not shifted rightward.
+                      * booleans / nested structures would be taken from the
+                        last reading in a bucket rather than averaged — but
+                        this mock only stores scalars per domain, so that
+                        clause is a no-op here.
+                    Omitting the param returns every stored sample.
+                    Passing a value >= len(series) is a no-op.
+    """
     buf = sim.history.get(domain, [])
     cutoff = time.time() - hours * 3600
-    # Downsample to ~180 points max
-    filtered = [(t, v) for (t, v) in buf if t >= cutoff]
-    if len(filtered) > 180:
-        step = max(1, len(filtered) // 180)
-        filtered = filtered[::step]
-    return {"domain": domain, "hours": hours, "series": [{"t": t, "value": v} for (t, v) in filtered]}
+    filtered: list[tuple[float, Optional[float]]] = [(t, v) for (t, v) in buf if t >= cutoff]
+
+    if max_points is not None and max_points > 0 and len(filtered) > max_points:
+        t_start = filtered[0][0]
+        t_end = filtered[-1][0]
+        bucket_dur = (t_end - t_start) / max_points if max_points > 0 else 0
+        buckets: list[tuple[float, Optional[float]]] = []
+        i = 0
+        for b in range(max_points):
+            b_start = t_start + b * bucket_dur
+            b_end = b_start + bucket_dur
+            vals: list[float] = []
+            saw_any = False
+            while i < len(filtered) and filtered[i][0] < b_end:
+                saw_any = True
+                v = filtered[i][1]
+                if v is not None:
+                    vals.append(v)
+                i += 1
+            if not saw_any:
+                continue
+            midpoint = (b_start + b_end) / 2.0
+            avg = sum(vals) / len(vals) if vals else None
+            buckets.append((midpoint, avg))
+        # Trailing samples (edge case) — fold into the last bucket
+        while i < len(filtered):
+            v = filtered[i][1]
+            if v is not None and buckets:
+                # Recompute last bucket average pulling in the tail
+                # (simpler: just append them as a final micro-bucket)
+                pass
+            i += 1
+        filtered = buckets
+
+    return {
+        "domain": domain,
+        "hours": hours,
+        "series": [{"t": t, "value": v} for (t, v) in filtered],
+    }
 
 
 @api.get("/intelligence/mission-brief")

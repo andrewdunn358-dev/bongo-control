@@ -67,8 +67,11 @@ export const api = {
   connectivity: () => request<ConnectivityPayload>('/connectivity'),
   system: () => request<SystemPayload>('/system'),
 
-  history: (domain: string, hours = 24) =>
-    request<HistoryResponse>(`/history/${domain}?hours=${hours}`),
+  history: (domain: string, hours = 24, maxPoints?: number) => {
+    const qs = new URLSearchParams({ hours: String(hours) });
+    if (maxPoints !== undefined) qs.set('max_points', String(maxPoints));
+    return request<HistoryResponse>(`/history/${domain}?${qs.toString()}`);
+  },
 
   missionBrief: () => request<MissionBrief>('/intelligence/mission-brief'),
 

@@ -71,7 +71,15 @@ function HistoryPanel({
 }) {
   const { data, isLoading } = useQuery({
     queryKey: ['history', domainKey, hours],
-    queryFn: () => api.history(domainKey, parseFloat(hours)),
+    queryFn: () => {
+      const h = parseFloat(hours);
+      // Suggested usage: max_points=500 for 7d/30d, omitted for 1h/24h.
+      // Omitting returns everything; passing a value larger than the dataset
+      // is a no-op — so `max_points` is safe to always send, but keeping the
+      // omission for short ranges makes it obvious we want every point there.
+      const maxPoints = h >= 168 ? 500 : undefined;
+      return api.history(domainKey, h, maxPoints);
+    },
   });
 
   const series = useMemo(() => (data?.series || []).map((s) => ({ ...s, t: fmtT(s.t, parseFloat(hours)) })), [data, hours]);

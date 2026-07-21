@@ -24,7 +24,13 @@ export function App() {
   return (
     <>
       <AuroraBackground />
-      <BrowserRouter>
+      <BrowserRouter
+        future={{
+          // Opt in to the two v7 future flags — safe and silences the console.
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
         <NavShell wsConnected={connected}>
           <SimBanner />
           <RouteErrorBoundary>

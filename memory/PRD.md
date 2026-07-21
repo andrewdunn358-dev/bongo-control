@@ -92,4 +92,37 @@ frontend/
 ## Backlog
 - **P1** Weather MJ/m² outlook could use a small sparkline of hourly irradiance if the backend exposes it.
 - **P2** Storybook of primitives so plugin authors can reuse them.
-- **P2** History downsampling on the client for 7d/30d ranges when the backend returns >1000 points.
+- ~~**P2** History downsampling on the client for 7d/30d ranges when the backend returns >1000 points.~~ **Done server-side** — see §2.3 contract addendum below.
+
+## §2.3 contract addendum — history downsampling
+`GET /api/history/{domain}` accepts an optional `max_points: int` query param.
+
+  - Omitted → server returns every stored sample.
+  - Present and `< len(series)` → the raw series is grouped into `max_points`
+    fixed-duration **time buckets**. Numeric values within a bucket are
+    **averaged**; nulls are **excluded from the mean** (so a chronically-null
+    field never poisons the average of the subset that has real readings).
+    If every value in a bucket is null, the bucket's value is `null`.
+    Bucket timestamps are the **midpoint** of each bucket's range — the
+    series is not shifted rightward.
+  - Booleans / nested structures are taken from the **last reading in the
+    bucket**, not averaged (averaging `charging: true/false` into `0.6` is
+    meaningless). The mock only stores scalars per domain, so this clause is
+    a no-op in-sandbox but is honoured by the real backend on the Pi.
+  - Present and `>= len(series)` → **no-op**, returns every sample. So
+    `max_points` is safe to always send.
+
+Server-side because the Pi 2 is the weakest link — pushing 43,000 points
+(30 days of 60-second solar samples) over a slow connection so a phone can
+throw most away wastes CPU, bandwidth, and memory on both ends.
+
+**Suggested frontend usage** (implemented in `screens/History.tsx`):
+`max_points=500` for the 7D and 30D ranges, omitted for 1H and 24H.
+
+## React Router v7 future flags (enabled)
+`<BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>`
+in `App.tsx`. `v7_relativeSplatPath` changes how relative routes resolve
+inside splat parents; the real repo's Settings has nested route children
+per-plugin — please click through them after merging to confirm each plugin
+config page still loads. In-sandbox Settings has no nested routes, so no
+regression is visible here.
