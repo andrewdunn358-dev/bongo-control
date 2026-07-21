@@ -11,11 +11,23 @@
 @layer base {
   :root,
   html.dark {
-    /* Ink — high-contrast text tokens */
+    /* Ink — high-contrast text tokens.
+       Contrast measured against --surface rgb(15,41,66), the card
+       background most body text actually sits on:
+         ink       12.9:1
+         ink-soft  10.7:1
+         ink-muted  7.0:1
+         ink-faint  5.3:1
+       ink-muted and ink-faint were originally 148/163/184 and
+       100/116/139, giving ink-faint just 3.12:1 - below the 4.5:1
+       WCAG AA minimum for body text, and it's used for exactly the
+       small print (backend endpoint hints, cache dates, GPIO numbers)
+       where legibility matters most on a screen being read at arm's
+       length in daylight. */
     --ink: 230 240 255;         /* near-white */
     --ink-soft: 209 220 236;
-    --ink-muted: 148 163 184;
-    --ink-faint: 100 116 139;
+    --ink-muted: 175 190 210;
+    --ink-faint: 140 156 178;
 
     /* Surface — card/backdrop tones */
     --surface: 15 41 66;

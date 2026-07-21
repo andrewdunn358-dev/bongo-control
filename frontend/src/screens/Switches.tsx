@@ -10,11 +10,21 @@ import { cn } from '@/lib/utils';
 
 export function Switches() {
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['relays'],
     queryFn: api.relays,
     refetchInterval: 8_000,
+    // Don't retry a 401 - it isn't a transient failure, it means the
+    // app is locked and retrying will never help.
+    retry: (count, e) => !(e instanceof ApiError && e.status === 401) && count < 2,
   });
+
+  // Three genuinely different empty states that all previously showed
+  // the same "No relays reported" text: locked out (401), GPIO
+  // unavailable on this machine, or simply nothing configured. Telling
+  // them apart is the difference between an actionable message and a
+  // confusing one.
+  const isLocked = error instanceof ApiError && error.status === 401;
 
   const setMut = useMutation({
     mutationFn: ({ id, on }: { id: number; on: boolean }) => api.setRelay(id, on),
@@ -31,7 +41,7 @@ export function Switches() {
     onError: () => toast.error('All-off failed'),
   });
 
-  const relays = data?.relays || [];
+  const relays = data?.channels || [];
 
   return (
     <div data-testid={SWITCH.root} className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-10 py-6 lg:py-10">
@@ -70,7 +80,19 @@ export function Switches() {
         ))}
         {!isLoading && relays.length === 0 && (
           <GlassCard className="col-span-full p-6 text-sm text-ink-muted">
-            No relays reported. If a password is set, unlock on the <a href="/camera" className="text-aurora-teal underline">Camera</a> page first &mdash; relays require the same token.
+            {isLocked ? (
+              <>
+                <span className="text-status-amber font-medium">Locked.</span> Relay control needs the app password.
+                Unlock on the <a href="/camera" className="text-aurora-teal underline">Camera</a> page &mdash; it uses
+                the same token, and it&apos;s only asked for once per device.
+              </>
+            ) : data && !data.available ? (
+              <>
+                Relay control unavailable{data.reason ? <> &mdash; {data.reason}</> : null}.
+              </>
+            ) : (
+              <>No relays configured.</>
+            )}
           </GlassCard>
         )}
         {relays.map((r) => (

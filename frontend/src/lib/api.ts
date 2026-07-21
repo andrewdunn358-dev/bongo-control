@@ -12,6 +12,7 @@ import type {
   PluginInfo,
   PoiResponse,
   Relay,
+  RelayResponse,
   SolarPayload,
   SystemPayload,
   WifiNetwork,
@@ -91,11 +92,11 @@ export const api = {
     request<{ ok: boolean }>('/location/gps', { method: 'POST', body: JSON.stringify({ latitude, longitude }) }),
   ipFallback: () => request<{ ok: boolean }>('/location/ip-fallback', { method: 'POST' }),
 
-  relays: () => request<{ relays: Relay[] }>('/relays'),
+  relays: () => request<RelayResponse>('/relays'),
   setRelay: (id: number, on: boolean) =>
-    request<Relay>(`/relays/${encodeURIComponent(id)}/set`, { method: 'POST', body: JSON.stringify({ on }) }),
+    request<RelayResponse>(`/relays/${encodeURIComponent(id)}/set`, { method: 'POST', body: JSON.stringify({ on }) }),
   toggleRelay: (id: number) =>
-    request<Relay>(`/relays/${encodeURIComponent(id)}/toggle`, { method: 'POST' }),
+    request<RelayResponse>(`/relays/${encodeURIComponent(id)}/toggle`, { method: 'POST' }),
   relaysAllOff: () => request<{ ok: boolean }>('/relays/all-off', { method: 'POST' }),
 
   // Camera URLs (used by <img src>). Token appended as ?token= because
