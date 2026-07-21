@@ -557,7 +557,7 @@ _PLUGINS = [
     {"name": "battery-monitor", "version": "1.4.2", "status": "healthy", "last_seen": "just now"},
     {"name": "solar-mppt", "version": "0.9.7", "status": "healthy", "last_seen": "just now"},
     {"name": "victron-bridge", "version": "2.1.0", "status": "healthy", "last_seen": "2s ago"},
-    {"name": "camera-rtsp", "version": "0.3.1", "status": "degraded", "last_seen": "18s ago"},
+    {"name": "camera-webcam", "version": "0.3.1", "status": "degraded", "last_seen": "18s ago"},
     {"name": "wifi-manager", "version": "1.0.5", "status": "healthy", "last_seen": "just now"},
     {"name": "poi-cache", "version": "0.5.0", "status": "healthy", "last_seen": "cached"},
 ]

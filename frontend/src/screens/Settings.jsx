@@ -9,6 +9,7 @@ import { GlassCard, CardHeader } from '@/components/primitives/GlassCard';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { SET } from '@/constants/testIds';
 import { signalToBars } from '@/lib/format';
+import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
 const Bars = ({ dbm }) => {
@@ -31,6 +32,7 @@ const Bars = ({ dbm }) => {
 
 export const Settings = () => {
   const qc = useQueryClient();
+  const { theme, toggle: toggleTheme } = useTheme();
   const [pwPromptSsid, setPwPromptSsid] = useState(null);
   const [pw, setPw] = useState('');
 
@@ -154,25 +156,29 @@ export const Settings = () => {
             <div className="space-y-3">
               <div className="flex items-center justify-between rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-4 py-3">
                 <div className="flex items-center gap-3">
-                  {s.theme === 'light' ? <Sun size={16} className="text-aurora-teal" /> : <Moon size={16} className="text-aurora-purple" />}
+                  {theme === 'light' ? <Sun size={16} className="text-aurora-teal" /> : <Moon size={16} className="text-aurora-purple" />}
                   <div>
                     <div className="text-white text-sm">Theme</div>
-                    <div className="text-[11px] text-slate-500">Dark is default cockpit mode.</div>
+                    <div className="text-[11px] text-slate-500">Dark is default cockpit mode · light for daylight glare.</div>
                   </div>
                 </div>
                 <button
                   data-testid={SET.themeToggle}
                   type="button"
-                  onClick={() => updateSettings.mutate({ theme: s.theme === 'dark' ? 'light' : 'dark' })}
+                  onClick={() => {
+                    toggleTheme();
+                    const next = theme === 'dark' ? 'light' : 'dark';
+                    updateSettings.mutate({ theme: next });
+                  }}
                   className={cn(
                     'relative h-7 w-12 rounded-full transition',
-                    s.theme === 'dark' ? 'bg-aurora-purple/40 ring-1 ring-aurora-purple/50' : 'bg-aurora-teal/40 ring-1 ring-aurora-teal/50',
+                    theme === 'dark' ? 'bg-aurora-purple/40 ring-1 ring-aurora-purple/50' : 'bg-aurora-teal/40 ring-1 ring-aurora-teal/50',
                   )}
                 >
                   <span
                     className={cn(
                       'absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform',
-                      s.theme === 'dark' ? 'left-0.5' : 'left-[calc(100%-1.625rem)]',
+                      theme === 'dark' ? 'left-0.5' : 'left-[calc(100%-1.625rem)]',
                     )}
                   />
                 </button>

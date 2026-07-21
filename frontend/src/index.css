@@ -55,6 +55,28 @@
     --input: 216 40% 18%;
     --ring: 189 94% 55%;
   }
+  .light {
+    /* Bongo daylight — soft ice-blue, aurora accents kept for continuity */
+    --background: 210 40% 96%;
+    --foreground: 217 55% 12%;
+    --card: 210 40% 99%;
+    --card-foreground: 217 55% 12%;
+    --popover: 210 40% 99%;
+    --popover-foreground: 217 55% 12%;
+    --primary: 189 94% 40%;
+    --primary-foreground: 210 40% 99%;
+    --secondary: 210 30% 90%;
+    --secondary-foreground: 217 55% 12%;
+    --muted: 210 30% 92%;
+    --muted-foreground: 216 20% 40%;
+    --accent: 271 70% 50%;
+    --accent-foreground: 210 40% 99%;
+    --destructive: 0 74% 50%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 216 30% 82%;
+    --input: 216 30% 86%;
+    --ring: 189 94% 40%;
+  }
 }
 
 @layer base {
@@ -75,6 +97,15 @@
     color: #e6f0ff;
     letter-spacing: -0.005em;
   }
+  html.light body,
+  body[data-theme="light"] {
+    background-image:
+      radial-gradient(60% 45% at 12% 12%, rgba(34, 211, 238, 0.14) 0%, transparent 55%),
+      radial-gradient(55% 45% at 88% 8%, rgba(168, 85, 247, 0.12) 0%, transparent 55%),
+      radial-gradient(70% 55% at 55% 100%, rgba(56, 189, 248, 0.10) 0%, transparent 60%),
+      linear-gradient(180deg, #eef2f7 0%, #dbe4ee 100%);
+    color: #0a1628;
+  }
   ::selection {
     background: rgba(34, 211, 238, 0.35);
     color: #e6f0ff;
@@ -82,6 +113,13 @@
 }
 
 @layer components {
+  .aurora-base {
+    background: linear-gradient(180deg, #0a1628 0%, #0f2942 100%);
+  }
+  html.light .aurora-base {
+    background: linear-gradient(180deg, #eef2f7 0%, #dbe4ee 100%);
+  }
+  html.light .animate-aurora-pulse { opacity: 0.55; }
   .num {
     font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-variant-numeric: tabular-nums;
@@ -138,3 +176,62 @@
 }
 .maplibregl-ctrl-attrib a { text-decoration: underline; }
 .maplibregl-canvas { outline: none !important; }
+
+/* -------------------- Light theme overrides -------------------- */
+html.light body { color: #0a1628; }
+html.light ::selection { background: rgba(168, 85, 247, 0.25); color: #0a1628; }
+
+html.light .glass {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.65) 0%, rgba(255, 255, 255, 0.4) 100%);
+  border: 1px solid rgba(15, 41, 66, 0.08);
+  box-shadow: 0 8px 30px rgba(15, 41, 66, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+}
+html.light .glass-strong {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.55) 100%);
+  border: 1px solid rgba(15, 41, 66, 0.10);
+}
+
+/* Give headings + big numbers ink-tone contrast on light */
+html.light .text-white,
+html.light h1,
+html.light h2 { color: #0a1628 !important; }
+html.light .num { color: #0a1628; }
+html.light .text-slate-100,
+html.light .text-slate-200,
+html.light .text-slate-300 { color: #1e3555 !important; }
+html.light .text-slate-400 { color: #475569 !important; }
+html.light .text-slate-500 { color: #64748b !important; }
+
+/* Subtle grid + noise fade out on light */
+html.light .grid-bg {
+  background-image:
+    linear-gradient(rgba(15, 41, 66, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 41, 66, 0.05) 1px, transparent 1px);
+}
+html.light .noise { opacity: 0.025; }
+
+/* Sticky headers */
+html.light header.backdrop-blur-md { background: rgba(255, 255, 255, 0.7) !important; border-color: rgba(15,41,66,0.08) !important; }
+html.light nav.backdrop-blur-md { background: rgba(255, 255, 255, 0.85) !important; border-color: rgba(15,41,66,0.08) !important; }
+
+/* MapLibre attribution on light */
+html.light .maplibregl-ctrl-attrib,
+html.light .maplibregl-ctrl-attrib a {
+  background: rgba(255, 255, 255, 0.85) !important;
+  color: #475569 !important;
+}
+
+/* Inputs / semi-transparent backgrounds legibility on light */
+html.light .bg-white\/\[0\.03\],
+html.light .bg-white\/\[0\.04\],
+html.light .bg-white\/\[0\.05\],
+html.light .bg-white\/5 { background-color: rgba(15, 41, 66, 0.05) !important; }
+html.light .bg-white\/\[0\.08\],
+html.light .bg-white\/10 { background-color: rgba(15, 41, 66, 0.08) !important; }
+html.light .ring-white\/5,
+html.light .ring-white\/10,
+html.light .ring-white\/15 { --tw-ring-color: rgba(15, 41, 66, 0.12) !important; }
+html.light .divide-white\/5 > * + * { border-color: rgba(15, 41, 66, 0.08) !important; }
+html.light input[type="text"],
+html.light input[type="password"] { color: #0a1628; }
+html.light input::placeholder { color: rgba(15, 41, 66, 0.45); }

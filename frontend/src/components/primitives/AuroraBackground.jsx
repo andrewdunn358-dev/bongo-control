@@ -2,12 +2,13 @@ import { cn } from '@/lib/utils';
 
 /**
  * AuroraBackground — fixed, layered aurora + grid + noise. Used once at app
- * root so every screen sits above the same living backdrop.
+ * root so every screen sits above the same living backdrop. Respects the
+ * current theme via the `.dark` / `.light` class on <html>.
  */
 export const AuroraBackground = ({ className }) => (
   <div className={cn('pointer-events-none fixed inset-0 -z-10 overflow-hidden', className)}>
-    {/* Base deep-navy gradient (also on body) */}
-    <div className="absolute inset-0 bg-[linear-gradient(180deg,#0a1628_0%,#0f2942_100%)]" />
+    {/* Base gradient — swaps between dark navy and daylight */}
+    <div className="absolute inset-0 aurora-base" />
 
     {/* Aurora blobs */}
     <div className="absolute -top-40 -left-40 h-[520px] w-[520px] rounded-full bg-aurora-teal/25 blur-3xl animate-aurora-pulse" />

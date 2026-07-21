@@ -8,6 +8,7 @@ import { endpoints } from '@/lib/api';
 import { GlassCard, CardHeader } from '@/components/primitives/GlassCard';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { POI } from '@/constants/testIds';
+import { readStoredValue, writeStoredValue } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
 const TYPE_META = {
@@ -21,19 +22,22 @@ const TYPE_META = {
 // A free MapLibre-compatible dark style from CartoDB (no token needed).
 const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 
-// Portland OR default (only used if user denies geolocation)
+// Portland OR default (only used if no persisted value AND user denies geolocation)
 const DEFAULT_CENTER = { lat: 45.5231, lng: -122.6765 };
+const CENTER_KEY = 'bongo.nearby.center';
+const FILTER_KEY = 'bongo.nearby.filter';
 
 export const NearbyPlaces = () => {
-  const [center, setCenter] = useState(DEFAULT_CENTER);
-  const [filter, setFilter] = useState('all');
+  const [center, setCenter] = useState(() => readStoredValue(CENTER_KEY, DEFAULT_CENTER));
+  const [filter, setFilter] = useState(() => readStoredValue(FILTER_KEY, 'all'));
   const [selected, setSelected] = useState(null);
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
   const markersRef = useRef([]);
 
-  // Ask geolocation on mount (silently fall back)
+  // Ask geolocation on mount unless we already have a persisted center.
   useEffect(() => {
+    if (readStoredValue(CENTER_KEY, null)) return;
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       (p) => setCenter({ lat: p.coords.latitude, lng: p.coords.longitude }),
@@ -41,6 +45,10 @@ export const NearbyPlaces = () => {
       { enableHighAccuracy: false, timeout: 3000, maximumAge: 60_000 },
     );
   }, []);
+
+  // Persist center + filter
+  useEffect(() => { writeStoredValue(CENTER_KEY, center); }, [center]);
+  useEffect(() => { writeStoredValue(FILTER_KEY, filter); }, [filter]);
 
   const { data: poiData } = useQuery({
     queryKey: ['poi-nearby', center.lat, center.lng],
