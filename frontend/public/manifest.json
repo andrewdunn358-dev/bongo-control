@@ -1,0 +1,24 @@
+{
+  "short_name": "Bongo Control",
+  "name": "Bongo Control — Van Cockpit",
+  "description": "Tesla-style van cockpit for battery, solar, weather, camera and nearby places.",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "apple-touch-icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "180x180"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0a1628",
+  "background_color": "#0a1628",
+  "categories": ["utilities", "productivity", "travel"]
+}

@@ -1,302 +1,135 @@
+/* Bongo Control — global stylesheet
+   - Theme-aware `ink` colour (§ Ink token) so opacity variants work in both
+     dark and light without hardcoding text-white / bg-white.
+   - Aurora + grid + noise backdrop
+   - Space Grotesk (UI) + JetBrains Mono (all telemetry numerics via .num)
+*/
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Theme variables — dark is the default (no class needed on <html>),
-   .light overrides every value. This is the single source every
-   Tailwind color token in tailwind.config.js resolves through, via
-   rgb(var(--color-x) / <alpha-value>) - which is also why these are
-   space-separated RGB triplets ("237 239 243") rather than hex strings:
-   Tailwind needs to inject an alpha channel into them for opacity
-   modifiers (bg-battery/15 etc, used 20+ times across this app) to
-   keep working once the underlying value becomes swappable.
+@layer base {
+  :root,
+  html.dark {
+    /* Ink — high-contrast text tokens */
+    --ink: 230 240 255;         /* near-white */
+    --ink-soft: 209 220 236;
+    --ink-muted: 148 163 184;
+    --ink-faint: 100 116 139;
 
-   Domain accent colors (solar/battery/alert/success) are intentionally
-   IDENTICAL in both themes - kept for brand consistency rather than a
-   fully separate light-mode accent palette, the same approach most
-   products take. One known, accepted tradeoff: solar amber as *text*
-   directly on the light theme's white cards has noticeably lower
-   contrast than on dark - acceptable for now since it's mostly used on
-   tinted backgrounds/icon chips, not as body text, but worth revisiting
-   if it proves a real problem in practice. */
-:root {
-  /* Aurora deep-navy palette. Blue-tinted rather than neutral charcoal -
-     that tint is most of what separates a cockpit feel from a generic
-     dark admin panel. */
-  --color-base: 10 22 40;
-  --color-surface-raised: 13 30 52;
-  --color-surface-card: 15 34 58;
-  --color-surface-card-hover: 20 44 72;
-  --color-text-primary: 237 242 249;
-  --color-text-secondary: 148 168 194;
-  --color-text-muted: 100 122 150;
-  --color-hairline: 255 255 255;
-  /* Theme-aware ink - white here, near-black in .light below. Used by
-     every `text-ink`, `bg-ink/[x]`, `border-ink/[x]` in the app. */
-  --color-ink: 255 255 255;
+    /* Surface — card/backdrop tones */
+    --surface: 15 41 66;
+    --surface-raised: 20 47 77;
+    --surface-sunken: 10 22 40;
+    --line: 148 163 184;         /* used with /15 style alpha */
 
-  --color-solar: 255 176 0;
-  --color-solar-dim: 122 90 44;
-  /* Brighter, more electric cyan than the previous teal - reads better
-     against the navy base. */
-  --color-battery: 34 211 238;
-  --color-battery-dim: 21 110 125;
-  --color-alert: 255 75 85;
-  --color-success: 52 211 153;
-  /* Aurora accents - used by the ambient background blobs. Not domain
-     colours: nothing in the telemetry maps to "purple", these exist
-     purely for the backdrop. */
-  --color-aurora-purple: 168 85 247;
-  --color-aurora-blue: 56 189 248;
-
-  /* Used only by the body background gradient below - not a Tailwind
-     token, just this file's own decorative use. */
-  --color-base-deep: 6 14 27;
-}
-
-:root.light {
-  /* Ice-blue rather than neutral grey, so light mode reads as the same
-     family as the aurora dark theme rather than a different product. */
-  --color-base: 238 242 247;
-  --color-surface-raised: 228 234 242;
-  --color-surface-card: 255 255 255;
-  --color-surface-card-hover: 241 245 250;
-  --color-text-primary: 15 34 58;
-  --color-text-secondary: 84 105 133;
-  --color-text-muted: 128 148 174;
-  --color-hairline: 15 34 58;
-  --color-ink: 15 34 58;
-
-  --color-aurora-purple: 147 51 234;
-  --color-aurora-blue: 14 165 233;
-
-  --color-base-deep: 219 228 238;
-}
-
-html,
-body,
-#root {
-  min-height: 100%;
-}
-
-html {
-  background: rgb(var(--color-base));
-}
-
-body {
-  min-height: 100%;
-  margin: 0;
-  overflow-x: hidden;
-  background:
-    radial-gradient(circle at 18% 0%, color-mix(in srgb, rgb(var(--color-battery)) 14%, transparent), transparent 30rem),
-    radial-gradient(circle at 88% 12%, color-mix(in srgb, rgb(var(--color-solar)) 8%, transparent), transparent 24rem),
-    linear-gradient(180deg, rgb(var(--color-base)) 0%, rgb(var(--color-base-deep)) 100%);
-  -webkit-font-smoothing: antialiased;
-  text-rendering: geometricPrecision;
-}
-
-::selection {
-  background: color-mix(in srgb, rgb(var(--color-battery)) 35%, transparent);
-  color: #ffffff;
-}
-
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
-}
-
-:focus-visible {
-  outline: 2px solid rgb(var(--color-battery));
-  outline-offset: 3px;
-  border-radius: 12px;
-}
-
-.vehicle-panel {
-  position: relative;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.025)),
-    rgba(21, 26, 33, 0.9);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 22px 60px rgba(0, 0, 0, 0.34);
-}
-
-.vehicle-panel::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(120deg, color-mix(in srgb, rgb(var(--color-battery)) 12%, transparent), transparent 35%, rgba(255, 255, 255, 0.04));
-  opacity: 0.65;
-}
-
-.vehicle-panel > * {
-  position: relative;
-  z-index: 1;
-}
-
-.vehicle-grid {
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-  background-size: 44px 44px;
-  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.42), transparent 70%);
-}
-
-.soft-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, rgb(var(--color-battery)) 40%, transparent) transparent;
-}
-
-.soft-scrollbar::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.soft-scrollbar::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: color-mix(in srgb, rgb(var(--color-battery)) 35%, transparent);
-}
-
-/* Power Flow diagram: particles travel along an SVG path via offset-path,
-   looping continuously. Speed/count (set inline per-dot) communicate
-   magnitude of energy flow. */
-@keyframes flow-travel {
-  from {
-    offset-distance: 0%;
-    opacity: 0;
+    /* Aurora aesthetic base gradient (dark) */
+    --aurora-base: linear-gradient(180deg, #0a1628 0%, #0f2942 100%);
   }
-  10% {
-    opacity: 1;
+  html.light {
+    --ink: 10 22 40;             /* near-black */
+    --ink-soft: 30 53 85;
+    --ink-muted: 71 85 105;
+    --ink-faint: 100 116 139;
+
+    --surface: 255 255 255;
+    --surface-raised: 248 251 255;
+    --surface-sunken: 234 240 249;
+    --line: 15 41 66;
+
+    --aurora-base: linear-gradient(180deg, #eef2f7 0%, #dbe4ee 100%);
   }
-  90% {
-    opacity: 1;
+
+  html, body, #root {
+    height: 100%;
+    min-height: 100%;
   }
-  to {
-    offset-distance: 100%;
-    opacity: 0;
+  body {
+    @apply font-sans antialiased text-ink;
+    background: var(--aurora-base) fixed;
+    letter-spacing: -0.005em;
+  }
+  ::selection {
+    background: rgba(34, 211, 238, 0.35);
+    color: rgb(var(--ink));
+  }
+  html.light ::selection {
+    background: rgba(168, 85, 247, 0.25);
+    color: rgb(var(--ink));
   }
 }
 
-@keyframes charge-breathe {
-  0%,
-  100% {
-    box-shadow: 0 0 0 color-mix(in srgb, rgb(var(--color-battery)) 0%, transparent);
+@layer components {
+  .num {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    color: rgb(var(--ink));
   }
-  50% {
-    box-shadow: 0 0 28px color-mix(in srgb, rgb(var(--color-battery)) 32%, transparent);
+
+  .glass {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.045) 0%, rgba(255, 255, 255, 0.02) 100%);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px rgba(2, 8, 20, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+    border-radius: 0.9rem;
   }
+  html.light .glass {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.65) 0%, rgba(255, 255, 255, 0.4) 100%);
+    border: 1px solid rgba(15, 41, 66, 0.08);
+    box-shadow: 0 8px 30px rgba(15, 41, 66, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+  }
+
+  .glow-teal {
+    box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.35), 0 0 22px rgba(34, 211, 238, 0.15);
+  }
+  .glow-purple {
+    box-shadow: inset 0 0 0 1px rgba(168, 85, 247, 0.35), 0 0 22px rgba(168, 85, 247, 0.15);
+  }
+
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+    background-size: 48px 48px;
+    -webkit-mask-image: radial-gradient(80% 60% at 50% 40%, black 40%, transparent 100%);
+            mask-image: radial-gradient(80% 60% at 50% 40%, black 40%, transparent 100%);
+  }
+  html.light .grid-bg {
+    background-image:
+      linear-gradient(rgba(15, 41, 66, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(15, 41, 66, 0.05) 1px, transparent 1px);
+  }
+
+  .noise {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.04;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+  html.light .noise { opacity: 0.02; }
+
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium tracking-wide;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 }
 
-.charging-glow {
-  animation: charge-breathe 2.8s ease-in-out infinite;
+/* MapLibre attribution */
+.maplibregl-ctrl-attrib,
+.maplibregl-ctrl-attrib a {
+  background: rgba(10, 22, 40, 0.7) !important;
+  color: rgb(var(--ink-muted)) !important;
+  font-size: 10px !important;
 }
-
-/* Energy Flow diagram v2 (flexbox layout, luminous treatment) */
-@keyframes flow-connector-v {
-  0% {
-    transform: translateY(-100%);
-  }
-  100% {
-    transform: translateY(200%);
-  }
+html.light .maplibregl-ctrl-attrib,
+html.light .maplibregl-ctrl-attrib a {
+  background: rgba(255, 255, 255, 0.85) !important;
+  color: rgb(var(--ink-muted)) !important;
 }
-
-@keyframes flow-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes flow-liquid {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-3px);
-  }
-}
-
-@keyframes flow-aurora {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-/* Respect reduced-motion for the CSS offset-path flow animations
-   (Framer Motion respects this automatically for its own animations).
-   These target inline style="animation:..." attributes - a stylesheet
-   rule with !important is the one thing that can override an inline
-   style for this property, which is why each element needs its own
-   class here rather than relying on the media query alone. */
-@media (prefers-reduced-motion: reduce) {
-  .flow-dot,
-  .charging-glow,
-  .flow-connector-anim,
-  .flow-sun-rays-anim,
-  .flow-liquid-anim,
-  .flow-aurora-anim {
-    animation: none !important;
-  }
-}
-
-/* Ambient aurora background drift (see components/Layout/AuroraBackground.tsx).
-   Long, deliberately mismatched durations so the three blobs never
-   visibly loop in sync - a short or synchronised cycle reads as
-   "animated wallpaper" rather than ambient depth.
-
-   Transform/opacity only, so these are GPU-composited and cost
-   essentially nothing even running continuously on a Pi 2 driving a
-   dash display left on for hours. */
-@keyframes aurora-drift-a {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(6%, 8%) scale(1.12);
-  }
-}
-
-@keyframes aurora-drift-b {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1.05);
-  }
-  50% {
-    transform: translate(-8%, 6%) scale(0.94);
-  }
-}
-
-@keyframes aurora-drift-c {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(5%, -7%) scale(1.1);
-  }
-}
-
-.animate-aurora-drift-a {
-  animation: aurora-drift-a 26s ease-in-out infinite;
-}
-.animate-aurora-drift-b {
-  animation: aurora-drift-b 34s ease-in-out infinite;
-}
-.animate-aurora-drift-c {
-  animation: aurora-drift-c 30s ease-in-out infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .animate-aurora-drift-a,
-  .animate-aurora-drift-b,
-  .animate-aurora-drift-c {
-    animation: none !important;
-  }
-}
+.maplibregl-canvas { outline: none !important; }
