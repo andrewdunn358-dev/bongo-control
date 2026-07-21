@@ -1,0 +1,40 @@
+{
+  "summary": "Full rebuild verification of Bongo Control (Vite+TS). Backend: 46/46 pytest cases pass — all §2 contract routes verified including honesty invariants (battery.soc_pct is null, energy.loads is {}, environment.humidity_pct is null), history hours-float param for all 4 domains × 4 ranges, POI radius_m+categories, AI status configured:false + gated 401/503 semantics, POST /location/gps with create→GET persistence check, X-App-Token gate for /relays and /camera, camera SVG via both header and ?token= query, WebSocket per-domain streaming at BOTH /api/ws/telemetry AND /ws/telemetry with source:'simulation'. Frontend: 42/42 Playwright checks pass across all 10 routes. Home shows NO SoC gauge — instead shows voltage 12.05V with explicit '—% · a percentage would be a guess without a shunt' honesty text. Sim banner lists all 7 domains at top of every screen. WS indicator becomes LIVE within 3s. Camera unlock with 'bongo' → frame + LIVE badge. History 4 range toggles work. Nearby MapLibre map + offline badge + disabled AI button. Weather shows HH:MM sunrise/sunset (05:54, 20:35 — no TZ shift). Theme toggle flips dark→light with legible text in both. WiFi scan populates list. All 10 routes render without React errors.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Optional / non-blocking) Silence the two React Router v7 future-flag console warnings by opting in with `v7_startTransition` and `v7_relativeSplatPath`. Not a bug — just noisy dev warnings."
+  ],
+  "critical_code_review_comments": [
+    "server.py (625 lines) is right at the ~700 line soft ceiling; splitting per domain (telemetry/poi/weather/camera/wifi/settings) would improve maintainability if the mock keeps growing.",
+    "server.py uses deprecated @app.on_event('startup') — should migrate to FastAPI lifespan handlers eventually, but works fine today.",
+    "config.ts correctly gates the WS path with import.meta.env.DEV — this is Vite constant-folded, so no env leaks. Sandbox uses /api/ws/telemetry (verified) and prod would use /ws/telemetry (also verified working via test_ws_prod_path_also_works).",
+    "api.ts fails cleanly for 401/503 by throwing ApiError with the status code; token is auto-attached via X-App-Token header from localStorage — matches spec.",
+    "Home.tsx correctly avoids any SoC gauge and renders the '—%' + shunt-rationale line inline with voltage — this is the load-bearing honesty invariant and it is honoured.",
+    "Camera screen implements SNAPSHOT POLLING with `new Image()` preload-swap (confirmed via source review) — no MJPEG multipart stream, matches spec.",
+    "Sim banner correctly enumerates every domain whose latest WS frame has source:'simulation' (listed all 7: battery, connectivity, energy, environment, solar, system, weather).",
+    "Weather sunrise/sunset are string-sliced (HH:MM) rather than parsed via new Date(), avoiding browser-TZ shift. Verified visually (05:54, 20:35).",
+    "Theme toggle switches the documentElement class from 'dark' to 'light' — theme-aware `ink` colour token keeps text legible in both, verified by screenshot."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (rewritten as pytest suite for the rebuild — 46 cases, xdist-parallel-safe)"
+  ],
+  "success_rate": {"backend": "100% (46/46)", "frontend": "100% (42/42 UI + integration checks across 10 routes)"},
+  "test_credentials": "App unlock password: 'bongo' (from /app/memory/test_credentials.md). POST /api/auth/unlock returns { token: 'bongo-mock-token-2026', expires_in: 3600 }. Token then used as X-App-Token header (or ?token= for <img>).",
+  "seed_data_creation": "None — everything in-memory in the mock backend.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend regression suite lives at /app/backend/tests/backend_test.py — 46 pytest cases, runs in ~1.5s with xdist. It hits http://localhost:8001 (override with BONGO_BASE_URL env). Frontend testids centralised in /app/frontend/src/constants/testIds.ts. WebSocket registered on the FastAPI app directly at BOTH /api/ws/telemetry (sandbox) and /ws/telemetry (real prod nginx) — both verified. Honesty invariants (soc_pct null, loads {}, humidity_pct null, relays field is `commanded_on` not `on`) are load-bearing; any regression here should block merge. Do NOT introduce any REACT_APP_BACKEND_URL or VITE_* WS URL — same-origin relative paths are mandatory per PRD.",
+  "rca of the issue": "N/A — no bugs found. Rebuild meets contract exactly."
+}

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0a1628" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#eef2f7" media="(prefers-color-scheme: light)" />
+    <meta name="description" content="Bongo Control — van cockpit for battery, solar, weather, camera and nearby places." />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Bongo Control" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <title>Bongo Control — Van Cockpit</title>
+    <script>
+      // Restore theme early to avoid a light-then-dark flash
+      (function () {
+        try {
+          var t = localStorage.getItem('bongo.theme') || 'dark';
+          document.documentElement.classList.remove('dark', 'light');
+          document.documentElement.classList.add(t === 'light' ? 'light' : 'dark');
+        } catch (_) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Register the offline-shell service worker in production only.
+      if ('serviceWorker' in navigator && !/localhost|127\.0\.0\.1/.test(location.hostname) && location.protocol === 'https:') {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('/service-worker.js').catch(function () {});
+        });
+      }
+    </script>
+  </body>
+</html>

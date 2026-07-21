@@ -1,157 +1,107 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
-@import url('https://fonts.googleapis.com/icon?family=Material+Icons');
-
+/* Bongo Control — global stylesheet
+   - Theme-aware `ink` colour (§ Ink token) so opacity variants work in both
+     dark and light without hardcoding text-white / bg-white.
+   - Aurora + grid + noise backdrop
+   - Space Grotesk (UI) + JetBrains Mono (all telemetry numerics via .num)
+*/
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  :root {
-    /* shadcn tokens mapped to Bongo dark navy */
-    --background: 217 55% 8%;
-    --foreground: 210 40% 96%;
-    --card: 216 52% 12%;
-    --card-foreground: 210 40% 96%;
-    --popover: 216 52% 10%;
-    --popover-foreground: 210 40% 96%;
-    --primary: 189 94% 55%; /* aurora teal */
-    --primary-foreground: 217 55% 8%;
-    --secondary: 216 40% 18%;
-    --secondary-foreground: 210 40% 96%;
-    --muted: 216 40% 16%;
-    --muted-foreground: 215 20% 68%;
-    --accent: 271 91% 65%; /* aurora purple */
-    --accent-foreground: 217 55% 8%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 216 40% 20%;
-    --input: 216 40% 18%;
-    --ring: 189 94% 55%;
-    --chart-1: 189 94% 55%;
-    --chart-2: 271 91% 65%;
-    --chart-3: 199 89% 60%;
-    --chart-4: 142 71% 45%;
-    --chart-5: 38 92% 55%;
-    --radius: 0.9rem;
-  }
-  .dark {
-    --background: 217 55% 8%;
-    --foreground: 210 40% 96%;
-    --card: 216 52% 12%;
-    --card-foreground: 210 40% 96%;
-    --popover: 216 52% 10%;
-    --popover-foreground: 210 40% 96%;
-    --primary: 189 94% 55%;
-    --primary-foreground: 217 55% 8%;
-    --secondary: 216 40% 18%;
-    --secondary-foreground: 210 40% 96%;
-    --muted: 216 40% 16%;
-    --muted-foreground: 215 20% 68%;
-    --accent: 271 91% 65%;
-    --accent-foreground: 217 55% 8%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 216 40% 20%;
-    --input: 216 40% 18%;
-    --ring: 189 94% 55%;
-  }
-  .light {
-    /* Bongo daylight — soft ice-blue, aurora accents kept for continuity */
-    --background: 210 40% 96%;
-    --foreground: 217 55% 12%;
-    --card: 210 40% 99%;
-    --card-foreground: 217 55% 12%;
-    --popover: 210 40% 99%;
-    --popover-foreground: 217 55% 12%;
-    --primary: 189 94% 40%;
-    --primary-foreground: 210 40% 99%;
-    --secondary: 210 30% 90%;
-    --secondary-foreground: 217 55% 12%;
-    --muted: 210 30% 92%;
-    --muted-foreground: 216 20% 40%;
-    --accent: 271 70% 50%;
-    --accent-foreground: 210 40% 99%;
-    --destructive: 0 74% 50%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 216 30% 82%;
-    --input: 216 30% 86%;
-    --ring: 189 94% 40%;
-  }
-}
+  :root,
+  html.dark {
+    /* Ink — high-contrast text tokens */
+    --ink: 230 240 255;         /* near-white */
+    --ink-soft: 209 220 236;
+    --ink-muted: 148 163 184;
+    --ink-faint: 100 116 139;
 
-@layer base {
-  * {
-    @apply border-border;
+    /* Surface — card/backdrop tones */
+    --surface: 15 41 66;
+    --surface-raised: 20 47 77;
+    --surface-sunken: 10 22 40;
+    --line: 148 163 184;         /* used with /15 style alpha */
+
+    /* Aurora aesthetic base gradient (dark) */
+    --aurora-base: linear-gradient(180deg, #0a1628 0%, #0f2942 100%);
   }
+  html.light {
+    --ink: 10 22 40;             /* near-black */
+    --ink-soft: 30 53 85;
+    --ink-muted: 71 85 105;
+    --ink-faint: 100 116 139;
+
+    --surface: 255 255 255;
+    --surface-raised: 248 251 255;
+    --surface-sunken: 234 240 249;
+    --line: 15 41 66;
+
+    --aurora-base: linear-gradient(180deg, #eef2f7 0%, #dbe4ee 100%);
+  }
+
   html, body, #root {
     height: 100%;
+    min-height: 100%;
   }
   body {
-    @apply bg-navy-900 text-foreground font-sans antialiased;
-    background-image:
-      radial-gradient(60% 45% at 12% 12%, rgba(34, 211, 238, 0.18) 0%, transparent 55%),
-      radial-gradient(55% 45% at 88% 8%, rgba(168, 85, 247, 0.18) 0%, transparent 55%),
-      radial-gradient(70% 55% at 55% 100%, rgba(56, 189, 248, 0.12) 0%, transparent 60%),
-      linear-gradient(180deg, #0a1628 0%, #0f2942 100%);
-    background-attachment: fixed;
-    color: #e6f0ff;
+    @apply font-sans antialiased text-ink;
+    background: var(--aurora-base) fixed;
     letter-spacing: -0.005em;
-  }
-  html.light body,
-  body[data-theme="light"] {
-    background-image:
-      radial-gradient(60% 45% at 12% 12%, rgba(34, 211, 238, 0.14) 0%, transparent 55%),
-      radial-gradient(55% 45% at 88% 8%, rgba(168, 85, 247, 0.12) 0%, transparent 55%),
-      radial-gradient(70% 55% at 55% 100%, rgba(56, 189, 248, 0.10) 0%, transparent 60%),
-      linear-gradient(180deg, #eef2f7 0%, #dbe4ee 100%);
-    color: #0a1628;
   }
   ::selection {
     background: rgba(34, 211, 238, 0.35);
-    color: #e6f0ff;
+    color: rgb(var(--ink));
+  }
+  html.light ::selection {
+    background: rgba(168, 85, 247, 0.25);
+    color: rgb(var(--ink));
   }
 }
 
 @layer components {
-  .aurora-base {
-    background: linear-gradient(180deg, #0a1628 0%, #0f2942 100%);
-  }
-  html.light .aurora-base {
-    background: linear-gradient(180deg, #eef2f7 0%, #dbe4ee 100%);
-  }
-  html.light .animate-aurora-pulse { opacity: 0.55; }
   .num {
     font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.01em;
+    color: rgb(var(--ink));
   }
+
   .glass {
-    background: linear-gradient(180deg, rgba(255,255,255,0.045) 0%, rgba(255,255,255,0.02) 100%);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.045) 0%, rgba(255, 255, 255, 0.02) 100%);
     backdrop-filter: blur(18px) saturate(140%);
     -webkit-backdrop-filter: blur(18px) saturate(140%);
-    border: 1px solid rgba(255,255,255,0.08);
-    box-shadow: 0 8px 32px rgba(2,8,20,0.55), inset 0 0 0 1px rgba(255,255,255,0.02);
-    border-radius: var(--radius);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px rgba(2, 8, 20, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+    border-radius: 0.9rem;
   }
-  .glass-strong {
-    background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%);
-    backdrop-filter: blur(22px) saturate(160%);
-    -webkit-backdrop-filter: blur(22px) saturate(160%);
-    border: 1px solid rgba(255,255,255,0.10);
+  html.light .glass {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.65) 0%, rgba(255, 255, 255, 0.4) 100%);
+    border: 1px solid rgba(15, 41, 66, 0.08);
+    box-shadow: 0 8px 30px rgba(15, 41, 66, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
   }
-  .glow-teal-border {
-    box-shadow: inset 0 0 0 1px rgba(34,211,238,0.35), 0 0 22px rgba(34,211,238,0.15);
+
+  .glow-teal {
+    box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.35), 0 0 22px rgba(34, 211, 238, 0.15);
   }
-  .glow-purple-border {
-    box-shadow: inset 0 0 0 1px rgba(168,85,247,0.35), 0 0 22px rgba(168,85,247,0.15);
+  .glow-purple {
+    box-shadow: inset 0 0 0 1px rgba(168, 85, 247, 0.35), 0 0 22px rgba(168, 85, 247, 0.15);
   }
+
   .grid-bg {
     background-image:
-      linear-gradient(rgba(148,163,184,0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(148,163,184,0.05) 1px, transparent 1px);
+      linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
     background-size: 48px 48px;
-    mask-image: radial-gradient(80% 60% at 50% 40%, black 40%, transparent 100%);
+    -webkit-mask-image: radial-gradient(80% 60% at 50% 40%, black 40%, transparent 100%);
+            mask-image: radial-gradient(80% 60% at 50% 40%, black 40%, transparent 100%);
   }
+  html.light .grid-bg {
+    background-image:
+      linear-gradient(rgba(15, 41, 66, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(15, 41, 66, 0.05) 1px, transparent 1px);
+  }
+
   .noise {
     position: absolute;
     inset: 0;
@@ -160,78 +110,26 @@
     mix-blend-mode: overlay;
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
   }
+  html.light .noise { opacity: 0.02; }
+
   .pill {
     @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium tracking-wide;
   }
+
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 }
 
-/* MapLibre dark tweaks */
+/* MapLibre attribution */
 .maplibregl-ctrl-attrib,
 .maplibregl-ctrl-attrib a {
   background: rgba(10, 22, 40, 0.7) !important;
-  color: #94a3b8 !important;
+  color: rgb(var(--ink-muted)) !important;
   font-size: 10px !important;
 }
-.maplibregl-ctrl-attrib a { text-decoration: underline; }
-.maplibregl-canvas { outline: none !important; }
-
-/* -------------------- Light theme overrides -------------------- */
-html.light body { color: #0a1628; }
-html.light ::selection { background: rgba(168, 85, 247, 0.25); color: #0a1628; }
-
-html.light .glass {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.65) 0%, rgba(255, 255, 255, 0.4) 100%);
-  border: 1px solid rgba(15, 41, 66, 0.08);
-  box-shadow: 0 8px 30px rgba(15, 41, 66, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
-}
-html.light .glass-strong {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.55) 100%);
-  border: 1px solid rgba(15, 41, 66, 0.10);
-}
-
-/* Give headings + big numbers ink-tone contrast on light */
-html.light .text-white,
-html.light h1,
-html.light h2 { color: #0a1628 !important; }
-html.light .num { color: #0a1628; }
-html.light .text-slate-100,
-html.light .text-slate-200,
-html.light .text-slate-300 { color: #1e3555 !important; }
-html.light .text-slate-400 { color: #475569 !important; }
-html.light .text-slate-500 { color: #64748b !important; }
-
-/* Subtle grid + noise fade out on light */
-html.light .grid-bg {
-  background-image:
-    linear-gradient(rgba(15, 41, 66, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(15, 41, 66, 0.05) 1px, transparent 1px);
-}
-html.light .noise { opacity: 0.025; }
-
-/* Sticky headers */
-html.light header.backdrop-blur-md { background: rgba(255, 255, 255, 0.7) !important; border-color: rgba(15,41,66,0.08) !important; }
-html.light nav.backdrop-blur-md { background: rgba(255, 255, 255, 0.85) !important; border-color: rgba(15,41,66,0.08) !important; }
-
-/* MapLibre attribution on light */
 html.light .maplibregl-ctrl-attrib,
 html.light .maplibregl-ctrl-attrib a {
   background: rgba(255, 255, 255, 0.85) !important;
-  color: #475569 !important;
+  color: rgb(var(--ink-muted)) !important;
 }
-
-/* Inputs / semi-transparent backgrounds legibility on light */
-html.light .bg-white\/\[0\.03\],
-html.light .bg-white\/\[0\.04\],
-html.light .bg-white\/\[0\.05\],
-html.light .bg-white\/5 { background-color: rgba(15, 41, 66, 0.05) !important; }
-html.light .bg-white\/\[0\.08\],
-html.light .bg-white\/10 { background-color: rgba(15, 41, 66, 0.08) !important; }
-html.light .ring-white\/5,
-html.light .ring-white\/10,
-html.light .ring-white\/15 { --tw-ring-color: rgba(15, 41, 66, 0.12) !important; }
-html.light .divide-white\/5 > * + * { border-color: rgba(15, 41, 66, 0.08) !important; }
-html.light input[type="text"],
-html.light input[type="password"] { color: #0a1628; }
-html.light input::placeholder { color: rgba(15, 41, 66, 0.45); }
+.maplibregl-canvas { outline: none !important; }
