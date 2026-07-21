@@ -26,7 +26,7 @@ export function Battery() {
         <GlassCard glow="teal" className="col-span-12 md:col-span-7 p-6 lg:p-8" data-testid={BATTERY.voltage}>
           <CardHeader label="Voltage" hint="MPPT / BMS" right={<StatusPill tone={p?.charging ? 'green' : 'slate'} data-testid={BATTERY.charging}>{p?.charging ? 'CHARGING' : 'IDLE'}</StatusPill>} />
           <div className="num text-6xl font-semibold">{fmtVolt(p?.voltage)}</div>
-          <div className="mt-6"><Sparkline data={voltSeries} width={520} height={80} stroke="#22d3ee" fill="rgba(34,211,238,0.25)" /></div>
+          <div className="mt-6"><Sparkline data={voltSeries} width={520} height={80} stroke="#22d3ee" fill="rgba(34,211,238,0.25)" minRange={0.4} /></div>
         </GlassCard>
 
         <GlassCard className="col-span-12 md:col-span-5 p-6">

@@ -86,7 +86,7 @@ export function Home() {
             <span className="num text-5xl font-semibold">{fmtVolt(battery.payload?.voltage)}</span>
           </div>
           <div className="text-xs text-ink-faint mt-1">State-of-charge {DASH}% · a percentage would be a guess without a shunt.</div>
-          <div className="mt-4"><Sparkline data={voltSeries} width={340} height={54} stroke="#22d3ee" fill="rgba(34,211,238,0.25)" /></div>
+          <div className="mt-4"><Sparkline data={voltSeries} width={340} height={54} stroke="#22d3ee" fill="rgba(34,211,238,0.25)" minRange={0.4} /></div>
         </GlassCard>
 
         {/* Solar */}
@@ -100,7 +100,7 @@ export function Home() {
             <span className="num text-5xl font-semibold">{fmtWatt(solar.payload?.watts)}</span>
           </div>
           <div className="text-xs text-ink-faint mt-1">MPPT reading · today {solar.payload?.yield_today_wh ? `${(solar.payload.yield_today_wh / 1000).toFixed(2)} kWh` : DASH}</div>
-          <div className="mt-4"><Sparkline data={solarSeries} width={340} height={54} stroke="#a855f7" fill="rgba(168,85,247,0.28)" /></div>
+          <div className="mt-4"><Sparkline data={solarSeries} width={340} height={54} stroke="#a855f7" fill="rgba(168,85,247,0.28)" minRange={25} /></div>
         </GlassCard>
 
         {/* Net energy */}

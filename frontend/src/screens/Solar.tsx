@@ -26,7 +26,7 @@ export function Solar() {
         <GlassCard glow="purple" className="col-span-12 md:col-span-7 p-6 lg:p-8" data-testid={SOLAR.watts}>
           <CardHeader label="Incoming" hint={`peak today ${fmtWatt(p?.peak_today_watts)}`} right={<StatusPill tone="purple" data-testid={SOLAR.chargeState}>{(p?.charge_state || 'off').toUpperCase()}</StatusPill>} />
           <div className="num text-6xl font-semibold">{fmtWatt(p?.watts)}</div>
-          <div className="mt-6"><Sparkline data={series} width={520} height={80} stroke="#a855f7" fill="rgba(168,85,247,0.3)" /></div>
+          <div className="mt-6"><Sparkline data={series} width={520} height={80} stroke="#a855f7" fill="rgba(168,85,247,0.3)" minRange={25} /></div>
         </GlassCard>
 
         <GlassCard className="col-span-12 md:col-span-5 p-6">

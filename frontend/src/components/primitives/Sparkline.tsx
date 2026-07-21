@@ -9,6 +9,18 @@ interface Props {
   strokeWidth?: number;
   padding?: number;
   className?: string;
+  /**
+   * Smallest y-range the chart will scale to. Without this, the axis
+   * fits exactly min..max, so a reading that barely moves gets its
+   * noise amplified to full height - a resting battery flipping
+   * between 12.88 and 12.89 V (just 2dp rounding) rendered as a
+   * dramatic square wave, implying voltage swings that never happened.
+   *
+   * Set it to roughly the smallest change actually worth seeing for
+   * that measurement: about 0.4 V for a 12 V bank, tens of watts for
+   * solar, a degree or two for temperature.
+   */
+  minRange?: number;
 }
 
 /** Small inline SVG sparkline. Drops non-finite points; never fabricates. */
@@ -21,12 +33,20 @@ export function Sparkline({
   strokeWidth = 2,
   padding = 2,
   className,
+  minRange = 0,
 }: Props) {
   const paths = useMemo(() => {
     const values = data.filter((v) => Number.isFinite(v));
     if (values.length < 2) return { line: '', area: '' };
-    const lo = Math.min(...values);
-    const hi = Math.max(...values);
+    let lo = Math.min(...values);
+    let hi = Math.max(...values);
+    // Widen a too-narrow range around its midpoint, so genuinely flat
+    // data draws as a flat line rather than amplified noise.
+    if (hi - lo < minRange) {
+      const mid = (lo + hi) / 2;
+      lo = mid - minRange / 2;
+      hi = mid + minRange / 2;
+    }
     const range = hi - lo || 1;
     const stepX = (width - padding * 2) / Math.max(values.length - 1, 1);
     const points = values.map((v, i) => {
@@ -39,7 +59,7 @@ export function Sparkline({
     const [lastX] = points[points.length - 1];
     const area = `${line} L${lastX.toFixed(1)},${height - padding} L${firstX.toFixed(1)},${height - padding} Z`;
     return { line, area };
-  }, [data, width, height, padding]);
+  }, [data, width, height, padding, minRange]);
 
   const gradId = `spark-${stroke.replace('#', '')}`;
 
