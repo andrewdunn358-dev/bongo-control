@@ -2,13 +2,15 @@ import type { ReactNode } from "react";
 import Sidebar from "../Nav/Sidebar";
 import BottomNav from "../Nav/BottomNav";
 import NotificationToaster from "../Notifications/NotificationToaster";
+import AuroraBackground from "./AuroraBackground";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="relative flex min-h-screen overflow-hidden bg-base text-text-primary">
-      <div className="vehicle-grid pointer-events-none fixed inset-0" />
-      <div className="pointer-events-none fixed -left-40 top-0 h-96 w-96 rounded-full bg-battery/10 blur-3xl" />
-      <div className="pointer-events-none fixed right-0 top-20 h-72 w-72 rounded-full bg-solar/10 blur-3xl" />
+    <div className="relative flex min-h-screen overflow-hidden text-text-primary">
+      {/* Replaces the previous static blobs and grid div - AuroraBackground
+          does both, animated and theme-aware. Keeping the old ones as
+          well would double the effect and cost render work for nothing. */}
+      <AuroraBackground />
       <NotificationToaster />
       <Sidebar />
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">

@@ -125,7 +125,7 @@ export default function Relays() {
                     }`}
                   >
                     <div
-                      className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-transform ${
+                      className={`absolute top-1 h-4 w-4 rounded-full bg-surface-card shadow-sm transition-transform ${
                         channel.commanded_on ? "translate-x-6" : "translate-x-1"
                       }`}
                     />

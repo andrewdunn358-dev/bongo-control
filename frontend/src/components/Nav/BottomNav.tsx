@@ -4,7 +4,7 @@ import { primaryNavItems } from "./navConfig";
 export default function BottomNav() {
   return (
     <nav
-      className="fixed inset-x-3 bottom-3 z-30 flex gap-1 rounded-[1.6rem] border border-ink/[0.08] bg-surface-card/92 p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl lg:hidden"
+      className="fixed inset-x-3 bottom-3 z-30 flex gap-1 rounded-[1.6rem] border border-ink/[0.08] bg-surface-card/75 p-1.5 shadow-[0_18px_50px_-8px_rgb(var(--color-base-deep)/0.75),inset_0_1px_0_rgb(var(--color-ink)/0.10)] backdrop-blur-2xl lg:hidden"
       style={{ paddingBottom: "calc(0.375rem + env(safe-area-inset-bottom))" }}
     >
       {primaryNavItems.map((item) => {

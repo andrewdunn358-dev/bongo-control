@@ -62,7 +62,7 @@ function BatteryGauge({ value, charging }: { value: number | null | undefined; c
   return (
     <div className={`relative mx-auto flex h-44 w-44 items-center justify-center rounded-full ${charging ? "charging-glow" : ""}`}>
       <svg viewBox="0 0 120 120" className="absolute inset-0 h-full w-full -rotate-90">
-        <circle cx="60" cy="60" r="44" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="9" />
+        <circle cx="60" cy="60" r="44" fill="none" stroke="rgb(var(--color-ink)/0.10)" strokeWidth="9" />
         <circle
           cx="60"
           cy="60"
@@ -142,7 +142,7 @@ export default function Home() {
   return (
     <div className="space-y-5">
       <SimulatedDataBanner />
-      <header className="flex flex-wrap items-center justify-between gap-4 rounded-[2rem] border border-ink/[0.07] bg-surface-card/58 px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-sm">
+      <header className="flex flex-wrap items-center justify-between gap-4 rounded-[2rem] border border-ink/[0.07] bg-surface-card/58 px-5 py-4 shadow-[inset_0_1px_0_rgb(var(--color-ink)/0.06)] backdrop-blur-sm">
         <div>
           <div className="text-[0.68rem] font-bold uppercase tracking-[0.28em] text-battery">Mazda Bongo</div>
           <h1 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-ink md:text-4xl">Expedition Control</h1>

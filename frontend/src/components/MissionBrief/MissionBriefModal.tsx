@@ -123,8 +123,8 @@ export default function MissionBriefModal() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
       <div
-        className="relative w-full max-w-md overflow-hidden rounded-[1.75rem] border border-ink/[0.08] bg-surface-card p-7 shadow-[0_24px_60px_rgba(0,0,0,0.6)]"
-        style={{ boxShadow: `inset 0 1px 0 rgba(255,255,255,0.06), 0 24px 60px rgba(0,0,0,0.6)` }}
+        className="relative w-full max-w-md overflow-hidden rounded-[1.75rem] border border-ink/[0.08] bg-surface-card p-7 shadow-[0_24px_60px_rgb(var(--color-base-deep)/0.7)]"
+        style={{ boxShadow: `inset 0 1px 0 rgb(var(--color-ink)/0.06), 0 24px 60px rgb(var(--color-base-deep)/0.7)` }}
       >
         <div
           className="pointer-events-none absolute -inset-1/2 opacity-60"

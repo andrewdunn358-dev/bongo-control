@@ -106,7 +106,7 @@ export default function PowerFlowDiagram() {
   const batteryPct = battery?.soc_pct ?? (battery ? Math.min(100, Math.max(0, ((battery.voltage - 11.8) / (14.4 - 11.8)) * 100)) : 0);
 
   return (
-    <div className="relative overflow-hidden rounded-[1.75rem] border border-ink/[0.07] bg-base/55 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)] sm:p-7">
+    <div className="relative overflow-hidden rounded-[1.75rem] border border-ink/[0.07] bg-base/55 p-5 shadow-[inset_0_1px_0_rgb(var(--color-ink)/0.07)] sm:p-7">
       {/* Aurora backdrop - slow drifting gradient, purely decorative */}
       <div
         className="flow-aurora-anim pointer-events-none absolute -inset-1/2 opacity-70"

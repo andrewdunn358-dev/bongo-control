@@ -18,7 +18,7 @@ export default function Sidebar() {
     ) || null;
 
   return (
-    <aside className="relative z-20 hidden w-[5.75rem] shrink-0 flex-col border-r border-ink/[0.07] bg-base/82 px-3 py-4 backdrop-blur-xl lg:flex xl:w-72 xl:px-5">
+    <aside className="relative z-20 hidden w-[5.75rem] shrink-0 flex-col border-r border-ink/[0.07] bg-base/60 px-3 py-4 backdrop-blur-2xl lg:flex xl:w-72 xl:px-5">
       <div className="mb-7 flex items-center justify-center gap-3 xl:justify-start">
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-battery/25 bg-battery/12 shadow-[0_0_26px_rgba(0,194,168,0.18)]">
           <Gauge size={22} className="text-battery" />

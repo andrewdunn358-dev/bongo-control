@@ -20,13 +20,16 @@
    tinted backgrounds/icon chips, not as body text, but worth revisiting
    if it proves a real problem in practice. */
 :root {
-  --color-base: 11 14 18;
-  --color-surface-raised: 16 21 29;
-  --color-surface-card: 21 26 33;
-  --color-surface-card-hover: 27 34 46;
-  --color-text-primary: 237 239 243;
-  --color-text-secondary: 138 147 166;
-  --color-text-muted: 91 100 114;
+  /* Aurora deep-navy palette. Blue-tinted rather than neutral charcoal -
+     that tint is most of what separates a cockpit feel from a generic
+     dark admin panel. */
+  --color-base: 10 22 40;
+  --color-surface-raised: 13 30 52;
+  --color-surface-card: 15 34 58;
+  --color-surface-card-hover: 20 44 72;
+  --color-text-primary: 237 242 249;
+  --color-text-secondary: 148 168 194;
+  --color-text-muted: 100 122 150;
   --color-hairline: 255 255 255;
   /* Theme-aware ink - white here, near-black in .light below. Used by
      every `text-ink`, `bg-ink/[x]`, `border-ink/[x]` in the app. */
@@ -34,28 +37,40 @@
 
   --color-solar: 255 176 0;
   --color-solar-dim: 122 90 44;
-  --color-battery: 0 194 168;
-  --color-battery-dim: 43 110 104;
+  /* Brighter, more electric cyan than the previous teal - reads better
+     against the navy base. */
+  --color-battery: 34 211 238;
+  --color-battery-dim: 21 110 125;
   --color-alert: 255 75 85;
-  --color-success: 55 214 122;
+  --color-success: 52 211 153;
+  /* Aurora accents - used by the ambient background blobs. Not domain
+     colours: nothing in the telemetry maps to "purple", these exist
+     purely for the backdrop. */
+  --color-aurora-purple: 168 85 247;
+  --color-aurora-blue: 56 189 248;
 
   /* Used only by the body background gradient below - not a Tailwind
      token, just this file's own decorative use. */
-  --color-base-deep: 8 10 13;
+  --color-base-deep: 6 14 27;
 }
 
 :root.light {
-  --color-base: 243 244 246;
-  --color-surface-raised: 233 235 238;
+  /* Ice-blue rather than neutral grey, so light mode reads as the same
+     family as the aurora dark theme rather than a different product. */
+  --color-base: 238 242 247;
+  --color-surface-raised: 228 234 242;
   --color-surface-card: 255 255 255;
-  --color-surface-card-hover: 241 242 244;
-  --color-text-primary: 20 24 31;
-  --color-text-secondary: 91 100 114;
-  --color-text-muted: 138 147 166;
-  --color-hairline: 20 24 31;
-  --color-ink: 20 24 31;
+  --color-surface-card-hover: 241 245 250;
+  --color-text-primary: 15 34 58;
+  --color-text-secondary: 84 105 133;
+  --color-text-muted: 128 148 174;
+  --color-hairline: 15 34 58;
+  --color-ink: 15 34 58;
 
-  --color-base-deep: 233 235 238;
+  --color-aurora-purple: 147 51 234;
+  --color-aurora-blue: 14 165 233;
+
+  --color-base-deep: 219 228 238;
 }
 
 html,
@@ -226,6 +241,62 @@ body {
   .flow-sun-rays-anim,
   .flow-liquid-anim,
   .flow-aurora-anim {
+    animation: none !important;
+  }
+}
+
+/* Ambient aurora background drift (see components/Layout/AuroraBackground.tsx).
+   Long, deliberately mismatched durations so the three blobs never
+   visibly loop in sync - a short or synchronised cycle reads as
+   "animated wallpaper" rather than ambient depth.
+
+   Transform/opacity only, so these are GPU-composited and cost
+   essentially nothing even running continuously on a Pi 2 driving a
+   dash display left on for hours. */
+@keyframes aurora-drift-a {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(6%, 8%) scale(1.12);
+  }
+}
+
+@keyframes aurora-drift-b {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1.05);
+  }
+  50% {
+    transform: translate(-8%, 6%) scale(0.94);
+  }
+}
+
+@keyframes aurora-drift-c {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(5%, -7%) scale(1.1);
+  }
+}
+
+.animate-aurora-drift-a {
+  animation: aurora-drift-a 26s ease-in-out infinite;
+}
+.animate-aurora-drift-b {
+  animation: aurora-drift-b 34s ease-in-out infinite;
+}
+.animate-aurora-drift-c {
+  animation: aurora-drift-c 30s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-aurora-drift-a,
+  .animate-aurora-drift-b,
+  .animate-aurora-drift-c {
     animation: none !important;
   }
 }

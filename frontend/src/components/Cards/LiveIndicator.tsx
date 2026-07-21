@@ -26,7 +26,7 @@ export default function LiveIndicator({ lastUpdated, connected }: LiveIndicatorP
 
   return (
     <div
-      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-[0.68rem] font-bold uppercase tracking-[0.18em] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ${
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-[0.68rem] font-bold uppercase tracking-[0.18em] shadow-[inset_0_1px_0_rgb(var(--color-ink)/0.08)] ${
         connected ? "border-success/25 bg-success/10 text-success" : "border-alert/30 bg-alert/10 text-alert"
       }`}
     >

@@ -55,7 +55,7 @@ function SunArc({ sunrise, sunset }: { sunrise: string | null; sunset: string | 
   return (
     <div className="flex flex-col items-center">
       <svg viewBox="0 0 220 105" className="w-full max-w-xs" aria-hidden="true">
-        <path d="M 20 90 A 90 60 0 0 1 200 90" fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth={2} strokeDasharray="3 5" />
+        <path d="M 20 90 A 90 60 0 0 1 200 90" fill="none" stroke="rgb(var(--color-ink)/0.12)" strokeWidth={2} strokeDasharray="3 5" />
         {progress !== null && progress > 0 && (
           <path
             d="M 20 90 A 90 60 0 0 1 200 90"
@@ -66,7 +66,7 @@ function SunArc({ sunrise, sunset }: { sunrise: string | null; sunset: string | 
             opacity={0.55}
           />
         )}
-        <line x1={16} y1={90} x2={204} y2={90} stroke="rgba(255,255,255,0.10)" strokeWidth={1} />
+        <line x1={16} y1={90} x2={204} y2={90} stroke="rgb(var(--color-ink)/0.12)" strokeWidth={1} />
         {isDaytime && (
           <>
             <circle cx={cx} cy={cy} r={11} fill="#ffb000" opacity={0.25} />

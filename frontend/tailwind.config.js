@@ -59,6 +59,10 @@ export default {
         // every opacity variant working in both themes from one
         // definition.
         ink: "rgb(var(--color-ink) / <alpha-value>)",
+        aurora: {
+          purple: "rgb(var(--color-aurora-purple) / <alpha-value>)",
+          blue: "rgb(var(--color-aurora-blue) / <alpha-value>)",
+        },
       },
       fontFamily: {
         display: ["Sora", "system-ui", "sans-serif"],
