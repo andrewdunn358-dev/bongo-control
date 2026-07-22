@@ -35,6 +35,10 @@ def _redact(section_data: dict) -> dict:
     return out
 
 
+class ConfigUpdate(BaseModel):
+    value: dict[str, Any]
+
+
 @router.get("/{section}")
 async def get_config(section: str) -> dict:
     if section not in VALID_SECTIONS:
