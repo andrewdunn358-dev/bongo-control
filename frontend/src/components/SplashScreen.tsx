@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { isDemo } from '@/lib/demo';
 
 /**
  * Desktop-only intro splash. Shows the van hero + brand over the aurora
@@ -48,8 +49,8 @@ export function SplashScreen() {
       className={`fixed inset-0 z-[60] cursor-pointer transition-opacity duration-700 ${leaving ? 'opacity-0' : 'opacity-100'}`}
       style={{ background: 'var(--aurora-base)' }}
     >
-      {/* Van hero (public/splash.jpg). Absent -> just the aurora below. */}
-      <div className="absolute inset-0 bg-center bg-cover" style={{ backgroundImage: "url('/splash.jpg')" }} />
+      {/* Van hero (public/van.jpg). Absent -> just the aurora below. */}
+      <div className="absolute inset-0 bg-center bg-cover" style={{ backgroundImage: "url('/van.jpg')" }} />
       {/* Aurora glow — carries the screen when there's no photo, and deepens it when there is. */}
       <div
         className="absolute inset-0"
@@ -68,13 +69,17 @@ export function SplashScreen() {
 
       <div className="relative h-full flex flex-col items-center justify-center text-center px-6 animate-fade-in">
         <div className="h-20 w-20 rounded-3xl bg-gradient-to-br from-aurora-teal to-aurora-purple grid place-items-center shadow-[0_0_44px_rgba(34,211,238,0.45)]">
-          <span className="text-navy-900 font-bold text-4xl">B</span>
+          <span className="text-navy-900 font-bold text-4xl">{isDemo ? 'V' : 'B'}</span>
         </div>
         <h1
           className="mt-6 text-5xl md:text-6xl font-bold tracking-tight text-white"
           style={{ textShadow: '0 2px 30px rgba(0,0,0,0.55)' }}
         >
-          BONGO<span className="text-aurora-teal">·</span>CONTROL
+          {isDemo ? (
+            <>Van<span className="text-aurora-teal">OS</span></>
+          ) : (
+            <>BONGO<span className="text-aurora-teal">·</span>CONTROL</>
+          )}
         </h1>
         <p className="mt-3 text-lg text-white/75">Open-source campervan dashboard OS</p>
         <div className="mt-10 text-[11px] uppercase tracking-[0.3em] text-white/50">click to enter</div>

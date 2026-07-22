@@ -14,6 +14,18 @@ import {
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { NAV } from '@/constants/testIds';
 import { cn } from '@/lib/utils';
+import { isDemo } from '@/lib/demo';
+
+// The static demo is branded VanOS (the platform); the real van build is
+// Bongo Control (the first vehicle).
+const BRAND = { letter: isDemo ? 'V' : 'B', sub: isDemo ? 'campervan dashboard' : 'van cockpit' };
+function BrandName() {
+  return isDemo ? (
+    <>Van<span className="text-aurora-teal">OS</span></>
+  ) : (
+    <>BONGO<span className="text-aurora-teal">·</span>CONTROL</>
+  );
+}
 
 interface NavLinkDef {
   to: string;
@@ -51,11 +63,11 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
       >
         <div data-testid={NAV.brand} className="flex items-center gap-3">
           <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-aurora-teal to-aurora-purple grid place-items-center">
-            <span className="text-navy-900 font-bold text-2xl">B</span>
+            <span className="text-navy-900 font-bold text-2xl">{BRAND.letter}</span>
           </div>
           <div className="leading-tight">
-            <div className="font-semibold tracking-tight text-2xl">BONGO<span className="text-aurora-teal">·</span>CONTROL</div>
-            <div className="text-xs uppercase tracking-[0.2em] text-ink-muted">van cockpit</div>
+            <div className="font-semibold tracking-tight text-2xl"><BrandName /></div>
+            <div className="text-xs uppercase tracking-[0.2em] text-ink-muted">{BRAND.sub}</div>
           </div>
         </div>
 
@@ -90,9 +102,9 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
       <header className="md:hidden sticky top-0 z-40 flex items-center justify-between px-4 py-3 backdrop-blur-md bg-surface/70 border-b border-ink/5">
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-aurora-teal to-aurora-purple grid place-items-center">
-            <span className="text-navy-900 font-bold">B</span>
+            <span className="text-navy-900 font-bold">{BRAND.letter}</span>
           </div>
-          <div className="font-semibold tracking-tight text-sm">BONGO<span className="text-aurora-teal">·</span>CONTROL</div>
+          <div className="font-semibold tracking-tight text-sm"><BrandName /></div>
         </div>
         <StatusPill tone={wsConnected ? 'teal' : 'red'}>{wsConnected ? 'LIVE' : 'OFFLINE'}</StatusPill>
       </header>
