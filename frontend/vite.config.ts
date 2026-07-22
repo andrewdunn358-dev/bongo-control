@@ -4,25 +4,32 @@ import path from 'path';
 import fs from 'fs';
 
 /**
- * Stamps a unique build id into the emitted service worker, replacing
- * the __BUILD_ID__ placeholder in public/service-worker.js. Without this
- * the SW bytes are identical on every build, so the browser never
- * detects a new version and long-lived PWAs (the van dashboard, left
- * running for days) stay pinned to an old build. Runs on build only;
- * in dev the SW isn't registered anyway (see index.html).
+ * Stamps a unique build id into the emitted service worker AND
+ * index.html, and writes a tiny /version.json the running app polls to
+ * detect a newer deploy. Without a changing build id the SW bytes are
+ * identical on every build, so the browser never detects a new version
+ * and long-lived PWAs (the van dashboard, left running for days) stay
+ * pinned to an old build. Runs on build only; in dev the SW isn't
+ * registered anyway (see index.html).
  */
 function swVersion() {
   return {
     name: 'sw-version',
     apply: 'build' as const,
     closeBundle() {
-      const swPath = path.resolve(__dirname, 'dist/service-worker.js');
-      if (!fs.existsSync(swPath)) return;
+      const distDir = path.resolve(__dirname, 'dist');
       const buildId = `${Date.now().toString(36)}`;
-      const src = fs.readFileSync(swPath, 'utf8').replace(/__BUILD_ID__/g, buildId);
-      fs.writeFileSync(swPath, src);
+
+      for (const rel of ['service-worker.js', 'index.html']) {
+        const file = path.join(distDir, rel);
+        if (!fs.existsSync(file)) continue;
+        fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/__BUILD_ID__/g, buildId));
+      }
+      // Polled by the app to notice a newer deploy (see index.html).
+      fs.writeFileSync(path.join(distDir, 'version.json'), JSON.stringify({ build: buildId }));
+
       // eslint-disable-next-line no-console
-      console.log(`[sw-version] service worker stamped with build id ${buildId}`);
+      console.log(`[sw-version] stamped build id ${buildId} into SW, index.html and version.json`);
     },
   };
 }

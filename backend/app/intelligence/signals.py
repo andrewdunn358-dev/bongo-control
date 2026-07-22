@@ -21,7 +21,7 @@ about Water specifically.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Protocol
+from typing import Any, Optional, Protocol
 
 from pydantic import BaseModel
 
@@ -38,6 +38,11 @@ class Signal(BaseModel):
     severity: SignalSeverity
     message: str  # human-readable, e.g. "Battery at 42%, discharging steadily"
     weight: int = 1  # relative importance when multiple signals disagree
+    # Optional structured extras for the frontend (e.g. the solar verdict
+    # carries {"verdict": "good", "today_mj": ..., "clearsky_mj": ...} so
+    # a card can render a coloured pill and figures without re-parsing the
+    # message). Defaults to None; existing providers set nothing.
+    detail: Optional[dict[str, Any]] = None
 
 
 class SignalProvider(Protocol):

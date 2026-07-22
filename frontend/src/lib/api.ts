@@ -1,4 +1,5 @@
 import { API_BASE } from '@/lib/config';
+import { isDemo, demoRequest, DEMO_CAM_IMAGE } from '@/lib/demo';
 import type {
   AiRecommendationsResponse,
   AuthStatus,
@@ -40,6 +41,8 @@ class ApiError extends Error {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  // Static demo build: serve everything from the in-browser simulation.
+  if (isDemo) return demoRequest<T>(path, init);
   const headers = new Headers(init.headers || {});
   headers.set('Accept', 'application/json');
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
@@ -103,6 +106,7 @@ export const api = {
   // Camera URLs (used by <img src>). Token appended as ?token= because
   // <img> cannot send X-App-Token as a header.
   cameraSnapshotUrl: (bustCache?: number) => {
+    if (isDemo) return DEMO_CAM_IMAGE;
     const t = getToken();
     const qs = new URLSearchParams();
     if (t) qs.set('token', t);
@@ -119,6 +123,7 @@ export const api = {
   // token as a query param because <img> can't send an X-App-Token
   // header; the POST/DELETE below go through request() which does.
   cameraSnapshotFileUrl: (id: string) => {
+    if (isDemo) return DEMO_CAM_IMAGE;
     const t = getToken();
     return `${API_BASE}/camera/snapshots/${encodeURIComponent(id)}${t ? `?token=${encodeURIComponent(t)}` : ''}`;
   },

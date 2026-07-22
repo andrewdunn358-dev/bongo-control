@@ -37,6 +37,13 @@ PERSISTED_DOMAINS = {
     TelemetryDomain.ENERGY.value,
     TelemetryDomain.ENVIRONMENT.value,
     TelemetryDomain.CONNECTIVITY.value,
+    # Weather is persisted so the intelligence layer can learn how much
+    # energy the array actually converts per unit of available sunlight
+    # (self-calibrated panel-performance) - it needs each past day's
+    # forecast solar radiation, which only this history provides. Stored
+    # half-hourly (see DOMAIN_SAMPLE_INTERVALS); the forecast barely
+    # moves between updates so that's ample and keeps the row count tiny.
+    TelemetryDomain.WEATHER.value,
 }
 
 DEFAULT_SAMPLE_INTERVAL_SECONDS = 60
@@ -56,6 +63,9 @@ DOMAIN_SAMPLE_INTERVALS: dict[str, float] = {
     # reading every 10 minutes is more than enough to see outage
     # windows without logging near-identical rows all day.
     TelemetryDomain.CONNECTIVITY.value: 600,
+    # Forecast changes slowly; half-hourly is plenty and keeps the
+    # (relatively large) weather payload from bloating the DB.
+    TelemetryDomain.WEATHER.value: 1800,
 }
 DEFAULT_RETENTION_DAYS = 30
 PRUNE_INTERVAL_SECONDS = 6 * 3600  # every 6 hours is plenty for a daily-scale retention window

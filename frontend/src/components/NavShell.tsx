@@ -14,6 +14,18 @@ import {
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { NAV } from '@/constants/testIds';
 import { cn } from '@/lib/utils';
+import { isDemo } from '@/lib/demo';
+
+// The static demo is branded VanOS (the platform); the real van build is
+// Bongo Control (the first vehicle).
+const BRAND = { letter: isDemo ? 'V' : 'B', sub: isDemo ? 'campervan dashboard' : 'van cockpit' };
+function BrandName() {
+  return isDemo ? (
+    <>Van<span className="text-aurora-teal">OS</span></>
+  ) : (
+    <>BONGO<span className="text-aurora-teal">·</span>CONTROL</>
+  );
+}
 
 interface NavLinkDef {
   to: string;
@@ -47,19 +59,19 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
       {/* Top nav — tablet / desktop */}
       <header
         data-testid={NAV.root}
-        className="hidden md:flex sticky top-0 z-40 items-center justify-between gap-6 px-6 lg:px-10 py-4 backdrop-blur-md bg-surface/60 border-b border-ink/5"
+        className="hidden md:flex sticky top-0 z-40 items-center justify-between gap-6 px-6 lg:px-10 py-5 backdrop-blur-md bg-surface/60 border-b border-ink/5"
       >
         <div data-testid={NAV.brand} className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-aurora-teal to-aurora-purple grid place-items-center">
-            <span className="text-navy-900 font-bold text-lg">B</span>
+          <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-aurora-teal to-aurora-purple grid place-items-center">
+            <span className="text-navy-900 font-bold text-2xl">{BRAND.letter}</span>
           </div>
           <div className="leading-tight">
-            <div className="font-semibold tracking-tight">BONGO<span className="text-aurora-teal">·</span>CONTROL</div>
-            <div className="text-[10px] uppercase tracking-[0.2em] text-ink-muted">van cockpit</div>
+            <div className="font-semibold tracking-tight text-2xl"><BrandName /></div>
+            <div className="text-xs uppercase tracking-[0.2em] text-ink-muted">{BRAND.sub}</div>
           </div>
         </div>
 
-        <nav className="flex items-center gap-1 flex-wrap">
+        <nav className="flex items-center gap-2 flex-wrap">
           {LINKS.map(({ to, label, icon: Icon, testId, end }) => (
             <NavLink
               key={to}
@@ -68,14 +80,14 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
               data-testid={testId}
               className={({ isActive }) =>
                 cn(
-                  'group relative flex items-center gap-2 rounded-full px-3.5 py-2 text-sm transition-colors',
+                  'group relative flex items-center gap-2.5 rounded-full px-5 py-3 text-lg font-medium transition-colors',
                   isActive
                     ? 'text-ink bg-ink/[0.06] ring-1 ring-inset ring-aurora-teal/40 shadow-[inset_0_0_18px_rgba(34,211,238,0.15)]'
                     : 'text-ink-muted hover:text-ink hover:bg-ink/[0.03]',
                 )
               }
             >
-              <Icon size={16} className="opacity-90" />
+              <Icon size={22} className="opacity-90" />
               <span className="hidden lg:inline">{label}</span>
             </NavLink>
           ))}
@@ -90,9 +102,9 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
       <header className="md:hidden sticky top-0 z-40 flex items-center justify-between px-4 py-3 backdrop-blur-md bg-surface/70 border-b border-ink/5">
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-aurora-teal to-aurora-purple grid place-items-center">
-            <span className="text-navy-900 font-bold">B</span>
+            <span className="text-navy-900 font-bold">{BRAND.letter}</span>
           </div>
-          <div className="font-semibold tracking-tight text-sm">BONGO<span className="text-aurora-teal">·</span>CONTROL</div>
+          <div className="font-semibold tracking-tight text-sm"><BrandName /></div>
         </div>
         <StatusPill tone={wsConnected ? 'teal' : 'red'}>{wsConnected ? 'LIVE' : 'OFFLINE'}</StatusPill>
       </header>

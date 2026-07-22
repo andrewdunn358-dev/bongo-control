@@ -111,22 +111,30 @@ export function Switches() {
                 {r.commanded_on ? 'COMMANDED ON' : 'COMMANDED OFF'}
               </StatusPill>
             </div>
-            <div className="mt-4 flex gap-2">
+            <div className="mt-4 flex items-center justify-between">
+              <span className="text-sm text-ink-muted">{r.commanded_on ? 'Powered on' : 'Tap to switch on'}</span>
               <button
                 type="button"
-                onClick={() => setMut.mutate({ id: r.id, on: true })}
-                disabled={setMut.isPending || r.commanded_on}
-                className="flex-1 inline-flex items-center justify-center gap-2 rounded-full px-3 py-2 text-sm bg-emerald-500/15 ring-1 ring-inset ring-emerald-400/40 text-status-green hover:bg-emerald-500/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                role="switch"
+                aria-checked={r.commanded_on}
+                aria-label={`Toggle ${r.name}`}
+                onClick={() => setMut.mutate({ id: r.id, on: !r.commanded_on })}
+                disabled={setMut.isPending}
+                className={cn(
+                  'relative h-9 w-16 rounded-full transition disabled:opacity-50 disabled:cursor-not-allowed',
+                  r.commanded_on
+                    ? 'bg-aurora-teal/30 ring-1 ring-inset ring-aurora-teal/60 shadow-[0_0_18px_rgba(34,211,238,0.35)]'
+                    : 'bg-ink/[0.06] ring-1 ring-inset ring-ink/15',
+                )}
               >
-                <Power size={14} /> On
-              </button>
-              <button
-                type="button"
-                onClick={() => setMut.mutate({ id: r.id, on: false })}
-                disabled={setMut.isPending || !r.commanded_on}
-                className="flex-1 inline-flex items-center justify-center gap-2 rounded-full px-3 py-2 text-sm bg-ink/[0.05] ring-1 ring-inset ring-ink/15 text-ink-soft hover:bg-ink/[0.1] disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <PowerOff size={14} /> Off
+                <span
+                  className={cn(
+                    'absolute top-1 h-7 w-7 rounded-full grid place-items-center transition-all duration-200',
+                    r.commanded_on ? 'left-[calc(100%-2rem)] bg-aurora-teal text-navy-900' : 'left-1 bg-ink-faint/70 text-navy-900',
+                  )}
+                >
+                  {r.commanded_on ? <Power size={13} /> : <PowerOff size={13} />}
+                </span>
               </button>
             </div>
           </GlassCard>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { TELEMETRY_WS_PATH } from '@/lib/config';
+import { isDemo, demoTelemetryTick, demoWeatherMessage } from '@/lib/demo';
 import type {
   BatteryPayload,
   ConnectivityPayload,
@@ -102,8 +103,22 @@ function scheduleRetry() {
   setTimeout(() => { if (!closed) connect(); }, delay);
 }
 
-/** Idempotent — first call boots the socket. */
+let demoStarted = false;
+
+/** Idempotent — first call boots the socket (or the demo simulation). */
 export function startTelemetry() {
+  if (isDemo) {
+    if (demoStarted) return;
+    demoStarted = true;
+    setConnected(true);
+    ingest(demoWeatherMessage());
+    const loop = () => demoTelemetryTick().forEach(ingest);
+    loop();
+    setInterval(loop, 1000);
+    // Refresh the (static) weather forecast occasionally.
+    setInterval(() => ingest(demoWeatherMessage()), 60_000);
+    return;
+  }
   if (ws) return;
   closed = false;
   connect();

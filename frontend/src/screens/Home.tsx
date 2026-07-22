@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
-import { ShieldCheck, AlertTriangle, XCircle, Battery as BatteryIcon, Sun, Thermometer, Zap } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, XCircle, Battery as BatteryIcon, Sun, Thermometer, Zap, SunMedium, CloudSun, CloudOff } from 'lucide-react';
 import { GlassCard, CardHeader } from '@/components/primitives/GlassCard';
 import { StatusPill } from '@/components/primitives/StatusPill';
+import { GaugeRing } from '@/components/primitives/GaugeRing';
 import { Sparkline } from '@/components/primitives/Sparkline';
 import { api } from '@/lib/api';
 import { useBattery, useSolar, useEnergy, useEnvironment, useSparkBuffer } from '@/lib/telemetry';
@@ -13,6 +14,12 @@ const STATUS_META = {
   green: { tone: 'green' as const, label: 'GREEN', icon: ShieldCheck },
   amber: { tone: 'amber' as const, label: 'AMBER', icon: AlertTriangle },
   red: { tone: 'red' as const, label: 'RED', icon: XCircle },
+};
+
+const VERDICT_META = {
+  good: { tone: 'green' as const, label: 'GOOD', Icon: SunMedium },
+  normal: { tone: 'teal' as const, label: 'NORMAL', Icon: CloudSun },
+  low: { tone: 'amber' as const, label: 'LOW', Icon: CloudOff },
 };
 
 export function Home() {
@@ -32,6 +39,16 @@ export function Home() {
   const meta = STATUS_META[brief?.status ?? 'green'];
   const Icon = meta.icon;
 
+  const solarSig = brief?.signals?.find((s) => s.source === 'solar_verdict');
+  const vMeta = solarSig?.detail?.verdict ? VERDICT_META[solarSig.detail.verdict] : null;
+  const VIcon = vMeta?.Icon ?? Sun;
+
+  // Harvest history summary (from the van's own logged solar data).
+  const solarHist = brief?.signals?.find((s) => s.source === 'solar_history')?.detail as
+    | { today_wh?: number; avg_wh?: number; best_wh?: number; days?: number }
+    | undefined;
+  const kwh = (wh?: number) => (wh == null ? null : (wh / 1000).toFixed(wh >= 1000 ? 1 : 2));
+
   return (
     <div data-testid={HOME.root} className="mx-auto max-w-[1500px] px-4 sm:px-6 lg:px-10 py-6 lg:py-10">
       <div className="mb-6">
@@ -47,17 +64,18 @@ export function Home() {
       {/* SITREP verdict — the primary information on this screen */}
       <GlassCard glow={meta.tone === 'red' ? undefined : 'teal'} className="p-6 lg:p-8 mb-6" data-testid={HOME.sitrepBadge}>
         <div className="flex flex-col md:flex-row md:items-center gap-4">
-          <div
-            className={`h-14 w-14 rounded-2xl grid place-items-center ring-1 ring-inset ${
-              meta.tone === 'green'
-                ? 'bg-emerald-500/15 ring-emerald-400/30 text-status-green'
-                : meta.tone === 'amber'
-                ? 'bg-amber-500/15 ring-amber-400/30 text-status-amber'
-                : 'bg-red-500/15 ring-red-400/40 text-status-red'
-            }`}
+          <GaugeRing
+            tone={meta.tone}
+            size={96}
+            progress={meta.tone === 'green' ? 1 : meta.tone === 'amber' ? 0.6 : 0.3}
           >
-            <Icon size={26} />
-          </div>
+            <Icon
+              size={30}
+              className={
+                meta.tone === 'green' ? 'text-status-green' : meta.tone === 'amber' ? 'text-status-amber' : 'text-status-red'
+              }
+            />
+          </GaugeRing>
           <div className="min-w-0 flex-1">
             <StatusPill tone={meta.tone}>{meta.label} · MISSION</StatusPill>
             <div className="text-xl md:text-2xl font-semibold tracking-tight mt-2">
@@ -73,6 +91,47 @@ export function Home() {
           </div>
         </div>
       </GlassCard>
+
+      {/* Solar verdict — is today's sun good/normal/low for the season? */}
+      {solarSig && (
+        <GlassCard className="p-6 mb-6" data-testid={HOME.solarVerdict}>
+          <div className="flex items-start gap-4">
+            <div
+              className={`h-12 w-12 rounded-2xl grid place-items-center ring-1 ring-inset shrink-0 ${
+                vMeta?.tone === 'green'
+                  ? 'bg-emerald-500/15 ring-emerald-400/30 text-status-green'
+                  : vMeta?.tone === 'amber'
+                  ? 'bg-amber-500/15 ring-amber-400/30 text-status-amber'
+                  : 'bg-aurora-teal/15 ring-aurora-teal/30 text-aurora-teal'
+              }`}
+            >
+              <VIcon size={22} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <div className="text-[11px] uppercase tracking-[0.18em] text-ink-muted">Solar today</div>
+                {vMeta && <StatusPill tone={vMeta.tone}>{vMeta.label}</StatusPill>}
+              </div>
+              <div className="text-base md:text-lg text-ink-soft mt-1.5">{solarSig.message}</div>
+              {solarSig.detail?.today_mj != null && (
+                <div className="text-xs text-ink-faint mt-2 num">
+                  {solarSig.detail.today_mj} MJ/m² forecast
+                  {solarSig.detail.clearsky_mj != null ? ` · clear-sky ceiling ${solarSig.detail.clearsky_mj} MJ/m²` : ''}
+                  {solarSig.detail.yield_today_wh != null ? ` · ${solarSig.detail.yield_today_wh} Wh harvested` : ''}
+                </div>
+              )}
+              {solarHist?.avg_wh != null && (
+                <div className="text-xs text-ink-faint mt-1 num">
+                  Recent harvest: {kwh(solarHist.avg_wh)} kWh/day avg
+                  {solarHist.best_wh != null ? ` · best ${kwh(solarHist.best_wh)} kWh` : ''}
+                  {solarHist.today_wh ? ` · today ${kwh(solarHist.today_wh)} kWh` : ''}
+                  <span className="text-ink-faint/70"> (last {solarHist.days ?? 0} days)</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </GlassCard>
+      )}
 
       <div className="grid grid-cols-12 gap-4 lg:gap-6">
         {/* Battery voltage — no SoC gauge on purpose */}

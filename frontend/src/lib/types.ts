@@ -123,6 +123,12 @@ export interface MissionBriefSignal {
   severity: string;
   message: string;
   weight: number;
+  /** Optional structured extras. solar_verdict carries the verdict +
+   *  figures; solar_history carries harvest summary numbers. */
+  detail?: {
+    verdict?: 'good' | 'normal' | 'low';
+    [key: string]: number | string | null | undefined;
+  } | null;
 }
 
 export interface MissionBrief {
