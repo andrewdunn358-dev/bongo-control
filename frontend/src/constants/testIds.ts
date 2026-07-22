@@ -20,6 +20,7 @@ export const NAV = {
 export const HOME = {
   root: 'home-screen',
   sitrepBadge: 'home-sitrep-badge',
+  solarVerdict: 'home-solar-verdict',
   batteryVoltage: 'home-battery-voltage',
   solarWatts: 'home-solar-watts',
   interiorTemp: 'home-interior-temp',

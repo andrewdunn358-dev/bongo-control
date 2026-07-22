@@ -123,6 +123,14 @@ export interface MissionBriefSignal {
   severity: string;
   message: string;
   weight: number;
+  /** Optional structured extras. The solar verdict carries verdict + figures. */
+  detail?: {
+    verdict?: 'good' | 'normal' | 'low';
+    ratio_pct?: number;
+    today_mj?: number;
+    clearsky_mj?: number;
+    yield_today_wh?: number | null;
+  } | null;
 }
 
 export interface MissionBrief {
