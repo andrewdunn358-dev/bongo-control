@@ -235,9 +235,34 @@ function vanFrame(hour: number): string {
 // Static evening frame for saved-snapshot thumbnails.
 export const DEMO_CAM_IMAGE = vanFrame(20.8);
 
-// Live view: advances through a full day/night in ~48s, so the polled
-// <img> steps through the scene like a time-lapse.
+// Real-photo support: if the operator drops cam1.jpg .. cam5.jpg next to
+// the site, the demo camera cycles through whichever ones actually load
+// (a real time-lapse). Until then it falls back to the drawn scene, so
+// nothing looks broken. Probed once; only successfully-loaded photos are
+// used, so missing files never show as a broken image.
+const CAM_PHOTOS = ['/cam1.jpg', '/cam2.jpg', '/cam3.jpg', '/cam4.jpg', '/cam5.jpg'];
+let _photos: string[] = [];
+let _probed = false;
+function _probePhotos() {
+  if (_probed) return;
+  _probed = true;
+  CAM_PHOTOS.forEach((url) => {
+    const img = new Image();
+    img.onload = () => {
+      _photos.push(url);
+      _photos.sort((a, b) => CAM_PHOTOS.indexOf(a) - CAM_PHOTOS.indexOf(b));
+    };
+    img.src = url;
+  });
+}
+
+// Live view. If real photos are present, cycle them (~5s each) as a
+// time-lapse; otherwise sweep the drawn day/night scene (~48s cycle).
 export function demoCameraFrame(): string {
+  _probePhotos();
+  if (_photos.length) {
+    return _photos[Math.floor(Date.now() / 5000) % _photos.length];
+  }
   const CYCLE_MS = 48000;
   return vanFrame(((Date.now() % CYCLE_MS) / CYCLE_MS) * 24);
 }
