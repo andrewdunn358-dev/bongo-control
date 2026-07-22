@@ -65,10 +65,12 @@ async def wifi_status(request: Request) -> dict:
 
 
 @router.get("/scan")
-async def wifi_scan(request: Request) -> list[dict]:
+async def wifi_scan(request: Request) -> dict:
     _enforce_access(request)
     try:
-        return await wifi_service.scan()
+        # Wrapped in an object (not a bare list) because the frontend
+        # reads `scan.data.networks` - see api.wifiScan / Settings.tsx.
+        return {"networks": await wifi_service.scan()}
     except WifiUnavailableError as e:
         raise HTTPException(status_code=503, detail=str(e))
 
@@ -77,7 +79,13 @@ async def wifi_scan(request: Request) -> list[dict]:
 async def wifi_connect(request: Request, body: ConnectRequest) -> dict:
     _enforce_access(request)
     try:
-        return await wifi_service.connect(body.ssid, body.password)
+        status = await wifi_service.connect(body.ssid, body.password)
+        # Shape matches api.wifiConnect's expected {ok, connected_to, ip}.
+        return {
+            "ok": bool(status.get("connected")),
+            "connected_to": status.get("ssid") or body.ssid,
+            "ip": status.get("ip"),
+        }
     except WifiUnavailableError as e:
         # Wrong password, out of range, etc. all surface here — nmcli's
         # own message is the most useful thing to show the user.

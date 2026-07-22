@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import maplibregl from 'maplibre-gl';
-import { Droplet, Trash2, Utensils, Fuel, TentTree, Sparkles, RefreshCw, Info } from 'lucide-react';
+import { Droplet, Trash2, Utensils, Fuel, TentTree, Sparkles, RefreshCw, Info, Navigation } from 'lucide-react';
 import { GlassCard, CardHeader } from '@/components/primitives/GlassCard';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { api } from '@/lib/api';
@@ -200,17 +200,38 @@ export function Nearby() {
       </div>
 
       {selected && (
-        <div className="fixed bottom-24 md:bottom-8 right-4 md:right-8 z-50 animate-fade-in">
-          <GlassCard glow="teal" className="p-5 w-[300px]">
-            <CardHeader
-              label={CATEGORY_META[selected.category]?.label || 'Place'}
-              hint={loc?.latitude != null && loc?.longitude != null ? `${fmtDistance(distanceMetres(loc.latitude, loc.longitude, selected.latitude, selected.longitude))} away` : undefined}
-              right={<button className="text-xs text-ink-muted hover:text-ink" onClick={() => setSelected(null)}>close</button>}
-            />
-            <div className="font-medium">{selected.name}</div>
-            <div className="text-xs text-ink-muted mt-1">{poiDetail(selected) || DASH}</div>
-            <div className="mt-3 num text-[11px] text-ink-faint">{selected.latitude.toFixed(4)}, {selected.longitude.toFixed(4)}</div>
-          </GlassCard>
+        // Solid panel, not .glass: this popup floats over the (always
+        // dark) map, where a 4.5%-opacity translucent card was
+        // unreadable on a phone. Explicit white-on-navy text too, since
+        // the theme-aware ink tokens go near-black in light mode and
+        // would vanish against this dark panel.
+        <div className="fixed bottom-24 md:bottom-8 left-4 right-4 md:left-auto md:right-8 z-50 animate-fade-in">
+          <div className="w-full md:w-[320px] rounded-2xl bg-navy-800 ring-1 ring-white/15 shadow-2xl shadow-black/60 p-5">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.18em] text-white/50">
+                  {CATEGORY_META[selected.category]?.label || 'Place'}
+                </div>
+                {loc?.latitude != null && loc?.longitude != null && (
+                  <div className="text-xs text-white/45 mt-0.5">
+                    {fmtDistance(distanceMetres(loc.latitude, loc.longitude, selected.latitude, selected.longitude))} away
+                  </div>
+                )}
+              </div>
+              <button className="text-xs text-white/50 hover:text-white shrink-0" onClick={() => setSelected(null)}>close</button>
+            </div>
+            <div className="font-medium text-white">{selected.name || 'Unnamed place'}</div>
+            <div className="text-xs text-white/60 mt-1">{poiDetail(selected) || DASH}</div>
+            <div className="mt-2 num text-[11px] text-white/40">{selected.latitude.toFixed(4)}, {selected.longitude.toFixed(4)}</div>
+            <a
+              href={`https://www.google.com/maps/dir/?api=1&destination=${selected.latitude},${selected.longitude}`}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 inline-flex items-center justify-center gap-2 w-full rounded-full px-4 py-2.5 text-sm font-semibold bg-aurora-teal text-navy-900 hover:brightness-110 transition"
+            >
+              <Navigation size={15} /> Directions
+            </a>
+          </div>
         </div>
       )}
     </div>
