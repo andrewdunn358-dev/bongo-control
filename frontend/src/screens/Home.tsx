@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ShieldCheck, AlertTriangle, XCircle, Battery as BatteryIcon, Sun, Thermometer, Zap, SunMedium, CloudSun, CloudOff } from 'lucide-react';
 import { GlassCard, CardHeader } from '@/components/primitives/GlassCard';
 import { StatusPill } from '@/components/primitives/StatusPill';
+import { GaugeRing } from '@/components/primitives/GaugeRing';
 import { Sparkline } from '@/components/primitives/Sparkline';
 import { api } from '@/lib/api';
 import { useBattery, useSolar, useEnergy, useEnvironment, useSparkBuffer } from '@/lib/telemetry';
@@ -57,17 +58,18 @@ export function Home() {
       {/* SITREP verdict — the primary information on this screen */}
       <GlassCard glow={meta.tone === 'red' ? undefined : 'teal'} className="p-6 lg:p-8 mb-6" data-testid={HOME.sitrepBadge}>
         <div className="flex flex-col md:flex-row md:items-center gap-4">
-          <div
-            className={`h-14 w-14 rounded-2xl grid place-items-center ring-1 ring-inset ${
-              meta.tone === 'green'
-                ? 'bg-emerald-500/15 ring-emerald-400/30 text-status-green'
-                : meta.tone === 'amber'
-                ? 'bg-amber-500/15 ring-amber-400/30 text-status-amber'
-                : 'bg-red-500/15 ring-red-400/40 text-status-red'
-            }`}
+          <GaugeRing
+            tone={meta.tone}
+            size={96}
+            progress={meta.tone === 'green' ? 1 : meta.tone === 'amber' ? 0.6 : 0.3}
           >
-            <Icon size={26} />
-          </div>
+            <Icon
+              size={30}
+              className={
+                meta.tone === 'green' ? 'text-status-green' : meta.tone === 'amber' ? 'text-status-amber' : 'text-status-red'
+              }
+            />
+          </GaugeRing>
           <div className="min-w-0 flex-1">
             <StatusPill tone={meta.tone}>{meta.label} · MISSION</StatusPill>
             <div className="text-xl md:text-2xl font-semibold tracking-tight mt-2">
