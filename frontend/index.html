@@ -37,7 +37,20 @@
       // Register the offline-shell service worker in production only.
       if ('serviceWorker' in navigator && !/localhost|127\.0\.0\.1/.test(location.hostname) && location.protocol === 'https:') {
         window.addEventListener('load', function () {
-          navigator.serviceWorker.register('/service-worker.js').catch(function () {});
+          navigator.serviceWorker.register('/service-worker.js').then(function (reg) {
+            // This app is a long-lived SPA: after first load there are no
+            // full navigations, so the browser would otherwise never
+            // re-check for a new build. Poll for a new service worker
+            // periodically and whenever the app regains focus, so a
+            // deploy is picked up without the user manually reloading.
+            // (A changed SW then activates and UpdateBanner reloads it.)
+            var check = function () { reg.update().catch(function () {}); };
+            setInterval(check, 30 * 60 * 1000); // every 30 minutes
+            document.addEventListener('visibilitychange', function () {
+              if (document.visibilityState === 'visible') check();
+            });
+            window.addEventListener('focus', check);
+          }).catch(function () {});
         });
       }
     </script>

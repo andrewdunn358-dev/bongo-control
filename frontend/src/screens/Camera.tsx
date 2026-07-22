@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Camera as CameraIcon, Lock, RefreshCw, ImageDown } from 'lucide-react';
+import { Camera as CameraIcon, Lock, RefreshCw, ImageDown, MoreVertical, Trash2 } from 'lucide-react';
 import { GlassCard, CardHeader } from '@/components/primitives/GlassCard';
 import { StatusPill } from '@/components/primitives/StatusPill';
-import { api, getToken, setToken, clearToken } from '@/lib/api';
+import { api, getToken, clearToken } from '@/lib/api';
 import { CAM } from '@/constants/testIds';
+import type { CameraSnapshot } from '@/lib/types';
 
 /**
  * Camera view.
@@ -16,21 +17,51 @@ import { CAM } from '@/constants/testIds';
  *
  * Each frame is preloaded in a background Image() so the visible <img> only
  * swaps once the new bytes are decoded — otherwise it flashes blank.
+ *
+ * Unlock is handled app-wide by AppGate, so this screen only renders once a
+ * token exists; it never has to show a "locked" state itself.
+ *
+ * The "Snapshot" button persists a frame to the Pi (see camera_service /
+ * snapshot_store on the backend). Saved snapshots survive a reload and are
+ * listed alongside, each with a kebab menu to delete it.
  */
 const POLL_MS = 1500;
 
 export function CameraView() {
+  const qc = useQueryClient();
   const [token, setTok] = useState<string>(getToken());
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [snaps, setSnaps] = useState<{ url: string; at: string }[]>([]);
   const [currentUrl, setCurrentUrl] = useState<string | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
   const authStatus = useQuery({ queryKey: ['auth-status'], queryFn: api.authStatus });
   const unlocked = !!token || authStatus.data?.required === false;
 
-  // Poll snapshots
+  const snapshots = useQuery({
+    queryKey: ['camera-snapshots'],
+    queryFn: api.cameraSnapshots,
+    enabled: unlocked,
+  });
+  const snaps = snapshots.data?.snapshots ?? [];
+
+  const save = useMutation({
+    mutationFn: api.saveSnapshot,
+    onSuccess: () => {
+      toast.success('Snapshot saved');
+      qc.invalidateQueries({ queryKey: ['camera-snapshots'] });
+    },
+    onError: () => toast.error('Could not save snapshot'),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => api.deleteSnapshot(id),
+    onSuccess: () => {
+      toast('Snapshot deleted');
+      qc.invalidateQueries({ queryKey: ['camera-snapshots'] });
+    },
+    onError: () => toast.error('Could not delete snapshot'),
+  });
+
+  // Poll snapshots (live view)
   useEffect(() => {
     if (!unlocked) return;
     let cancelled = false;
@@ -47,33 +78,47 @@ export function CameraView() {
     return () => { cancelled = true; clearInterval(iv); };
   }, [unlocked, token]);
 
-  const unlock = async () => {
-    setBusy(true);
-    try {
-      const r = await api.unlock(password);
-      setToken(r.token);
-      setTok(r.token);
-      toast.success('Camera unlocked');
-      setPassword('');
-    } catch {
-      toast.error('Wrong password.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const lock = () => {
     clearToken();
     setTok('');
     setCurrentUrl(null);
-    setSnaps([]);
     toast('Camera locked');
   };
 
-  const snapshot = () => {
-    if (!currentUrl) return;
-    setSnaps((s) => [{ url: currentUrl, at: new Date().toLocaleTimeString() }, ...s].slice(0, 8));
-    toast.success('Snapshot captured');
+  const refreshFrame = () => {
+    const url = api.cameraSnapshotUrl(Date.now());
+    const i = new Image();
+    i.onload = () => setCurrentUrl(url);
+    i.src = url;
+  };
+
+  // Live-view controls, shared by the desktop overlay and the mobile
+  // control bar so there's exactly one definition of each button.
+  const controls = (variant: 'overlay' | 'bar') => {
+    const refreshCls =
+      variant === 'overlay'
+        ? 'bg-black/40 ring-1 ring-white/15 text-white hover:bg-black/60 backdrop-blur'
+        : 'bg-ink/[0.04] ring-1 ring-ink/10 text-ink-soft hover:bg-ink/[0.08]';
+    return (
+      <>
+        <button
+          type="button"
+          onClick={refreshFrame}
+          disabled={!currentUrl}
+          className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm disabled:opacity-40 ${refreshCls}`}
+        >
+          <RefreshCw size={14} /> Refresh
+        </button>
+        <button
+          type="button"
+          onClick={() => save.mutate()}
+          disabled={!currentUrl || save.isPending}
+          className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm bg-aurora-teal text-navy-900 font-semibold hover:brightness-110 disabled:opacity-40"
+        >
+          <CameraIcon size={14} /> {save.isPending ? 'Saving…' : 'Snapshot'}
+        </button>
+      </>
+    );
   };
 
   return (
@@ -101,54 +146,81 @@ export function CameraView() {
         )}
       </div>
 
-      {(
-        <div className="grid grid-cols-12 gap-4 lg:gap-6">
-          <GlassCard className="col-span-12 lg:col-span-9 p-0 overflow-hidden" data-testid={CAM.frame}>
-            <div className="relative bg-black/60 aspect-video">
-              {currentUrl ? (
-                <img ref={imgRef} src={currentUrl} alt="Live camera" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full grid place-items-center text-ink-muted text-sm">Waiting for first frame…</div>
-              )}
-              <div className="absolute bottom-4 right-4 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => { if (currentUrl) { const url = api.cameraSnapshotUrl(Date.now()); const i = new Image(); i.onload = () => setCurrentUrl(url); i.src = url; } }}
-                  className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm bg-black/40 ring-1 ring-white/15 text-white hover:bg-black/60 backdrop-blur"
-                >
-                  <RefreshCw size={14} /> Refresh
-                </button>
-                <button
-                  type="button"
-                  onClick={snapshot}
-                  disabled={!currentUrl}
-                  className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm bg-aurora-teal text-navy-900 font-semibold hover:brightness-110 disabled:opacity-40"
-                >
-                  <CameraIcon size={14} /> Snapshot
-                </button>
-              </div>
-            </div>
-          </GlassCard>
-
-          <GlassCard className="col-span-12 lg:col-span-3 p-4">
-            <CardHeader label="Snapshots" hint={`${snaps.length}/8 recent`} />
-            {snaps.length === 0 && (
-              <div className="rounded-xl bg-ink/[0.03] ring-1 ring-ink/10 p-6 text-center text-sm text-ink-muted flex flex-col items-center gap-2">
-                <ImageDown size={22} className="text-ink-faint" />
-                No snapshots yet — tap the shutter.
-              </div>
+      <div className="grid grid-cols-12 gap-4 lg:gap-6">
+        <GlassCard className="col-span-12 lg:col-span-9 p-0 overflow-hidden" data-testid={CAM.frame}>
+          <div className="relative bg-black/60 aspect-video">
+            {currentUrl ? (
+              <img ref={imgRef} src={currentUrl} alt="Live camera" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full grid place-items-center text-ink-muted text-sm">Waiting for first frame…</div>
             )}
-            <ul className="space-y-3">
-              {snaps.map((s, i) => (
-                <li key={i} className="rounded-xl overflow-hidden ring-1 ring-ink/10 bg-black/40">
-                  <img src={s.url} alt={`snap ${s.at}`} className="w-full aspect-video object-cover" />
-                  <div className="px-3 py-2 text-[11px] text-ink-muted num">{s.at}</div>
-                </li>
-              ))}
-            </ul>
-          </GlassCard>
-        </div>
-      )}
+            {/* Desktop only: floating controls over the video. On mobile
+                these sat on top of the image and got in the way, so they
+                move to the control bar below the frame instead. */}
+            <div className="absolute bottom-4 right-4 hidden md:flex gap-2">
+              {controls('overlay')}
+            </div>
+          </div>
+          {/* Mobile only: controls live under the frame, never on it. */}
+          <div className="flex md:hidden items-center justify-end gap-2 p-3 border-t border-ink/5">
+            {controls('bar')}
+          </div>
+        </GlassCard>
+
+        <GlassCard className="col-span-12 lg:col-span-3 p-4">
+          <CardHeader label="Snapshots" hint={`${snaps.length} saved on the Pi`} />
+          {snaps.length === 0 && (
+            <div className="rounded-xl bg-ink/[0.03] ring-1 ring-ink/10 p-6 text-center text-sm text-ink-muted flex flex-col items-center gap-2">
+              <ImageDown size={22} className="text-ink-faint" />
+              No snapshots yet — tap the shutter.
+            </div>
+          )}
+          <ul className="space-y-3 max-h-[560px] overflow-auto scrollbar-hide">
+            {snaps.map((s) => (
+              <SnapshotItem key={s.id} snap={s} onDelete={() => remove.mutate(s.id)} deleting={remove.isPending} />
+            ))}
+          </ul>
+        </GlassCard>
+      </div>
     </div>
+  );
+}
+
+function SnapshotItem({ snap, onDelete, deleting }: { snap: CameraSnapshot; onDelete: () => void; deleting: boolean }) {
+  const [open, setOpen] = useState(false);
+  const at = new Date(snap.at * 1000).toLocaleString();
+
+  return (
+    <li className="relative rounded-xl overflow-hidden ring-1 ring-ink/10 bg-black/40">
+      <img src={api.cameraSnapshotFileUrl(snap.id)} alt={`snapshot ${at}`} className="w-full aspect-video object-cover" />
+      <div className="flex items-center justify-between px-3 py-2">
+        <div className="text-[11px] text-ink-muted num">{at}</div>
+        {/* Kebab menu — delete a saved snapshot. */}
+        <button
+          type="button"
+          aria-label="Snapshot actions"
+          onClick={() => setOpen((v) => !v)}
+          className="text-ink-muted hover:text-ink rounded-lg p-1 hover:bg-ink/10"
+        >
+          <MoreVertical size={16} />
+        </button>
+      </div>
+      {open && (
+        <>
+          {/* Click-away backdrop. */}
+          <button type="button" aria-hidden tabIndex={-1} className="fixed inset-0 z-40 cursor-default" onClick={() => setOpen(false)} />
+          <div className="absolute bottom-10 right-2 z-50 min-w-[120px] rounded-xl bg-navy-800 ring-1 ring-white/15 shadow-xl shadow-black/60 py-1 animate-fade-in">
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={() => { setOpen(false); onDelete(); }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-status-red hover:bg-white/5 disabled:opacity-40"
+            >
+              <Trash2 size={14} /> Delete
+            </button>
+          </div>
+        </>
+      )}
+    </li>
   );
 }

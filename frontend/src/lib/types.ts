@@ -216,6 +216,12 @@ export interface WifiStatus {
   ip: string | null;
 }
 
+/** A snapshot saved on the Pi. `at` is Unix seconds (a float), not ISO. */
+export interface CameraSnapshot {
+  id: string;
+  at: number;
+}
+
 /** Matches backend/app/plugins/base.py PluginStatus + Plugin.health(). */
 export interface PluginInfo {
   name: string;

@@ -19,6 +19,12 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./data/vanos.db"
 
+    # Writable data directory. In Docker this is the persistent
+    # `vanos-data` volume mounted at /app/data (see docker-compose.yml),
+    # so anything written here - the SQLite DB, saved camera snapshots -
+    # survives container restarts and rebuilds on the Pi.
+    data_dir: str = "./data"
+
     websocket_history_size: int = 200
 
     model_config = SettingsConfigDict(env_file=".env", env_prefix="VANOS_", extra="ignore")

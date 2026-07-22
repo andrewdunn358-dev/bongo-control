@@ -13,6 +13,7 @@ import type {
   PoiResponse,
   Relay,
   RelayResponse,
+  CameraSnapshot,
   SolarPayload,
   SystemPayload,
   WifiNetwork,
@@ -113,6 +114,18 @@ export const api = {
     const t = getToken();
     return `${API_BASE}/camera/stream${t ? `?token=${encodeURIComponent(t)}` : ''}`;
   },
+
+  // Saved snapshots (persisted on the Pi). The file URL carries the
+  // token as a query param because <img> can't send an X-App-Token
+  // header; the POST/DELETE below go through request() which does.
+  cameraSnapshotFileUrl: (id: string) => {
+    const t = getToken();
+    return `${API_BASE}/camera/snapshots/${encodeURIComponent(id)}${t ? `?token=${encodeURIComponent(t)}` : ''}`;
+  },
+  saveSnapshot: () => request<CameraSnapshot>('/camera/snapshots', { method: 'POST' }),
+  cameraSnapshots: () => request<{ snapshots: CameraSnapshot[] }>('/camera/snapshots'),
+  deleteSnapshot: (id: string) =>
+    request<void>(`/camera/snapshots/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
   authStatus: () => request<AuthStatus>('/auth/status'),
   unlock: (password: string) =>

@@ -69,8 +69,38 @@ class WifiService:
         for line in output.splitlines():
             parts = self._split_terse(line)
             if len(parts) >= 3 and parts[0] == "yes":
-                return {"connected": True, "ssid": parts[1], "signal": self._to_int(parts[2])}
-        return {"connected": False, "ssid": None, "signal": None}
+                return {
+                    "connected": True,
+                    "ssid": parts[1],
+                    "signal": self._to_int(parts[2]),
+                    "ip": await self._primary_ip(),
+                }
+        return {"connected": False, "ssid": None, "signal": None, "ip": None}
+
+    async def _primary_ip(self) -> str | None:
+        """IPv4 address of the connected WiFi device, for display in
+        Settings. Best-effort: any failure just yields None rather than
+        breaking the whole status call.
+        """
+        try:
+            output = await self._run(
+                "-t", "-f", "DEVICE,TYPE,STATE,IP4.ADDRESS", "device", "show"
+            )
+        except WifiUnavailableError:
+            return None
+        # `device show` groups fields per device across multiple lines;
+        # nmcli -t prints them as KEY:VALUE, so scan for the wifi device
+        # that's connected and return its first IP4 address.
+        connected_wifi = False
+        for line in output.splitlines():
+            key, _, value = line.partition(":")
+            if key == "GENERAL.TYPE":
+                connected_wifi = value == "wifi"
+            elif key == "GENERAL.STATE":
+                connected_wifi = connected_wifi and "connected" in value
+            elif key.startswith("IP4.ADDRESS") and connected_wifi and value:
+                return value.split("/")[0]  # strip the /prefix length
+        return None
 
     async def scan(self) -> list[dict[str, Any]]:
         """Available networks, strongest first, de-duplicated by SSID."""
@@ -89,7 +119,9 @@ class WifiService:
                 "ssid": ssid,
                 "signal": self._to_int(signal),
                 "secured": bool(security and security != "--"),
-                "active": active == "yes",
+                # `current` (not `active`) is the field name the frontend
+                # reads - see WifiNetwork in frontend/src/lib/types.ts.
+                "current": active == "yes",
             }
             # Same SSID can appear once per access point - keep the strongest.
             existing = networks.get(ssid)

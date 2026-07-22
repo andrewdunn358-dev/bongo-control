@@ -23,12 +23,32 @@
    - Fonts and map tiles: stale-while-revalidate.
 */
 
-const VERSION = 'bongo-shell-v2';
+// __BUILD_ID__ is replaced at build time with a unique per-build id (see
+// the swVersion plugin in vite.config.ts). This is what makes updates
+// actually reach devices: the app is a long-lived single-page PWA, so
+// after first load there are no full navigations and the browser never
+// re-runs network-first on index.html on its own. The browser DOES
+// re-check service-worker.js (byte-for-byte) whenever the running app
+// calls registration.update() - but only re-installs if the file
+// changed. With a hardcoded version the bytes were identical every
+// build, so mobile silently stayed on whatever build it first cached.
+// Stamping a fresh id per build guarantees the bytes differ, so each
+// deploy is detected, installed, and (via skipWaiting + claim +
+// controllerchange) picked up. See index.html for the update polling.
+const VERSION = 'bongo-shell-__BUILD_ID__';
 const CORE = ['/', '/index.html', '/manifest.json', '/icon.svg', '/apple-touch-icon.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(VERSION).then((cache) => cache.addAll(CORE).catch(() => null)));
   self.skipWaiting();
+});
+
+// Lets the in-app UpdateBanner trigger activation of a waiting worker on
+// demand. Harmless alongside the skipWaiting() in install above - a
+// belt-and-braces path so the "Reload" button works if a worker ever
+// does end up waiting.
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
