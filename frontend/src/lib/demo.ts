@@ -136,20 +136,111 @@ const savedSnaps: { id: string; at: number }[] = [
   { id: 'snap-demo-2', at: Date.now() / 1000 - 7200 },
 ];
 
-// A simulated camera frame as an inline SVG data URI (no server needed).
-export const DEMO_CAM_IMAGE =
-  'data:image/svg+xml;utf8,' +
-  encodeURIComponent(
-    `<svg xmlns='http://www.w3.org/2000/svg' width='640' height='360'>
-       <defs><linearGradient id='s' x1='0' y1='0' x2='0' y2='1'>
-         <stop offset='0' stop-color='#0b2033'/><stop offset='1' stop-color='#04121e'/></linearGradient></defs>
-       <rect width='640' height='360' fill='url(%23s)'/>
-       <circle cx='320' cy='120' r='150' fill='rgba(52,211,153,0.10)'/>
-       <rect x='250' y='210' width='150' height='60' rx='8' fill='#cfd8e3'/>
-       <rect x='300' y='225' width='22' height='18' fill='%23ffce78'/>
-       <text x='320' y='330' fill='%237fb0c9' font-family='monospace' font-size='16' text-anchor='middle'>SIMULATED CAMERA · DEMO</text>
-     </svg>`,
-  );
+// ---- Simulated camera: a day->night time-lapse "seen" from inside the van ----
+// A self-contained SVG scene whose sky, sun/moon, aurora and interior lamp all
+// depend on a time-of-day value, rendered fresh each poll so the live view
+// rotates like a sped-up time-lapse. No server, no real image needed.
+type RGB = [number, number, number];
+const _hex = (c: RGB) => '#' + c.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+const _mix = (a: RGB, b: RGB, t: number): RGB => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+
+// Sky keyframes by hour: [hour, topColor, bottomColor].
+const SKY: [number, RGB, RGB][] = [
+  [0, [6, 16, 31], [10, 26, 46]],
+  [5.5, [16, 32, 58], [26, 42, 68]],
+  [7, [36, 64, 107], [217, 138, 90]],
+  [9, [42, 109, 176], [143, 192, 224]],
+  [13, [47, 127, 196], [191, 224, 240]],
+  [18, [58, 58, 122], [224, 122, 74]],
+  [20, [20, 32, 74], [36, 26, 68]],
+  [24, [6, 16, 31], [10, 26, 46]],
+];
+function skyAt(hour: number): [RGB, RGB] {
+  for (let i = 0; i < SKY.length - 1; i++) {
+    const [h0, t0, b0] = SKY[i];
+    const [h1, t1, b1] = SKY[i + 1];
+    if (hour >= h0 && hour <= h1) {
+      const f = (hour - h0) / (h1 - h0);
+      return [_mix(t0, t1, f), _mix(b0, b1, f)];
+    }
+  }
+  return [SKY[0][1], SKY[0][2]];
+}
+function nightF(h: number): number {
+  if (h >= 21 || h < 4) return 1;
+  if (h >= 19) return (h - 19) / 2;
+  if (h < 6) return (6 - h) / 2;
+  return 0;
+}
+
+function vanFrame(hour: number): string {
+  const w = 640, h = 360;
+  const [top, bot] = skyAt(hour);
+  const n = nightF(hour);
+
+  const dayVisible = hour >= 6 && hour <= 19;
+  const sx = 90 + ((hour - 6) / 13) * 460;
+  const sy = 232 - Math.sin(Math.max(0, (hour - 6) / 13) * Math.PI) * 172;
+  const sun = dayVisible ? `<circle cx='${sx.toFixed(0)}' cy='${sy.toFixed(0)}' r='26' fill='#ffe08a' opacity='0.9'/>` : '';
+
+  const moonVisible = hour >= 20 || hour <= 5;
+  const mh = hour >= 20 ? hour - 20 : hour + 4;
+  const mx = 90 + (mh / 9) * 460;
+  const my = 150 - Math.sin((mh / 9) * Math.PI) * 60;
+  const moon = moonVisible ? `<circle cx='${mx.toFixed(0)}' cy='${my.toFixed(0)}' r='15' fill='#e8f0ff' opacity='0.9'/>` : '';
+
+  const aurora = n > 0.05
+    ? `<g opacity='${(n * 0.7).toFixed(2)}' filter='url(#blur)'>
+         <path d='M-40 120 Q 200 70 340 120 T 700 110 L700 190 Q 400 150 200 190 T -40 180 Z' fill='#34d399'/>
+         <path d='M-40 150 Q 260 100 420 150 T 700 150 L700 210 Q 420 180 220 210 T -40 210 Z' fill='#22d3ee'/>
+       </g>`
+    : '';
+
+  const stars = n > 0.2
+    ? `<g opacity='${n.toFixed(2)}' fill='#ffffff'>` +
+      [[60, 60], [130, 80], [210, 55], [300, 70], [380, 50], [470, 76], [540, 58], [590, 90], [160, 110], [420, 100]]
+        .map(([x, y]) => `<circle cx='${x}' cy='${y}' r='1.2'/>`)
+        .join('') + '</g>'
+    : '';
+
+  const warm = n > 0.1 ? `<rect width='${w}' height='${h}' fill='url(#warm)' opacity='${(n * 0.5).toFixed(2)}'/>` : '';
+
+  const H = Math.floor(hour);
+  const M = Math.floor((hour - H) * 60);
+  const ts = `${String(H).padStart(2, '0')}:${String(M).padStart(2, '0')}`;
+
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}' viewBox='0 0 ${w} ${h}'>
+    <defs>
+      <linearGradient id='sky' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='${_hex(top)}'/><stop offset='1' stop-color='${_hex(bot)}'/></linearGradient>
+      <radialGradient id='warm' cx='0.5' cy='1' r='0.9'><stop offset='0' stop-color='#ffb765'/><stop offset='1' stop-color='#ffb765' stop-opacity='0'/></radialGradient>
+      <filter id='blur'><feGaussianBlur stdDeviation='9'/></filter>
+    </defs>
+    <rect width='${w}' height='${h}' fill='url(#sky)'/>
+    ${aurora}${stars}${moon}${sun}
+    <path d='M0 250 Q 160 220 320 246 T 640 240 L640 360 L0 360 Z' fill='#0b1a2b' opacity='0.92'/>
+    <rect x='0' y='250' width='${w}' height='36' fill='#0e2740' opacity='0.5'/>
+    ${warm}
+    <path d='M0 0 H${w} V${h} H0 Z M42 46 H${w - 42} V${h - 72} H42 Z' fill='#060f1b' fill-rule='evenodd'/>
+    <rect x='0' y='${h - 72}' width='${w}' height='72' fill='#0a1622'/>
+    <rect x='72' y='${h - 72}' width='34' height='30' rx='4' fill='#12324e'/>
+    <rect x='106' y='${h - 60}' width='8' height='8' fill='#12324e'/>
+    <g transform='translate(150 ${h - 72})'><rect x='-8' y='0' width='16' height='16' rx='3' fill='#0f2a1e'/><path d='M0 0 C -6 -14 -2 -22 0 -26 C 2 -22 6 -14 0 0' fill='#2f7d5a'/></g>
+    <circle cx='${w - 78}' cy='${h - 40}' r='6' fill='#f87171'/>
+    <text x='${w - 66}' y='${h - 35}' fill='#cfe0ee' font-family='monospace' font-size='13'>REC</text>
+    <text x='42' y='${h - 35}' fill='#9fb6cc' font-family='monospace' font-size='13'>VAN INTERIOR · ${ts}</text>
+  </svg>`;
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+}
+
+// Static evening frame for saved-snapshot thumbnails.
+export const DEMO_CAM_IMAGE = vanFrame(20.8);
+
+// Live view: advances through a full day/night in ~48s, so the polled
+// <img> steps through the scene like a time-lapse.
+export function demoCameraFrame(): string {
+  const CYCLE_MS = 48000;
+  return vanFrame(((Date.now() % CYCLE_MS) / CYCLE_MS) * 24);
+}
 
 function missionBrief() {
   const yieldWh = Math.round(sim.yieldWh);

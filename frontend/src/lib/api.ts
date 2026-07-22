@@ -1,5 +1,5 @@
 import { API_BASE } from '@/lib/config';
-import { isDemo, demoRequest, DEMO_CAM_IMAGE } from '@/lib/demo';
+import { isDemo, demoRequest, DEMO_CAM_IMAGE, demoCameraFrame } from '@/lib/demo';
 import type {
   AiRecommendationsResponse,
   AuthStatus,
@@ -106,7 +106,7 @@ export const api = {
   // Camera URLs (used by <img src>). Token appended as ?token= because
   // <img> cannot send X-App-Token as a header.
   cameraSnapshotUrl: (bustCache?: number) => {
-    if (isDemo) return DEMO_CAM_IMAGE;
+    if (isDemo) return demoCameraFrame();
     const t = getToken();
     const qs = new URLSearchParams();
     if (t) qs.set('token', t);
