@@ -5,6 +5,7 @@ import { Camera as CameraIcon, Lock, RefreshCw, ImageDown, MoreVertical, Trash2 
 import { GlassCard, CardHeader } from '@/components/primitives/GlassCard';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { api, getToken, clearToken } from '@/lib/api';
+import { isDemo } from '@/lib/demo';
 import { CAM } from '@/constants/testIds';
 import type { CameraSnapshot } from '@/lib/types';
 
@@ -31,6 +32,10 @@ export function CameraView() {
   const qc = useQueryClient();
   const [token, setTok] = useState<string>(getToken());
   const [currentUrl, setCurrentUrl] = useState<string | null>(null);
+  // Demo only: play cam.mp4 as a looping "live feed" if it's present,
+  // otherwise fall back to the polled image (real photos / drawn scene).
+  const [videoFailed, setVideoFailed] = useState(false);
+  const showDemoVideo = isDemo && !videoFailed;
   const imgRef = useRef<HTMLImageElement | null>(null);
 
   const authStatus = useQuery({ queryKey: ['auth-status'], queryFn: api.authStatus });
@@ -149,7 +154,17 @@ export function CameraView() {
       <div className="grid grid-cols-12 gap-4 lg:gap-6">
         <GlassCard className="col-span-12 lg:col-span-9 p-0 overflow-hidden" data-testid={CAM.frame}>
           <div className="relative bg-black/60 aspect-video">
-            {currentUrl ? (
+            {showDemoVideo ? (
+              <video
+                src="/cam.mp4"
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="w-full h-full object-cover"
+                onError={() => setVideoFailed(true)}
+              />
+            ) : currentUrl ? (
               <img ref={imgRef} src={currentUrl} alt="Live camera" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full grid place-items-center text-ink-muted text-sm">Waiting for first frame…</div>
