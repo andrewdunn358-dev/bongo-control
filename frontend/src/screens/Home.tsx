@@ -43,6 +43,12 @@ export function Home() {
   const vMeta = solarSig?.detail?.verdict ? VERDICT_META[solarSig.detail.verdict] : null;
   const VIcon = vMeta?.Icon ?? Sun;
 
+  // Harvest history summary (from the van's own logged solar data).
+  const solarHist = brief?.signals?.find((s) => s.source === 'solar_history')?.detail as
+    | { today_wh?: number; avg_wh?: number; best_wh?: number; days?: number }
+    | undefined;
+  const kwh = (wh?: number) => (wh == null ? null : (wh / 1000).toFixed(wh >= 1000 ? 1 : 2));
+
   return (
     <div data-testid={HOME.root} className="mx-auto max-w-[1500px] px-4 sm:px-6 lg:px-10 py-6 lg:py-10">
       <div className="mb-6">
@@ -112,6 +118,14 @@ export function Home() {
                   {solarSig.detail.today_mj} MJ/m² forecast
                   {solarSig.detail.clearsky_mj != null ? ` · clear-sky ceiling ${solarSig.detail.clearsky_mj} MJ/m²` : ''}
                   {solarSig.detail.yield_today_wh != null ? ` · ${solarSig.detail.yield_today_wh} Wh harvested` : ''}
+                </div>
+              )}
+              {solarHist?.avg_wh != null && (
+                <div className="text-xs text-ink-faint mt-1 num">
+                  Recent harvest: {kwh(solarHist.avg_wh)} kWh/day avg
+                  {solarHist.best_wh != null ? ` · best ${kwh(solarHist.best_wh)} kWh` : ''}
+                  {solarHist.today_wh ? ` · today ${kwh(solarHist.today_wh)} kWh` : ''}
+                  <span className="text-ink-faint/70"> (last {solarHist.days ?? 0} days)</span>
                 </div>
               )}
             </div>

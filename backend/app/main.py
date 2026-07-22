@@ -22,6 +22,7 @@ from app.intelligence.providers.battery_signal import BatterySignalProvider
 from app.intelligence.providers.power_predictions import PowerPredictionProvider
 from app.intelligence.providers.solar_outlook import SolarOutlookSignalProvider
 from app.intelligence.providers.solar_yield import SolarYieldSignalProvider
+from app.intelligence.providers.solar_history import SolarHistorySignalProvider
 from app.intelligence.runner import IntelligenceRunner
 from app.plugins.manager import PluginManager
 from app.services import battery_service, configuration_service, history_service, location_service, notification_service, power_budget_service, telemetry_service
@@ -42,6 +43,7 @@ intelligence_engine = IntelligenceEngine(
         BatterySignalProvider(telemetry_service),
         SolarOutlookSignalProvider(telemetry_service),
         SolarYieldSignalProvider(telemetry_service, location_service),
+        SolarHistorySignalProvider(history_service),
     ],
     prediction_providers=[
         PowerPredictionProvider(telemetry_service, history_service),
