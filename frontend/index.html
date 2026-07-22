@@ -34,18 +34,40 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
+      // Build id of THIS running app (stamped at build time). Compared
+      // against /version.json to notice when the server has a newer build.
+      window.__BONGO_BUILD__ = '__BUILD_ID__';
+
       // Register the offline-shell service worker in production only.
       if ('serviceWorker' in navigator && !/localhost|127\.0\.0\.1/.test(location.hostname) && location.protocol === 'https:') {
         window.addEventListener('load', function () {
           navigator.serviceWorker.register('/service-worker.js').then(function (reg) {
             // This app is a long-lived SPA: after first load there are no
             // full navigations, so the browser would otherwise never
-            // re-check for a new build. Poll for a new service worker
-            // periodically and whenever the app regains focus, so a
-            // deploy is picked up without the user manually reloading.
-            // (A changed SW then activates and UpdateBanner reloads it.)
-            var check = function () { reg.update().catch(function () {}); };
-            setInterval(check, 30 * 60 * 1000); // every 30 minutes
+            // re-check for a new build. On an interval and whenever the
+            // app regains focus, (1) ask the SW to re-check itself, and
+            // (2) fetch /version.json fresh - if the deployed build id
+            // differs from the one baked into this page, a new build is
+            // live, so force the update through and reload. Belt and
+            // braces so a stale device flips over on its own.
+            var reloading = false;
+            var check = function () {
+              reg.update().catch(function () {});
+              fetch('/version.json', { cache: 'no-store' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (v) {
+                  if (!v || !v.build || reloading) return;
+                  if (v.build !== window.__BONGO_BUILD__) {
+                    reloading = true;
+                    // Let a waiting SW take over if there is one, then reload.
+                    if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                    reg.update().catch(function () {});
+                    setTimeout(function () { location.reload(); }, 1500);
+                  }
+                })
+                .catch(function () {});
+            };
+            setInterval(check, 15 * 60 * 1000); // every 15 minutes
             document.addEventListener('visibilitychange', function () {
               if (document.visibilityState === 'visible') check();
             });

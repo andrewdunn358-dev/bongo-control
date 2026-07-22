@@ -67,6 +67,9 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   if (url.pathname.startsWith('/api/')) return;
   if (url.pathname.startsWith('/ws/')) return;
+  // Always hit the network for the version probe - caching it would
+  // defeat the whole point (the app couldn't tell a new build shipped).
+  if (url.pathname === '/version.json') return;
 
   // Cross-origin: fonts and map tiles only.
   if (url.origin !== self.location.origin) {

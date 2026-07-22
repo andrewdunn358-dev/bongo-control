@@ -50,16 +50,16 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
         className="hidden md:flex sticky top-0 z-40 items-center justify-between gap-6 px-6 lg:px-10 py-4 backdrop-blur-md bg-surface/60 border-b border-ink/5"
       >
         <div data-testid={NAV.brand} className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-aurora-teal to-aurora-purple grid place-items-center">
-            <span className="text-navy-900 font-bold text-lg">B</span>
+          <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-aurora-teal to-aurora-purple grid place-items-center">
+            <span className="text-navy-900 font-bold text-xl">B</span>
           </div>
           <div className="leading-tight">
-            <div className="font-semibold tracking-tight">BONGO<span className="text-aurora-teal">·</span>CONTROL</div>
-            <div className="text-[10px] uppercase tracking-[0.2em] text-ink-muted">van cockpit</div>
+            <div className="font-semibold tracking-tight text-lg">BONGO<span className="text-aurora-teal">·</span>CONTROL</div>
+            <div className="text-[11px] uppercase tracking-[0.2em] text-ink-muted">van cockpit</div>
           </div>
         </div>
 
-        <nav className="flex items-center gap-1 flex-wrap">
+        <nav className="flex items-center gap-1.5 flex-wrap">
           {LINKS.map(({ to, label, icon: Icon, testId, end }) => (
             <NavLink
               key={to}
@@ -68,14 +68,14 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
               data-testid={testId}
               className={({ isActive }) =>
                 cn(
-                  'group relative flex items-center gap-2 rounded-full px-3.5 py-2 text-sm transition-colors',
+                  'group relative flex items-center gap-2.5 rounded-full px-4 py-2.5 text-[15px] font-medium transition-colors',
                   isActive
                     ? 'text-ink bg-ink/[0.06] ring-1 ring-inset ring-aurora-teal/40 shadow-[inset_0_0_18px_rgba(34,211,238,0.15)]'
                     : 'text-ink-muted hover:text-ink hover:bg-ink/[0.03]',
                 )
               }
             >
-              <Icon size={16} className="opacity-90" />
+              <Icon size={19} className="opacity-90" />
               <span className="hidden lg:inline">{label}</span>
             </NavLink>
           ))}
