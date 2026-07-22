@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AuroraBackground } from '@/components/primitives/AuroraBackground';
+import { SplashScreen } from '@/components/SplashScreen';
 import { NavShell } from '@/components/NavShell';
 import { SimBanner } from '@/components/SimBanner';
 import { UpdateBanner } from '@/components/UpdateBanner';
@@ -24,6 +25,7 @@ export function App() {
   const { theme } = useTheme();
   return (
     <>
+      <SplashScreen />
       <AuroraBackground />
       <AppGate>
       <BrowserRouter
