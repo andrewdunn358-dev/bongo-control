@@ -136,7 +136,7 @@ export function CameraView() {
         </div>
         {unlocked && (
           <div className="flex items-center gap-2">
-            <StatusPill tone="red" data-testid={CAM.liveBadge}>LIVE</StatusPill>
+            <StatusPill tone={isDemo ? 'purple' : 'red'} data-testid={CAM.liveBadge}>{isDemo ? 'DEMO' : 'LIVE'}</StatusPill>
             {authStatus.data?.required && (
               <button
                 type="button"

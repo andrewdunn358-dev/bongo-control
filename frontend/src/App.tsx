@@ -67,7 +67,7 @@ export function App() {
           className="fixed bottom-24 md:bottom-4 left-4 z-[55] inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-semibold bg-aurora-purple/20 ring-1 ring-inset ring-aurora-purple/50 text-aurora-purple backdrop-blur-md hover:bg-aurora-purple/30"
         >
           <span className="h-2 w-2 rounded-full bg-aurora-purple animate-pulse" />
-          LIVE DEMO · simulated data · view source
+          DEMO · simulated data · view source
         </a>
       )}
       <Toaster

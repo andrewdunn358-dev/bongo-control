@@ -93,8 +93,8 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
           ))}
         </nav>
 
-        <StatusPill tone={wsConnected ? 'teal' : 'red'} data-testid={NAV.wsIndicator}>
-          {wsConnected ? 'LIVE' : 'OFFLINE'}
+        <StatusPill tone={isDemo ? 'purple' : wsConnected ? 'teal' : 'red'} data-testid={NAV.wsIndicator}>
+          {isDemo ? 'DEMO' : wsConnected ? 'LIVE' : 'OFFLINE'}
         </StatusPill>
       </header>
 
@@ -106,7 +106,7 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
           </div>
           <div className="font-semibold tracking-tight text-sm"><BrandName /></div>
         </div>
-        <StatusPill tone={wsConnected ? 'teal' : 'red'}>{wsConnected ? 'LIVE' : 'OFFLINE'}</StatusPill>
+        <StatusPill tone={isDemo ? 'purple' : wsConnected ? 'teal' : 'red'}>{isDemo ? 'DEMO' : wsConnected ? 'LIVE' : 'OFFLINE'}</StatusPill>
       </header>
 
       <main className="pb-24 md:pb-8">{children}</main>
