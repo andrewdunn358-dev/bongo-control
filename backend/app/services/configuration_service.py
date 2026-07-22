@@ -72,6 +72,18 @@ class ConfigurationService:
             self._data[section] = value
             self._save()
 
+    def user_agent(self, app_name: str = "VanOS", version: str = "1.0") -> str:
+        """User-Agent for outbound requests to OpenStreetMap / Nominatim,
+        built from the operator's own contact email (Settings → General),
+        NOT hardcoded to anyone's personal repo. OSM's usage policy wants
+        a real contact; until one is set we send a clearly-unset marker
+        rather than leaking any identity.
+        """
+        contact = (self.get("general", {}) or {}).get("contact_email")
+        contact = contact.strip() if isinstance(contact, str) else ""
+        suffix = contact if contact else "no contact configured"
+        return f"{app_name}/{version} (campervan dashboard; {suffix})"
+
     def get_plugin_config(self, plugin_name: str) -> dict[str, Any]:
         with self._lock:
             return dict(self._data.get("plugins", {}).get(plugin_name, {}))

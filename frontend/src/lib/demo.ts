@@ -251,6 +251,11 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
     });
   if (p === '/wifi/connect') return R({ ok: true, connected_to: body.ssid, ip: '192.168.1.45' });
 
+  if (p.startsWith('/config/')) {
+    if (method === 'PUT') return R(body.value || {});
+    return R({ contact_email: 'demo@vanos.example', ai_model: '', anthropic_api_key_set: true });
+  }
+
   if (p.startsWith('/history/')) return R(history(p.split('/')[2], parseFloat(params.get('hours') || '24')));
 
   if (p === '/relays') return R({ available: true, reason: null, state_is_commanded_only: true, channels: relays });

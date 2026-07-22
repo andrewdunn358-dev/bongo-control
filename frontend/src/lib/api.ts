@@ -146,4 +146,10 @@ export const api = {
 
   plugins: () => request<PluginInfo[]>('/plugins'),
   settings: () => request<{ theme: string; nearby_radius_m?: number }>('/settings'),
+
+  // Generic config sections (data/config.json). Secrets come back blanked
+  // with a `<key>_set` boolean; sending an empty secret leaves it unchanged.
+  getConfig: (section: string) => request<Record<string, unknown>>(`/config/${section}`),
+  setConfig: (section: string, value: Record<string, unknown>) =>
+    request<Record<string, unknown>>(`/config/${section}`, { method: 'PUT', body: JSON.stringify({ value }) }),
 };

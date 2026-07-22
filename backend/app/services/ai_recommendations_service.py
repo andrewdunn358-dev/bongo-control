@@ -44,6 +44,7 @@ from typing import Any
 import httpx
 
 from app.db.database import SessionLocal
+from app.services.configuration_service import configuration_service
 from app.db.models import CachedAiRecommendations
 
 logger = logging.getLogger("vanos.ai_recommendations_service")
@@ -54,7 +55,7 @@ ANTHROPIC_VERSION = "2023-06-01"
 # task, not complex reasoning - the cheapest current model is the
 # right fit, not the most capable one. See docs/ai_features.md for the
 # actual per-request cost this works out to.
-MODEL = os.environ.get("AI_RECOMMENDATIONS_MODEL", "claude-haiku-4-5-20251001")
+DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 MAX_TOKENS = 700
 REQUEST_TIMEOUT_SECONDS = 20.0
 
@@ -70,7 +71,6 @@ NOMINATIM_URL = "https://nominatim.openstreetmap.org/reverse"
 # already hit once in this project (see poi_service.py) - a generic
 # library User-Agent gets rejected by OSM's own reverse-geocoding
 # endpoint just like it did from Overpass.
-USER_AGENT = "BongoControl/1.0 (campervan telemetry dashboard; https://github.com/andrewdunn358-dev/bongo-control)"
 
 
 class AiRecommendationsUnavailableError(RuntimeError):
@@ -78,14 +78,27 @@ class AiRecommendationsUnavailableError(RuntimeError):
 
 
 class AiRecommendationsService:
+    @staticmethod
+    def _api_key() -> str:
+        """API key from Settings (config store) first, then the
+        ANTHROPIC_API_KEY env var. Lets each operator enter their own key
+        in the UI without editing files, while still honouring .env."""
+        cfg = configuration_service.get("general", {}) or {}
+        return str(cfg.get("anthropic_api_key") or "").strip() or os.environ.get("ANTHROPIC_API_KEY", "")
+
+    @staticmethod
+    def _model() -> str:
+        cfg = configuration_service.get("general", {}) or {}
+        return str(cfg.get("ai_model") or "").strip() or os.environ.get("AI_RECOMMENDATIONS_MODEL") or DEFAULT_MODEL
+
     def is_configured(self) -> bool:
-        return bool(os.environ.get("ANTHROPIC_API_KEY"))
+        return bool(self._api_key())
 
     async def get_recommendations(self, latitude: float, longitude: float, known_nearby: list[str]) -> dict[str, Any]:
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        api_key = self._api_key()
         if not api_key:
             raise AiRecommendationsUnavailableError(
-                "ANTHROPIC_API_KEY not set - see docs/ai_features.md to enable this optional feature"
+                "No Anthropic API key set - add one in Settings → Integrations (or via ANTHROPIC_API_KEY)"
             )
 
         rounded_lat = round(latitude, CACHE_COORD_PRECISION)
@@ -129,7 +142,7 @@ class AiRecommendationsService:
                     longitude=rounded_lon,
                     place_name=place_name,
                     recommendations_json=json.dumps(recommendations),
-                    model_used=MODEL,
+                    model_used=self._model(),
                     cached_at=time.time(),
                 )
             )
@@ -146,7 +159,7 @@ class AiRecommendationsService:
         (falls back to coordinates alone).
         """
         try:
-            async with httpx.AsyncClient(timeout=10.0, headers={"User-Agent": USER_AGENT}) as client:
+            async with httpx.AsyncClient(timeout=10.0, headers={"User-Agent": configuration_service.user_agent()}) as client:
                 response = await client.get(NOMINATIM_URL, params={"lat": latitude, "lon": longitude, "format": "jsonv2", "zoom": 14})
                 response.raise_for_status()
                 data = response.json()
@@ -167,7 +180,7 @@ class AiRecommendationsService:
         prompt = self._build_prompt(latitude, longitude, place_name, known_nearby)
 
         headers = {"x-api-key": api_key, "anthropic-version": ANTHROPIC_VERSION, "content-type": "application/json"}
-        body = {"model": MODEL, "max_tokens": MAX_TOKENS, "messages": [{"role": "user", "content": prompt}]}
+        body = {"model": self._model(), "max_tokens": MAX_TOKENS, "messages": [{"role": "user", "content": prompt}]}
 
         async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS) as client:
             try:

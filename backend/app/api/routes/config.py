@@ -20,16 +20,26 @@ router = APIRouter(prefix="/api/config", tags=["config"])
 
 VALID_SECTIONS = {"general", "appearance", "hardware", "plugins", "notifications", "developer", "location", "relays"}
 
+# Secret keys are stored but NEVER returned in a GET (the app is reachable
+# over the internet through the tunnel). Instead a "<key>_set" boolean is
+# exposed so the UI can show "configured" without ever handling the value.
+SECRET_KEYS = {"anthropic_api_key"}
 
-class ConfigUpdate(BaseModel):
-    value: dict[str, Any]
+
+def _redact(section_data: dict) -> dict:
+    out = dict(section_data)
+    for key in list(out.keys()):
+        if key in SECRET_KEYS:
+            out[f"{key}_set"] = bool(str(out.get(key) or "").strip())
+            out[key] = ""  # never echo the secret back
+    return out
 
 
 @router.get("/{section}")
 async def get_config(section: str) -> dict:
     if section not in VALID_SECTIONS:
         raise HTTPException(status_code=404, detail=f"Unknown config section '{section}'")
-    return configuration_service.get(section, {})
+    return _redact(configuration_service.get(section, {}))
 
 
 @router.put("/{section}")
@@ -53,6 +63,10 @@ async def set_config(section: str, body: ConfigUpdate) -> dict:
     """
     if section not in VALID_SECTIONS:
         raise HTTPException(status_code=404, detail=f"Unknown config section '{section}'")
-    merged = {**configuration_service.get(section, {}), **body.value}
+    # For secret keys, an empty string means "leave unchanged" - so
+    # saving the form without re-typing the API key keeps the stored one,
+    # and the key is only ever written, never read back.
+    incoming = {k: v for k, v in body.value.items() if not (k in SECRET_KEYS and not str(v or "").strip())}
+    merged = {**configuration_service.get(section, {}), **incoming}
     configuration_service.set(section, merged)
-    return configuration_service.get(section, {})
+    return _redact(configuration_service.get(section, {}))
