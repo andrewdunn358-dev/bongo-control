@@ -122,17 +122,17 @@
      AuroraBackground.tsx). Softer in light mode so it doesn't wash out. */
   .aurora-ribbon {
     position: absolute;
-    left: -20%;
-    width: 140%;
-    height: 40vh;
-    max-height: 440px;
-    filter: blur(64px);
-    opacity: 0.5;
+    left: -25%;
+    width: 150%;
+    height: 46vh;
+    max-height: 520px;
+    filter: blur(50px);
+    opacity: 0.8;
     mix-blend-mode: screen;
     border-radius: 50%;
     pointer-events: none;
   }
-  html.light .aurora-ribbon { opacity: 0.22; mix-blend-mode: multiply; }
+  html.light .aurora-ribbon { opacity: 0.28; mix-blend-mode: multiply; }
 
   .noise {
     position: absolute;
