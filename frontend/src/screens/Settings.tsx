@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Wifi, WifiOff, Lock, Loader2, Radio, Sun, Moon } from 'lucide-react';
+import { Wifi, WifiOff, Lock, Loader2, Radio, Sun, Moon, Mail, KeyRound, Sparkles } from 'lucide-react';
 import { GlassCard, CardHeader } from '@/components/primitives/GlassCard';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { api } from '@/lib/api';
@@ -40,6 +40,38 @@ export function Settings() {
       setPwSsid(null); setPw('');
     },
     onError: () => toast.error('Connection failed'),
+  });
+
+  // Integrations — operator's own contact email (for OpenStreetMap) and
+  // Anthropic API key (for AI picks). Stored in the config store, never
+  // hardcoded to anyone. The key is write-only: the API returns it blank.
+  const cfg = useQuery({ queryKey: ['config-general'], queryFn: () => api.getConfig('general') });
+  const [contact, setContact] = useState('');
+  const [aiKey, setAiKey] = useState('');
+  const [aiModel, setAiModel] = useState('');
+  const [seeded, setSeeded] = useState(false);
+  useEffect(() => {
+    if (cfg.data && !seeded) {
+      setContact(String(cfg.data.contact_email ?? ''));
+      setAiModel(String(cfg.data.ai_model ?? ''));
+      setSeeded(true);
+    }
+  }, [cfg.data, seeded]);
+  const keySet = cfg.data?.anthropic_api_key_set === true;
+
+  const saveCfg = useMutation({
+    mutationFn: () => {
+      const value: Record<string, unknown> = { contact_email: contact.trim(), ai_model: aiModel.trim() };
+      if (aiKey.trim()) value.anthropic_api_key = aiKey.trim(); // omit when blank -> leaves existing key
+      return api.setConfig('general', value);
+    },
+    onSuccess: () => {
+      toast.success('Integrations saved');
+      setAiKey('');
+      qc.invalidateQueries({ queryKey: ['config-general'] });
+      qc.invalidateQueries({ queryKey: ['ai-status'] });
+    },
+    onError: () => toast.error('Could not save'),
   });
 
   const st = wifi.data;
@@ -141,6 +173,54 @@ export function Settings() {
             >
               <span className={cn('absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform', theme === 'dark' ? 'left-0.5' : 'left-[calc(100%-1.625rem)]')} />
             </button>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="col-span-12 p-6">
+          <CardHeader label="Integrations" hint="your own contact + AI key — nothing is hardcoded or shared" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="text-[11px] uppercase tracking-widest text-ink-muted flex items-center gap-1.5"><Mail size={12} /> Contact email (maps)</label>
+              <input
+                value={contact}
+                onChange={(e) => setContact(e.target.value)}
+                placeholder="you@example.com"
+                className="mt-2 w-full rounded-xl bg-ink/[0.04] ring-1 ring-ink/10 focus:ring-aurora-teal/50 outline-none px-3 py-2 text-sm"
+              />
+              <div className="text-[11px] text-ink-faint mt-1">Sent to OpenStreetMap as a contact, per their usage policy. Not shared anywhere else.</div>
+            </div>
+            <div>
+              <label className="text-[11px] uppercase tracking-widest text-ink-muted flex items-center gap-1.5"><KeyRound size={12} /> Anthropic API key</label>
+              <input
+                type="password"
+                value={aiKey}
+                onChange={(e) => setAiKey(e.target.value)}
+                placeholder={keySet ? '•••••••• set — blank keeps it' : 'sk-ant-…'}
+                className="mt-2 w-full rounded-xl bg-ink/[0.04] ring-1 ring-ink/10 focus:ring-aurora-teal/50 outline-none px-3 py-2 text-sm num"
+              />
+              <div className="text-[11px] text-ink-faint mt-1">{keySet ? 'A key is stored. Enter a new one to replace it.' : 'Optional — enables the AI “what’s nearby” picks.'}</div>
+            </div>
+            <div>
+              <label className="text-[11px] uppercase tracking-widest text-ink-muted flex items-center gap-1.5"><Sparkles size={12} /> AI model (optional)</label>
+              <input
+                value={aiModel}
+                onChange={(e) => setAiModel(e.target.value)}
+                placeholder="claude-haiku-4-5-20251001"
+                className="mt-2 w-full rounded-xl bg-ink/[0.04] ring-1 ring-ink/10 focus:ring-aurora-teal/50 outline-none px-3 py-2 text-sm num"
+              />
+              <div className="text-[11px] text-ink-faint mt-1">Leave blank for the default (cheapest Haiku).</div>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => saveCfg.mutate()}
+              disabled={saveCfg.isPending}
+              className="rounded-full px-4 py-2 text-sm bg-aurora-teal text-navy-900 font-semibold hover:brightness-110 disabled:opacity-40"
+            >
+              {saveCfg.isPending ? 'Saving…' : 'Save integrations'}
+            </button>
+            <span className="text-[11px] text-ink-faint">Stored on the Pi in <span className="num">data/config.json</span>. The API key is write-only — the app never sends it back.</span>
           </div>
         </GlassCard>
 

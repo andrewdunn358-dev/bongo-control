@@ -19,6 +19,8 @@ import math
 import time
 from typing import Any
 
+from app.services.configuration_service import configuration_service
+
 import httpx
 
 from app.db.database import SessionLocal
@@ -43,8 +45,6 @@ OVERPASS_ENDPOINTS = [
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
 ]
-
-USER_AGENT = "BongoControl/1.0 (campervan telemetry dashboard; https://github.com/andrewdunn358-dev/bongo-control)"
 
 # OSM tag -> our category label. "sanitary_dump_station" is the real,
 # correct OSM tag for what UK campervanners call an "Elsan point"
@@ -240,7 +240,7 @@ class PoiService:
         down or rate-limit regularly, so a single endpoint is a single
         point of failure for the whole Nearby page.
         """
-        headers = {"User-Agent": USER_AGENT}
+        headers = {"User-Agent": configuration_service.user_agent()}
         errors: list[str] = []
 
         async with httpx.AsyncClient(timeout=30.0, headers=headers) as client:
