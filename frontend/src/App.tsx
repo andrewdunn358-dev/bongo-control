@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AuroraBackground } from '@/components/primitives/AuroraBackground';
 import { SplashScreen } from '@/components/SplashScreen';
@@ -9,6 +9,7 @@ import { RouteErrorBoundary } from '@/components/RouteErrorBoundary';
 import { AppGate } from '@/components/AppGate';
 import { useTelemetry } from '@/lib/telemetry';
 import { useTheme } from '@/lib/theme';
+import { isDemo } from '@/lib/demo';
 import { Home } from '@/screens/Home';
 import { Energy } from '@/screens/Energy';
 import { Battery } from '@/screens/Battery';
@@ -23,12 +24,15 @@ import { Settings } from '@/screens/Settings';
 export function App() {
   const { connected } = useTelemetry();
   const { theme } = useTheme();
+  // Hash routing in the static demo build so deep links work on any host
+  // (e.g. a 20i subdomain) with no server-side rewrite rules.
+  const Router = isDemo ? HashRouter : BrowserRouter;
   return (
     <>
       <SplashScreen />
       <AuroraBackground />
       <AppGate>
-      <BrowserRouter
+      <Router
         future={{
           // Opt in to the two v7 future flags — safe and silences the console.
           v7_startTransition: true,
@@ -52,9 +56,20 @@ export function App() {
             </Routes>
           </RouteErrorBoundary>
         </NavShell>
-      </BrowserRouter>
+      </Router>
       </AppGate>
       <UpdateBanner />
+      {isDemo && (
+        <a
+          href="https://github.com/andrewdunn358-dev/bongo-control"
+          target="_blank"
+          rel="noreferrer"
+          className="fixed bottom-24 md:bottom-4 left-4 z-[55] inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-semibold bg-aurora-purple/20 ring-1 ring-inset ring-aurora-purple/50 text-aurora-purple backdrop-blur-md hover:bg-aurora-purple/30"
+        >
+          <span className="h-2 w-2 rounded-full bg-aurora-purple animate-pulse" />
+          LIVE DEMO · simulated data · view source
+        </a>
+      )}
       <Toaster
         theme={theme}
         position="top-right"
