@@ -11,6 +11,7 @@ from app.api.routes import auth as auth_routes
 from app.api.routes import camera as camera_routes
 from app.api.routes import config as config_routes
 from app.api.routes import intelligence as intelligence_routes
+from app.api.routes import voice as voice_routes
 from app.api.routes import relays as relay_routes
 from app.api.routes import health, location as location_routes, plugins as plugins_routes, poi as poi_routes, settings as settings_routes, telemetry, wifi as wifi_routes
 from app.api.websocket import router as websocket_router
@@ -128,6 +129,7 @@ app.include_router(wifi_routes.router)
 app.include_router(auth_routes.router)
 app.include_router(ai_routes.router)
 app.include_router(intelligence_routes.router)
+app.include_router(voice_routes.router)
 app.include_router(relay_routes.router)
 app.include_router(websocket_router)
 
