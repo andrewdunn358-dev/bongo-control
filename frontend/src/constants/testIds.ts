@@ -84,6 +84,8 @@ export const SET = {
   wifiList: 'settings-wifi-list',
   pluginsList: 'settings-plugins-list',
   updateBanner: 'settings-update-banner',
+  location: 'settings-location',
+  locationGps: 'settings-location-gps',
 } as const;
 
 export const APP = {

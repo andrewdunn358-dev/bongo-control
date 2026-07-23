@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Wifi, WifiOff, Lock, Loader2, Radio, Sun, Moon, Mail, KeyRound, Sparkles } from 'lucide-react';
+import { Wifi, WifiOff, Lock, Loader2, Radio, Sun, Moon, Mail, KeyRound, Sparkles, MapPin, LocateFixed, Globe } from 'lucide-react';
 import { GlassCard, CardHeader } from '@/components/primitives/GlassCard';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { api } from '@/lib/api';
@@ -18,6 +18,143 @@ function Bars({ dbm }: { dbm: number | null | undefined }) {
         <span key={i} className={cn('w-1 rounded-sm', i <= bars ? 'bg-aurora-teal' : 'bg-ink/15')} style={{ height: `${i * 25}%` }} />
       ))}
     </div>
+  );
+}
+
+/**
+ * LocationCard — restored after the aurora frontend rebuild dropped it.
+ * The van's location can be set three ways, best-accuracy first:
+ *   1. GPS from this device (needs HTTPS — browsers block geolocation on http)
+ *   2. Manual lat/long (works offline, over http, dead accurate — the van-proof one)
+ *   3. Approximate IP lookup (needs internet, only city-accurate — resolves the
+ *      Pi's ISP, which is why it drifts to the wrong town)
+ */
+function LocationCard() {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [lat, setLat] = useState('');
+  const [lng, setLng] = useState('');
+
+  const loc = useQuery({ queryKey: ['location'], queryFn: api.location, retry: false });
+
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ['location'] });
+    qc.invalidateQueries({ queryKey: ['weather'] });
+    qc.invalidateQueries({ queryKey: ['poi-nearby'] });
+  };
+
+  const useGps = () => {
+    // Geolocation is disabled entirely on insecure (http) origins, and the
+    // old code swallowed the failure — which is exactly why "refresh" just
+    // spun and did nothing. Tell the user instead.
+    if (!window.isSecureContext || !navigator.geolocation) {
+      toast.error('GPS needs the https address — or set it manually below.');
+      return;
+    }
+    setBusy(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          await api.setLocation(pos.coords.latitude, pos.coords.longitude);
+          toast.success('Location set from GPS');
+          refresh();
+        } catch {
+          toast.error('Got your location, but could not save it to the van.');
+        } finally {
+          setBusy(false);
+        }
+      },
+      (err) => {
+        setBusy(false);
+        toast.error(err.code === err.PERMISSION_DENIED ? 'Location permission denied.' : "Couldn't get your GPS location.");
+      },
+      { enableHighAccuracy: true, timeout: 10_000 },
+    );
+  };
+
+  const useIp = useMutation({
+    mutationFn: () => api.ipFallback(),
+    onSuccess: () => { toast.success('Approximate location set from the internet'); refresh(); },
+    onError: () => toast.error('IP location failed — this one needs internet.'),
+  });
+
+  const setManual = () => {
+    const la = parseFloat(lat);
+    const lo = parseFloat(lng);
+    if (!Number.isFinite(la) || !Number.isFinite(lo) || la < -90 || la > 90 || lo < -180 || lo > 180) {
+      toast.error('Enter a valid latitude (−90…90) and longitude (−180…180).');
+      return;
+    }
+    api.setLocation(la, lo)
+      .then(() => { toast.success('Location set manually'); setLat(''); setLng(''); refresh(); })
+      .catch(() => toast.error('Could not save location.'));
+  };
+
+  const d = loc.data;
+  const has = !!d && d.latitude != null && d.longitude != null;
+  const hint = !has ? 'none set yet' : d!.source === 'gps' ? 'from GPS' : `approx (IP)${d!.city ? ` · ${d!.city}` : ''}`;
+
+  return (
+    <GlassCard className="col-span-12 lg:col-span-5 p-6" data-testid={SET.location}>
+      <CardHeader label="Location" hint={hint} right={<MapPin size={16} className="text-aurora-teal" />} />
+      {has ? (
+        <div className="rounded-xl bg-ink/[0.03] ring-1 ring-ink/10 px-4 py-3">
+          <div className="num text-lg">{d!.latitude!.toFixed(4)}, {d!.longitude!.toFixed(4)}</div>
+          <div className="text-[11px] text-ink-faint mt-1">
+            {d!.source === 'gps' ? "From this device's GPS" : `Approximate (IP-based)${d!.city ? ` — near ${d!.city}` : ''}`}
+            {d!.updated_at ? ` · updated ${new Date(d!.updated_at * 1000).toLocaleString()}` : ''}
+          </div>
+        </div>
+      ) : (
+        <div className="text-sm text-ink-muted">No location set yet — set it with GPS, manually, or the internet.</div>
+      )}
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={useGps}
+          disabled={busy}
+          data-testid={SET.locationGps}
+          className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm bg-aurora-teal text-navy-900 font-semibold hover:brightness-110 disabled:opacity-40"
+        >
+          {busy ? <Loader2 size={14} className="animate-spin" /> : <LocateFixed size={14} />} Use my GPS
+        </button>
+        <button
+          type="button"
+          onClick={() => useIp.mutate()}
+          disabled={useIp.isPending}
+          className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm bg-ink/[0.04] ring-1 ring-ink/10 text-ink-soft hover:bg-ink/[0.08] disabled:opacity-40"
+        >
+          {useIp.isPending ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />} Approximate (IP)
+        </button>
+      </div>
+
+      <div className="mt-4">
+        <label className="text-[11px] uppercase tracking-widest text-ink-muted">Set manually (works offline)</label>
+        <div className="mt-2 flex gap-2">
+          <input
+            value={lat}
+            onChange={(e) => setLat(e.target.value)}
+            placeholder="lat 55.011"
+            className="w-full min-w-0 rounded-xl bg-ink/[0.04] ring-1 ring-ink/10 focus:ring-aurora-teal/50 outline-none px-3 py-2 text-sm num"
+          />
+          <input
+            value={lng}
+            onChange={(e) => setLng(e.target.value)}
+            placeholder="lng -1.446"
+            className="w-full min-w-0 rounded-xl bg-ink/[0.04] ring-1 ring-ink/10 focus:ring-aurora-teal/50 outline-none px-3 py-2 text-sm num"
+          />
+          <button
+            type="button"
+            onClick={setManual}
+            className="rounded-xl px-4 py-2 text-sm bg-aurora-teal/15 text-aurora-teal ring-1 ring-aurora-teal/40 hover:bg-aurora-teal/25"
+          >
+            Set
+          </button>
+        </div>
+        <div className="text-[11px] text-ink-faint mt-1">GPS needs the https address · IP needs internet and is only city-accurate.</div>
+      </div>
+    </GlassCard>
   );
 }
 
@@ -175,6 +312,8 @@ export function Settings() {
             </button>
           </div>
         </GlassCard>
+
+        <LocationCard />
 
         <GlassCard className="col-span-12 p-6">
           <CardHeader label="Integrations" hint="your own contact + AI key — nothing is hardcoded or shared" />

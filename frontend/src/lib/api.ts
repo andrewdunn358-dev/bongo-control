@@ -92,7 +92,7 @@ export const api = {
   aiNearby: () => request<AiRecommendationsResponse>('/ai/nearby-recommendations'),
   aiStatus: () => request<{ configured: boolean }>('/ai/status'),
 
-  location: () => request<{ latitude: number | null; longitude: number | null; source?: string }>('/location'),
+  location: () => request<{ latitude: number | null; longitude: number | null; source?: string; city?: string; country?: string; updated_at?: number }>('/location'),
   setLocation: (latitude: number, longitude: number) =>
     request<{ ok: boolean }>('/location/gps', { method: 'POST', body: JSON.stringify({ latitude, longitude }) }),
   ipFallback: () => request<{ ok: boolean }>('/location/ip-fallback', { method: 'POST' }),
