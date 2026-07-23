@@ -267,3 +267,21 @@ export interface HealthResponse {
 export interface AuthStatus {
   required: boolean;
 }
+
+
+/** Matches backend/app/services/roof_service.py status(). */
+export interface RoofStatus {
+  configured: boolean;
+  enabled: boolean;
+  up_channel: number | null;
+  down_channel: number | null;
+  /** Which direction is currently commanded, or null if stopped. */
+  moving: 'up' | 'down' | null;
+  elapsed_seconds: number;
+  max_run_seconds: number;
+  last_stopped_reason: string | null;
+  /** Always true - there is no position sensor and no feedback from
+   *  the AFT control unit. The app knows what it commanded, never
+   *  where the roof actually is. */
+  position_is_unknown: boolean;
+}

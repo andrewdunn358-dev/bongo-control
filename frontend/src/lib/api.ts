@@ -14,6 +14,7 @@ import type {
   PoiResponse,
   Relay,
   RelayResponse,
+  RoofStatus,
   CameraSnapshot,
   SolarPayload,
   SystemPayload,
@@ -97,6 +98,11 @@ export const api = {
   ipFallback: () => request<{ ok: boolean }>('/location/ip-fallback', { method: 'POST' }),
 
   relays: () => request<RelayResponse>('/relays'),
+  roofStatus: () => request<RoofStatus>('/roof'),
+  roofHold: (direction: 'up' | 'down') =>
+    request<RoofStatus>('/roof/hold', { method: 'POST', body: JSON.stringify({ direction }) }),
+  roofRelease: () => request<RoofStatus>('/roof/release', { method: 'POST' }),
+
   renameRelay: (id: number, name: string) =>
     request<RelayResponse>(`/relays/${encodeURIComponent(id)}/name`, {
       method: 'PUT',

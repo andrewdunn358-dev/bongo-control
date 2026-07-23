@@ -11,6 +11,7 @@ from app.api.routes import auth as auth_routes
 from app.api.routes import camera as camera_routes
 from app.api.routes import config as config_routes
 from app.api.routes import intelligence as intelligence_routes
+from app.api.routes import roof as roof_routes
 from app.api.routes import voice as voice_routes
 from app.api.routes import relays as relay_routes
 from app.api.routes import health, location as location_routes, plugins as plugins_routes, poi as poi_routes, settings as settings_routes, telemetry, wifi as wifi_routes
@@ -26,6 +27,7 @@ from app.intelligence.providers.solar_yield import SolarYieldSignalProvider
 from app.intelligence.providers.solar_history import SolarHistorySignalProvider
 from app.intelligence.runner import IntelligenceRunner
 from app.plugins.manager import PluginManager
+from app.services.roof_service import roof_service
 from app.services import battery_service, configuration_service, history_service, location_service, notification_service, power_budget_service, telemetry_service
 from app.services.relay_service import relay_service
 from app.telemetry.bus import bus
@@ -90,10 +92,16 @@ async def lifespan(app: FastAPI):
     )
     relay_service.start()
 
+    # Roof control is off unless explicitly enabled - a fresh install
+    # must not be able to drive a roof motor before anyone has wired
+    # or checked anything.
+    roof_service.configure(configuration_service.get("roof", {}))
+
     yield
 
     logger.info("Shutting down")
     relay_service.stop()
+    await roof_service.stop_all()
     await intelligence_runner.stop()
     await power_budget_service.stop()
     await history_service.stop()
@@ -129,6 +137,7 @@ app.include_router(wifi_routes.router)
 app.include_router(auth_routes.router)
 app.include_router(ai_routes.router)
 app.include_router(intelligence_routes.router)
+app.include_router(roof_routes.router)
 app.include_router(voice_routes.router)
 app.include_router(relay_routes.router)
 app.include_router(websocket_router)

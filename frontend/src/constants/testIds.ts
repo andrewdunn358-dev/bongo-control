@@ -12,6 +12,7 @@ export const NAV = {
   weather: 'nav-weather',
   nearby: 'nav-nearby',
   switches: 'nav-switches',
+  roof: 'nav-roof',
   camera: 'nav-camera',
   history: 'nav-history',
   settings: 'nav-settings',

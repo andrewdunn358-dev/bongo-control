@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 import {
   Home,
   ToggleRight,
+  ChevronsUp,
   CloudSun,
   MapPin,
   Camera,
@@ -46,6 +47,7 @@ const LINKS: NavLinkDef[] = [
   { to: '/weather', label: 'Weather', short: 'Sky', icon: CloudSun, testId: NAV.weather, mobile: true },
   { to: '/nearby', label: 'Nearby', short: 'Map', icon: MapPin, testId: NAV.nearby, mobile: true },
   { to: '/switches', label: 'Switches', short: 'Switch', icon: ToggleRight, testId: NAV.switches, mobile: true },
+  { to: '/roof', label: 'Roof', short: 'Roof', icon: ChevronsUp, testId: NAV.roof, mobile: false },
   { to: '/camera', label: 'Camera', short: 'Cam', icon: Camera, testId: NAV.camera, mobile: true },
   { to: '/history', label: 'History', short: 'Graph', icon: LineChart, testId: NAV.history, mobile: false },
   { to: '/settings', label: 'Settings', short: 'Set', icon: SettingsIcon, testId: NAV.settings, mobile: true },
