@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Camera as CameraIcon, Lock, RefreshCw, ImageDown, MoreVertical, Trash2 } from 'lucide-react';
+import { Camera as CameraIcon, Lock, RefreshCw, ImageDown, MoreVertical, Trash2, Download } from 'lucide-react';
 import { GlassCard, CardHeader } from '@/components/primitives/GlassCard';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { api, getToken, clearToken } from '@/lib/api';
@@ -224,7 +224,20 @@ function SnapshotItem({ snap, onDelete, deleting }: { snap: CameraSnapshot; onDe
         <>
           {/* Click-away backdrop. */}
           <button type="button" aria-hidden tabIndex={-1} className="fixed inset-0 z-40 cursor-default" onClick={() => setOpen(false)} />
-          <div className="absolute bottom-10 right-2 z-50 min-w-[120px] rounded-xl bg-navy-800 ring-1 ring-white/15 shadow-xl shadow-black/60 py-1 animate-fade-in">
+          <div className="absolute bottom-10 right-2 z-50 min-w-[140px] rounded-xl bg-navy-800 ring-1 ring-white/15 shadow-xl shadow-black/60 py-1 animate-fade-in">
+            {/* The snapshot URL already carries ?token=, so a plain
+                anchor works - no need to fetch the blob manually. The
+                download attribute gives it a sensible filename rather
+                than the bare snapshot id, and on mobile hands off to
+                the OS share/save sheet. */}
+            <a
+              href={api.cameraSnapshotFileUrl(snap.id)}
+              download={`bongo-${snap.id}.jpg`}
+              onClick={() => setOpen(false)}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-ink-soft hover:bg-white/5"
+            >
+              <Download size={14} /> Download
+            </a>
             <button
               type="button"
               disabled={deleting}
