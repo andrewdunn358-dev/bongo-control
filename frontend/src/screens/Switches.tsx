@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Info, Power, PowerOff } from 'lucide-react';
@@ -25,6 +26,18 @@ export function Switches() {
   // them apart is the difference between an actionable message and a
   // confusing one.
   const isLocked = error instanceof ApiError && error.status === 401;
+
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [draftName, setDraftName] = useState('');
+
+  const renameMut = useMutation({
+    mutationFn: ({ id, name }: { id: number; name: string }) => api.renameRelay(id, name),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['relays'] });
+      setEditingId(null);
+    },
+    onError: () => toast.error('Could not rename'),
+  });
 
   const setMut = useMutation({
     mutationFn: ({ id, on }: { id: number; on: boolean }) => api.setRelay(id, on),
@@ -104,7 +117,33 @@ export function Switches() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-[11px] uppercase tracking-[0.18em] text-ink-muted">Relay {r.id}</div>
-                <div className="text-lg font-semibold mt-1 truncate">{r.name}</div>
+                {editingId === r.id ? (
+                  <input
+                    value={draftName}
+                    autoFocus
+                    maxLength={48}
+                    onChange={(e) => setDraftName(e.target.value)}
+                    onBlur={() => (draftName.trim() ? renameMut.mutate({ id: r.id, name: draftName }) : setEditingId(null))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && draftName.trim()) renameMut.mutate({ id: r.id, name: draftName });
+                      if (e.key === 'Escape') setEditingId(null);
+                    }}
+                    className="mt-1 w-full rounded-lg px-2 py-1 text-lg font-semibold bg-ink/[0.06] border border-aurora-teal/50 outline-none"
+                  />
+                ) : (
+                  /* Click the name to rename. A separate edit button
+                     would clutter a card whose primary action is a big
+                     toggle - and "Relay 2" is self-evidently a
+                     placeholder, so the affordance is discoverable. */
+                  <button
+                    type="button"
+                    onClick={() => { setEditingId(r.id); setDraftName(r.name); }}
+                    title="Click to rename"
+                    className="text-lg font-semibold mt-1 truncate text-left hover:text-aurora-teal transition"
+                  >
+                    {r.name}
+                  </button>
+                )}
                 <div className="text-[11px] text-ink-faint mt-1 num">GPIO {r.gpio}</div>
               </div>
               <StatusPill tone={r.commanded_on ? 'teal' : 'slate'}>

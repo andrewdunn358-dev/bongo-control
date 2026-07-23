@@ -97,6 +97,11 @@ export const api = {
   ipFallback: () => request<{ ok: boolean }>('/location/ip-fallback', { method: 'POST' }),
 
   relays: () => request<RelayResponse>('/relays'),
+  renameRelay: (id: number, name: string) =>
+    request<RelayResponse>(`/relays/${encodeURIComponent(id)}/name`, {
+      method: 'PUT',
+      body: JSON.stringify({ name }),
+    }),
   setRelay: (id: number, on: boolean) =>
     request<RelayResponse>(`/relays/${encodeURIComponent(id)}/set`, { method: 'POST', body: JSON.stringify({ on }) }),
   toggleRelay: (id: number) =>

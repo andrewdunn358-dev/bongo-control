@@ -19,6 +19,10 @@ from app.services.relay_service import RelayUnavailableError, relay_service
 router = APIRouter(prefix="/api/relays", tags=["relays"], dependencies=[Depends(require_app_token)])
 
 
+class RelayRenameRequest(BaseModel):
+    name: str
+
+
 class RelaySetRequest(BaseModel):
     on: bool
 
@@ -53,3 +57,14 @@ async def all_off() -> dict:
         return relay_service.all_off()
     except RelayUnavailableError as e:
         raise HTTPException(status_code=503, detail=str(e))
+
+
+@router.put("/{channel_id}/name")
+async def rename_relay(channel_id: int, body: RelayRenameRequest) -> dict:
+    """Rename a channel - "Relay 2" means nothing once it's wired to
+    something real. Takes effect immediately, no restart.
+    """
+    try:
+        return relay_service.rename(channel_id, body.name)
+    except RelayUnavailableError as e:
+        raise HTTPException(status_code=400, detail=str(e))

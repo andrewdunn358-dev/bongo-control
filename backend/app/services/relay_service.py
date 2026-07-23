@@ -126,6 +126,38 @@ class RelayService:
     def available(self) -> bool:
         return self._available
 
+    def rename(self, channel_id: int, name: str) -> dict[str, Any]:
+        """Renames a channel and persists it.
+
+        Applied to the in-memory channel list as well as saved, so it
+        takes effect immediately rather than on next restart - "Relay
+        2" is useless enough that making someone reboot to fix it
+        would be a poor experience.
+
+        Deliberately does NOT touch the GPIO mapping. A rename should
+        never be able to silently point a label at different hardware;
+        if a channel needs a different pin, that's a config edit, not a
+        UI action.
+        """
+        channel = next((c for c in self._channels if c["id"] == channel_id), None)
+        if channel is None:
+            raise RelayUnavailableError(f"No relay channel with id {channel_id}")
+
+        cleaned = name.strip()
+        if not cleaned:
+            raise RelayUnavailableError("Name cannot be empty")
+        # Bounded so a paste accident can't write an unbounded string
+        # into the config file.
+        channel["name"] = cleaned[:48]
+
+        from app.services.configuration_service import configuration_service
+
+        relay_config = configuration_service.get("relays", {})
+        relay_config["channels"] = [dict(c) for c in self._channels]
+        configuration_service.set("relays", relay_config)
+
+        return self.status()
+
     def status(self) -> dict[str, Any]:
         return {
             "available": self._available,
