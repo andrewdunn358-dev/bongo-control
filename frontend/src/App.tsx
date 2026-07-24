@@ -9,6 +9,7 @@ import { RouteErrorBoundary } from '@/components/RouteErrorBoundary';
 import { AppGate } from '@/components/AppGate';
 import { useTelemetry } from '@/lib/telemetry';
 import { useTheme } from '@/lib/theme';
+import { useAutoLocate } from '@/lib/useAutoLocate';
 import { isDemo } from '@/lib/demo';
 import { Home } from '@/screens/Home';
 import { Energy } from '@/screens/Energy';
@@ -25,6 +26,7 @@ import { Settings } from '@/screens/Settings';
 export function App() {
   const { connected } = useTelemetry();
   const { theme } = useTheme();
+  useAutoLocate(); // silent GPS on load + every few minutes, when permitted
   // Hash routing in the static demo build so deep links work on any host
   // (e.g. a 20i subdomain) with no server-side rewrite rules.
   const Router = isDemo ? HashRouter : BrowserRouter;
