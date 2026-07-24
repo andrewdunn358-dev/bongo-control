@@ -11,6 +11,7 @@ import {
   Battery,
   Sun,
   LineChart,
+  Route,
 } from 'lucide-react';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { NAV } from '@/constants/testIds';
@@ -50,6 +51,7 @@ const LINKS: NavLinkDef[] = [
   { to: '/roof', label: 'Roof', short: 'Roof', icon: ChevronsUp, testId: NAV.roof, mobile: false },
   { to: '/camera', label: 'Camera', short: 'Cam', icon: Camera, testId: NAV.camera, mobile: true },
   { to: '/history', label: 'History', short: 'Graph', icon: LineChart, testId: NAV.history, mobile: false },
+  { to: '/trips', label: 'Trips', short: 'Trips', icon: Route, testId: NAV.trips, mobile: false },
   { to: '/settings', label: 'Settings', short: 'Set', icon: SettingsIcon, testId: NAV.settings, mobile: true },
 ];
 

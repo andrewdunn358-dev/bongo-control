@@ -331,6 +331,17 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
   if (p === '/settings') return R({ theme: 'dark', nearby_radius_m: 15000 });
   if (p === '/intelligence/mission-brief') return R(missionBrief());
   if (p === '/location') return R({ latitude: DEMO_LAT, longitude: DEMO_LON, source: 'demo' });
+  if (p === '/location/history') {
+    // A gentle sample trail around the demo location so the Trips view has
+    // something to show in the static showcase build.
+    const points = Array.from({ length: 24 }, (_, i) => ({
+      timestamp: Date.now() / 1000 - (24 - i) * 3600,
+      latitude: DEMO_LAT + Math.sin(i / 3) * 0.03 + i * 0.004,
+      longitude: DEMO_LON + Math.cos(i / 4) * 0.03 + i * 0.006,
+      source: 'demo',
+    }));
+    return R({ points, count: points.length });
+  }
   if (p === '/poi/nearby') {
     const cats = params.get('categories');
     const results = cats ? POIS.filter((x) => cats.split(',').includes(x.category)) : POIS;

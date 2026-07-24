@@ -36,3 +36,11 @@ async def refresh_ip_location() -> dict:
         return await location_service.refresh_ip_fallback()
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"IP geolocation failed: {e}")
+
+
+@router.get("/history")
+async def get_location_history(since: float = 0.0, max_points: int = 2000) -> dict:
+    """Breadcrumb of where the van has been (GPS fixes only), oldest
+    first — the data behind the Trips view."""
+    points = location_service.history(since_timestamp=since, max_points=max_points)
+    return {"points": points, "count": len(points)}

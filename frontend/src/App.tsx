@@ -21,6 +21,7 @@ import { Switches } from '@/screens/Switches';
 import { Roof } from '@/screens/Roof';
 import { CameraView } from '@/screens/Camera';
 import { HistoryScreen } from '@/screens/History';
+import { Trips } from '@/screens/Trips';
 import { Settings } from '@/screens/Settings';
 
 export function App() {
@@ -56,6 +57,7 @@ export function App() {
               <Route path="/roof" element={<Roof />} />
               <Route path="/camera" element={<CameraView />} />
               <Route path="/history" element={<HistoryScreen />} />
+              <Route path="/trips" element={<Trips />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </RouteErrorBoundary>

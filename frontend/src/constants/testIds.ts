@@ -15,6 +15,7 @@ export const NAV = {
   roof: 'nav-roof',
   camera: 'nav-camera',
   history: 'nav-history',
+  trips: 'nav-trips',
   settings: 'nav-settings',
 } as const;
 
@@ -86,6 +87,11 @@ export const SET = {
   updateBanner: 'settings-update-banner',
   location: 'settings-location',
   locationGps: 'settings-location-gps',
+} as const;
+
+export const TRIPS = {
+  root: 'trips-screen',
+  map: 'trips-map',
 } as const;
 
 export const APP = {

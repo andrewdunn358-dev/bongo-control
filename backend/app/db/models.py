@@ -95,3 +95,24 @@ class CachedAiRecommendations(Base):
     recommendations_json: Mapped[str] = mapped_column(Text)
     model_used: Mapped[str] = mapped_column(String(64))
     cached_at: Mapped[float] = mapped_column(Float)
+
+
+class LocationHistory(Base):
+    """Breadcrumb of where the van has been — the basis for the Trips &
+    Memories feature.
+
+    Only *accurate* (GPS-source) fixes are logged here; the IP fallback
+    is city-level and resolves the ISP, so logging it would draw the
+    trail off to whichever town the carrier routes out of. Points are
+    logged with a movement/time threshold (see LocationService) so a
+    van parked for a week doesn't fill the table with near-identical
+    rows — same SD-card-wear discipline as the telemetry history.
+    """
+
+    __tablename__ = "location_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    timestamp: Mapped[float] = mapped_column(Float, index=True)
+    latitude: Mapped[float] = mapped_column(Float)
+    longitude: Mapped[float] = mapped_column(Float)
+    source: Mapped[str] = mapped_column(String(32))

@@ -96,6 +96,8 @@ export const api = {
   setLocation: (latitude: number, longitude: number) =>
     request<{ ok: boolean }>('/location/gps', { method: 'POST', body: JSON.stringify({ latitude, longitude }) }),
   ipFallback: () => request<{ ok: boolean }>('/location/ip-fallback', { method: 'POST' }),
+  locationHistory: () =>
+    request<{ points: { timestamp: number; latitude: number; longitude: number; source: string }[]; count: number }>('/location/history'),
 
   relays: () => request<RelayResponse>('/relays'),
   roofStatus: () => request<RoofStatus>('/roof'),
