@@ -28,7 +28,7 @@ const STARTER_PROMPTS = [
 function MaggieAvatar({ size = 40, className }: { size?: number; className?: string }) {
   return (
     <img
-      src="/avatars/maggie.jpg"
+      src="/avatars/diane.jpg"
       alt="Diane"
       width={size}
       height={size}
