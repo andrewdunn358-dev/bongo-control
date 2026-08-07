@@ -108,8 +108,8 @@ export function Chat() {
       <GlassCard glow="purple" className="flex-1 flex flex-col overflow-hidden p-0">
         <div className="px-5 pt-5">
           <CardHeader
-            label={`${personaName} — vanlife & travel`}
-            hint={configured ? "grounded in the van's live location, weather and battery — ask, costs money per message" : 'AI provider not configured'}
+            label={personaName}
+            hint={configured ? undefined : 'AI provider not configured'}
             right={<div className="flex items-center gap-1 text-aurora-purple"><Sparkles size={14} /><span className="text-xs">AI-generated</span></div>}
           />
         </div>
