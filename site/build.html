@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Build your own VanOS — hardware & setup guide</title>
+<meta name="description" content="How to build a VanOS campervan dashboard: Raspberry Pi, Victron SmartSolar, relays, temperature sensors, camera, and remote access." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root{--navy-900:#0a1628;--teal:#22d3ee;--purple:#a855f7;--green:#34d399;--ink:#e6f0ff;--ink-soft:#d1dcec;--ink-muted:#afbed2;--ink-faint:#8c9cb2}
+  *{box-sizing:border-box}html,body{margin:0}
+  body{font-family:'Space Grotesk',system-ui,sans-serif;color:var(--ink);background:var(--navy-900);letter-spacing:-.005em;-webkit-font-smoothing:antialiased}
+  a{color:var(--teal);text-decoration:none}a:hover{text-decoration:underline}
+  .bg{position:fixed;inset:0;z-index:-10;overflow:hidden;background:linear-gradient(180deg,#0a1628,#0b1d33 55%,#0f2942)}
+  .ribbon{position:absolute;left:-25%;width:150%;height:44vh;filter:blur(58px);opacity:.5;mix-blend-mode:screen;border-radius:50%}
+  .r1{top:-4%;background:linear-gradient(90deg,transparent,rgba(52,211,153,.7) 40%,rgba(34,211,238,.6) 66%,transparent);transform:rotate(-8deg)}
+  .r2{top:24%;background:linear-gradient(90deg,transparent,rgba(168,85,247,.5) 30%,transparent 75%);transform:rotate(6deg)}
+  .wrap{max-width:820px;margin:0 auto;padding:0 22px 80px}
+  header{display:flex;align-items:center;justify-content:space-between;padding:22px 0}
+  .brand{display:flex;align-items:center;gap:12px}
+  .logo{height:42px;width:42px;border-radius:12px;background:linear-gradient(135deg,var(--teal),var(--purple));display:grid;place-items:center;color:var(--navy-900);font-weight:700;font-size:20px}
+  .brand b{font-size:20px}.brand b span{color:var(--teal)}
+  nav a{color:var(--ink-muted);margin-left:20px;font-size:14px}
+  h1{font-size:clamp(32px,6vw,50px);font-weight:700;letter-spacing:-.02em;margin:30px 0 6px}
+  .sub{color:var(--ink-muted);font-size:17px;margin-bottom:10px}
+  h2{font-size:24px;margin:44px 0 10px;padding-top:10px;border-top:1px solid rgba(148,163,184,.14)}
+  h3{font-size:17px;margin:22px 0 6px;color:var(--teal)}
+  p,li{color:var(--ink-soft);line-height:1.65;font-size:15px}
+  ul{padding-left:20px}
+  code{font-family:'JetBrains Mono',monospace;font-size:13px;background:rgba(148,163,184,.14);padding:2px 6px;border-radius:6px}
+  pre{background:#08111f;border:1px solid rgba(34,211,238,.18);border-radius:12px;padding:16px 18px;overflow-x:auto;box-shadow:0 0 20px rgba(34,211,238,.06)}
+  pre code{background:none;padding:0;color:#bfe9f5;font-size:13px;line-height:1.6}
+  .toc{border-radius:14px;background:rgba(18,45,74,.5);border:1px solid rgba(34,211,238,.2);padding:18px 22px;margin:22px 0}
+  .toc a{display:inline-block;margin:3px 14px 3px 0;font-size:14px}
+  .note{border-left:3px solid var(--green);background:rgba(52,211,153,.07);padding:12px 16px;border-radius:0 10px 10px 0;margin:14px 0}
+  .warn{border-left:3px solid #fbbf24;background:rgba(245,158,11,.08);padding:12px 16px;border-radius:0 10px 10px 0;margin:14px 0}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid rgba(148,163,184,.14)}
+  th{color:var(--ink-muted);font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.05em}
+  footer{margin-top:50px;color:var(--ink-faint);font-size:13px;text-align:center}
+  .edit{color:var(--ink-faint);font-size:12px;margin-top:6px}
+</style>
+</head>
+<body>
+  <div class="bg"><div class="ribbon r1"></div><div class="ribbon r2"></div></div>
+  <div class="wrap">
+    <header>
+      <div class="brand"><div class="logo">V</div><b>Van<span>OS</span></b></div>
+      <nav><a href="index.html">Home</a><a href="app.html">Live demo</a><a href="https://github.com/andrewdunn358-dev/bongo-control" target="_blank" rel="noreferrer">GitHub</a></nav>
+    </header>
+
+    <h1>Build your own VanOS</h1>
+    <div class="sub">Everything you need to run the dashboard in a real van — from the Raspberry Pi up to the relays.</div>
+    <div class="edit">Living document — last updated on deploy. Edit <code>build.html</code> to keep it current.</div>
+
+    <div class="toc">
+      <strong>On this page:</strong><br>
+      <a href="#hardware">Hardware</a>
+      <a href="#pi">Raspberry Pi setup</a>
+      <a href="#install">Install VanOS</a>
+      <a href="#config">Configuration</a>
+      <a href="#victron">Victron solar</a>
+      <a href="#sensors">Temperature sensors</a>
+      <a href="#relays">Relays</a>
+      <a href="#camera">Camera</a>
+      <a href="#remote">Remote access</a>
+      <a href="#update">Updating</a>
+    </div>
+
+    <h2 id="hardware">Hardware you'll need</h2>
+    <table>
+      <tr><th>Part</th><th>Notes</th></tr>
+      <tr><td>Raspberry Pi (2 / 3 / 4 / 5)</td><td>Confirmed working on a Pi 2 with Bluetooth. A Pi 4 or 5 is comfortable headroom.</td></tr>
+      <tr><td>Victron SmartSolar MPPT</td><td>The solar charge controller. VanOS reads it over Bluetooth — no cables to the Pi.</td></tr>
+      <tr><td>microSD card + power</td><td>A good-quality card; VanOS samples history sparingly to spare it.</td></tr>
+      <tr><td>DS18B20 1-Wire sensors <span style="color:var(--ink-faint)">(optional)</span></td><td>Interior / exterior temperature.</td></tr>
+      <tr><td>Relay board on GPIO <span style="color:var(--ink-faint)">(optional)</span></td><td>Switch things in the van, in parallel with the manual switches.</td></tr>
+      <tr><td>USB webcam <span style="color:var(--ink-faint)">(optional)</span></td><td>Live exterior/interior camera view.</td></tr>
+      <tr><td>A screen <span style="color:var(--ink-faint)">(optional)</span></td><td>Any tablet or dash display — VanOS is a web app, install it as a PWA.</td></tr>
+    </table>
+    <div class="note">There is deliberately <strong>no OBD / engine diagnostics</strong>. The reference Bongo has no OBD port, so rather than fake it, that whole domain is out of scope.</div>
+
+    <h2 id="pi">Raspberry Pi setup</h2>
+    <p>Flash Raspberry Pi OS (64-bit recommended on Pi 4/5; 32-bit is fine on a Pi 2/3), enable SSH, and get it on your network. Then install Docker and Docker Compose:</p>
+    <pre><code>curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER   # then log out and back in</code></pre>
+
+    <h2 id="install">Install VanOS</h2>
+    <pre><code>git clone https://github.com/andrewdunn358-dev/bongo-control.git
+cd bongo-control
+docker compose up -d --build</code></pre>
+    <p>That's it. Open <code>http://&lt;pi-address&gt;:8090</code> and you'll have the dashboard running on simulated data straight away — real hardware slots in from there.</p>
+    <ul>
+      <li>Frontend: <code>http://&lt;pi&gt;:8090</code></li>
+      <li>Backend API + docs: <code>http://&lt;pi&gt;:8000/docs</code></li>
+    </ul>
+
+    <h2 id="config">Configuration</h2>
+    <div class="note">Most of this is optional and can be set live in <strong>Settings → Integrations</strong> from the dashboard itself — your OpenStreetMap contact email and your Anthropic API key — with no file editing and no restart. They're stored on the Pi in <code>data/config.json</code>, and the API key is write‑only (never returned by the app). VanOS ships with <em>no</em> personal details baked in; you supply your own.</div>
+    <p>If you'd rather set defaults up front, copy the example environment file and edit what you need — the defaults work out of the box:</p>
+    <pre><code>cp .env.example .env</code></pre>
+    <table>
+      <tr><th>Setting</th><th>What it does</th></tr>
+      <tr><td><code>APP_ACCESS_PASSWORD</code></td><td>Optional shared password gate for sensitive features (camera, relays).</td></tr>
+      <tr><td><code>WEBCAM_DEVICE</code></td><td>Camera device, defaults to <code>/dev/video0</code>.</td></tr>
+      <tr><td><code>CAMERA_ROTATION</code></td><td>0 / 90 / 180 / 270 if the camera's mounted rotated.</td></tr>
+      <tr><td><code>ANTHROPIC_API_KEY</code></td><td>Optional — enables AI "what's cool nearby" recommendations.</td></tr>
+      <tr><td><code>CLOUDFLARE_TUNNEL_TOKEN</code></td><td>Optional — enables remote HTTPS access (see below).</td></tr>
+    </table>
+
+    <h2 id="victron">Victron solar (Bluetooth)</h2>
+    <p>VanOS reads a Victron SmartSolar MPPT over Bluetooth Low Energy — no wiring to the Pi. You'll need the device's <em>instant readout</em> encryption key from the VictronConnect app (Product info → Instant readout via Bluetooth). Add the MAC address and key to your config, and the Victron plugin publishes battery voltage and solar production onto the same bus the simulation used.</p>
+    <div class="note">Confirmed working against a real SmartSolar MPPT from inside the container on a Raspberry Pi. See <code>docs/victron_ble_integration.md</code> in the repo for the exact steps and troubleshooting.</div>
+
+    <h2 id="sensors">Temperature sensors (1-Wire)</h2>
+    <p>Enable 1-Wire on the Pi (<code>dtoverlay=w1-gpio</code> in <code>/boot/config.txt</code>), wire your DS18B20 probes to GPIO4 with a 4.7kΩ pull-up, and they're detected automatically. No probes? The plugin simply reports nothing — it never invents a temperature.</p>
+
+    <h2 id="relays">Relays (GPIO switching)</h2>
+    <p>Wire a relay board to the Pi's GPIO. The relays sit <strong>in parallel</strong> with the van's physical wall switches, so the dashboard knows what it <em>told</em> a relay to do (its commanded state) but not whether the circuit is physically live — there's no sense line back, and VanOS is honest about that distinction. Control them from the Switches page (gated by the app password if you set one).</p>
+    <div class="note">An elevating roof is a special case: its two relays are excluded from the plain Switches page entirely and only movable from a dedicated <strong>Roof</strong> screen using press-and-hold — a watchdog drops the relay if the app stops hearing from your finger, so there's no failure mode where the motor keeps running unattended.</div>
+    <div class="warn">Mains or high-current loads should be switched through appropriately rated relays/contactors, not the GPIO pins directly. Wire safely.</div>
+
+    <h2 id="camera">Camera</h2>
+    <p>Plug in a USB webcam and pass it through (the compose file maps <code>/dev/video0</code> by default). The camera view uses snapshot polling so it's reliable on phones and tablets alike, and snapshots you capture are stored on the Pi. See <code>docs/cctv_camera_setup.md</code>.</p>
+
+    <h2 id="remote">Remote access (Cloudflare Tunnel)</h2>
+    <p>To reach the dashboard from anywhere over HTTPS — no port forwarding, works behind CGNAT — run the optional Cloudflare Tunnel. Put your tunnel token in <code>.env</code> and bring it up with the profile:</p>
+    <pre><code>docker compose --profile cloudflare-tunnel up -d --build</code></pre>
+    <p>Full walk-through in <code>docs/remote_access_cloudflare_tunnel.md</code>.</p>
+
+    <h2 id="update">Updating</h2>
+    <pre><code>cd ~/bongo-control
+git pull
+docker compose --profile cloudflare-tunnel up -d --build --remove-orphans</code></pre>
+    <p>The <code>--build</code> flag is what rebuilds the app and picks up changes. On mobile the installed dashboard updates itself automatically within a few minutes of a new deploy.</p>
+
+    <footer>
+      VanOS is open source — <a href="https://github.com/andrewdunn358-dev/bongo-control" target="_blank" rel="noreferrer">contribute on GitHub</a>. · <a href="index.html">Back home</a> · <a href="app.html">Live demo</a>
+    </footer>
+  </div>
+</body>
+</html>

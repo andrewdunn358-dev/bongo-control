@@ -1,0 +1,188 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    # network_mode: host is required for the Victron Bluetooth plugin —
+    # BlueZ/D-Bus BLE access from inside a container generally doesn't
+    # work with Docker's default bridge networking. Under host
+    # networking there's no port mapping/translation at all - the
+    # backend binds directly to the host's own network interfaces on
+    # port 8000, same as if it were running outside Docker entirely.
+    # (No "ports:" section here on purpose - Compose warns if you add
+    # one, since host mode makes it meaningless.)
+    #
+    # Confirmed working against real hardware: connected to an actual
+    # Victron SmartSolar MPPT over Bluetooth from inside this container
+    # on a Raspberry Pi 2. See docs/victron_ble_integration.md if it
+    # doesn't work on a different setup.
+    network_mode: host
+    # Confirmed by direct testing that a plain `docker compose stop
+    # backend` graceful-shuts-down correctly (the app's own "Shutting
+    # down" log line appears), but during a `docker compose up
+    # --build` recreate specifically, it does not - the shutdown
+    # sequence never runs at all, not even its first line, going
+    # straight to a hard kill instead. Root cause not fully pinned
+    # down (a plausible factor: network_mode: host means the new
+    # container needs the same host port the old one is still holding,
+    # which may be pushing Compose toward a faster/less graceful
+    # replacement path specifically during recreate). This grace
+    # period is a safety margin in case timing under load is part of
+    # it; see docs/deploy.md for the actual fix, which is deploying in
+    # two explicit steps rather than relying on `--build` to stop the
+    # old container gracefully by itself.
+    stop_grace_period: 30s
+    # Camera passthrough for the USB webcam (app/services/
+    # camera_service.py uses ffmpeg to capture from it directly).
+    #
+    # IMPORTANT: a `devices:` entry is NOT optional - Docker refuses to
+    # CREATE the container if the host path is missing ("error gathering
+    # device information ... no such file or directory"), which takes the
+    # WHOLE backend down, not just the camera. So the webcam is bound via
+    # an env var that defaults to /dev/null (always present, so the
+    # container always starts) - i.e. no camera unless you opt in. With no
+    # real webcam, ffmpeg just fails to open /dev/null and the camera
+    # endpoint returns a clean 503; the rest of the app is unaffected.
+    #
+    # To enable the camera: plug it in, check its node with `ls /dev/video*`,
+    # and set WEBCAM_DEVICE=/dev/video0 (or whatever it is) in a .env file
+    # next to this compose file, then `docker compose up -d`.
+    devices:
+      - "${WEBCAM_DEVICE:-/dev/null}:${WEBCAM_DEVICE:-/dev/null}"
+      # Same reasoning as WEBCAM_DEVICE above: a missing devices: path
+      # would take the whole backend down, not just the GPS feature, so
+      # this defaults to /dev/null (always present) until opted into.
+      # Use the udev-provided /dev/serial/by-id/... path, not a bare
+      # /dev/ttyUSBn - the same "shifts if replugged into a different
+      # port" problem as the webcam applies here too, and GPS dongles
+      # are exactly the kind of thing that gets unplugged and moved.
+      # Find it with `ls -la /dev/serial/by-id/` once it's plugged in,
+      # then set GPS_DEVICE=/dev/serial/by-id/usb-... in .env.
+      - "${GPS_DEVICE:-/dev/null}:${GPS_DEVICE:-/dev/null}"
+      # GPIO character device, for relay control. /dev/gpiochip0 exists
+      # on every current Raspberry Pi OS install regardless of whether
+      # anything uses it, so unlike the 1-Wire sysfs paths this is safe
+      # to bind directly without risking container startup on machines
+      # that aren't using relays.
+      - "/dev/gpiochip0:/dev/gpiochip0"
+    volumes:
+      - vanos-data:/app/data
+      - /var/run/dbus:/var/run/dbus
+      # Read-only /sys, for the 1-Wire temperature sensor plugin
+      # (DS18B20). The kernel exposes each detected probe under
+      # /sys/bus/w1/devices/, but those entries are symlinks into
+      # /sys/devices/w1_bus_master1/ - mounting the two paths
+      # individually would break container startup entirely on any
+      # system without 1-Wire enabled (Docker can't create a missing
+      # path under sysfs), so the whole tree is mounted read-only
+      # instead. Harmless when no sensors are present: the plugin just
+      # finds nothing and reports that cleanly.
+      - /sys:/sys:ro
+    environment:
+      VANOS_ENVIRONMENT: production
+      VANOS_DATABASE_URL: sqlite:///./data/vanos.db
+      WEBCAM_DEVICE: ${WEBCAM_DEVICE:-/dev/video0}
+      CAMERA_ROTATION: ${CAMERA_ROTATION:-0}
+      GPS_DEVICE: ${GPS_DEVICE:-/dev/ttyUSB0}
+      APP_ACCESS_PASSWORD: ${APP_ACCESS_PASSWORD:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AI_RECOMMENDATIONS_MODEL: ${AI_RECOMMENDATIONS_MODEL:-claude-haiku-4-5-20251001}
+      # Security: fail closed in production without a password. Set
+      # APP_ACCESS_PASSWORD above, or set this to 1 to deliberately run
+      # without a password on a trusted LAN-only setup.
+      VANOS_ALLOW_INSECURE: ${VANOS_ALLOW_INSECURE:-false}
+    restart: unless-stopped
+    # Cap resources so a runaway process (a wedged history query, the
+    # long-lived MJPEG stream) can't OOM the whole Pi.
+    mem_limit: 1g
+    cpus: 2.0
+    # Bound container logs so they can't fill the SD card over months.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Restart the container if the app stops answering (uses python,
+    # which is already in the image; runs inside host networking).
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    # NOTE (deliberately still root): the backend needs GPIO (/dev/gpiochip0),
+    # the camera (/dev/video0) and BlueZ over D-Bus, whose device/group
+    # access as a non-root user must match host group IDs and needs
+    # on-hardware verification. Left as a documented follow-up rather than
+    # changed blind, since getting it wrong silently breaks relays/BLE/camera.
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    ports:
+      - "8090:80"
+    volumes:
+      - vanos-nginx-logs:/var/log/vanos
+    # nginx proxies /api and /ws to the backend, which runs with
+    # network_mode: host - so it's reached via the host gateway rather
+    # than a compose service name.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # Optional: only starts doing anything useful once CLOUDFLARE_TUNNEL_TOKEN
+  # is set in a root .env file. Gives the app a real public HTTPS URL on
+  # your own domain without opening any ports on your router - works
+  # behind CGNAT, since it's an outbound-only connection to Cloudflare.
+  # See docs/remote_access_cloudflare_tunnel.md for full setup.
+  #
+  # NOTE on 32-bit ARM (Raspberry Pi 2/3 running 32-bit Raspberry Pi OS):
+  # Cloudflare publishes no official armv7 image. Override
+  # CLOUDFLARED_IMAGE in .env with an unofficial multi-arch build.
+  # Be aware cloudflared is also reported to segfault on Pi Zero W / 1B /
+  # 2B specifically - see the docs for alternatives if that happens.
+  cloudflared:
+    # Pinned rather than :latest — this terminates your public tunnel, so
+    # a silent `docker compose pull` shouldn't be able to swap the binary
+    # under you. Bump deliberately. (armv7 users override CLOUDFLARED_IMAGE
+    # in .env with a pinned unofficial multi-arch tag — see the note above.)
+    image: ${CLOUDFLARED_IMAGE:-cloudflare/cloudflared:2026.1.2}
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Host networking is required: the tunnel's routes point at
+    # localhost:8090 (frontend) and localhost:8000 (backend). Under
+    # default bridge networking, "localhost" would mean the cloudflared
+    # container itself - where nothing is listening - producing a 502
+    # Bad Gateway even though the tunnel connects fine. Host networking
+    # makes localhost mean the Pi, which is what the routes expect.
+    network_mode: host
+    restart: unless-stopped
+    profiles:
+      - cloudflare-tunnel
+
+volumes:
+  vanos-data:
+  # Separate from vanos-data on purpose - keeps the backend's own data/
+  # directory (config.json, vanos.db) exactly as documented elsewhere,
+  # rather than an nginx log file showing up unexpectedly alongside it
+  # just because it happened to share a volume.
+  vanos-nginx-logs:

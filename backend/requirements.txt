@@ -1,0 +1,36 @@
+fastapi==0.115.0
+python-multipart==0.0.9
+uvicorn==0.30.6
+websockets==13.1
+pydantic==2.9.2
+pydantic-settings==2.5.2
+sqlalchemy==2.0.35
+python-dotenv==1.0.1
+httpx==0.27.2
+
+# Victron MPPT Bluetooth plugin
+bleak==0.22.3
+victron-ble==0.9.3
+
+# Relay control via GPIO. gpiozero + lgpio is the current supported
+# combination on Raspberry Pi OS Bookworm. RPi.GPIO is deliberately
+# NOT used - it relies on /dev/mem and doesn't work on Pi 5, so it's a
+# dead end. Both are pure-Python/small-C and available as prebuilt
+# armv7 wheels via the piwheels index already configured in the
+# Dockerfile, so this doesn't reintroduce a long compile on the Pi.
+gpiozero==2.0.1
+lgpio==0.2.2.0
+
+# USB GPS receiver (NMEA over serial) - VK-162 or similar
+pyserial==3.5
+
+# Huawei B525 HiLink API (measured 4G signal - RSRP/RSRQ/SINR - read over
+# the Pi's WiFi link to the van's router). Tested by its maintainers
+# against the B525s-65a specifically: https://github.com/Salamek/huawei-lte-api
+huawei-lte-api==1.11.0
+# requests/urllib3 are already pulled in transitively by huawei-lte-api,
+# pinned explicitly here because modem_service.py imports them directly
+# (to build a Session with verify=False for the router's own known-bad
+# hirouter.net certificate - see modem_service.py for why).
+requests==2.33.1
+urllib3==2.6.3
