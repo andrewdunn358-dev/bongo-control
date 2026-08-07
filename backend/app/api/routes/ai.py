@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api.routes.auth import require_app_token
 from app.services import location_service, poi_service
 from app.services.ai_recommendations_service import AiRecommendationsUnavailableError, ai_recommendations_service
-from app.services.ai_chat_service import AiChatUnavailableError, ChatMessage, ai_chat_service
+from app.services.ai_chat_service import AiChatUnavailableError, ChatMessage, PERSONA_NAME, ai_chat_service
 from pydantic import BaseModel
 
 # Gated by the same password auth as the camera - unlike viewing a
@@ -26,7 +26,7 @@ router = APIRouter(prefix="/api/ai", tags=["ai"])
 
 @router.get("/status")
 async def ai_status() -> dict:
-    return {"configured": ai_recommendations_service.is_configured()}
+    return {"configured": ai_recommendations_service.is_configured(), "persona_name": PERSONA_NAME}
 
 
 @router.get("/nearby-recommendations", dependencies=[Depends(require_app_token)])

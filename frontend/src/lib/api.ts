@@ -143,7 +143,7 @@ export const api = {
 
   aiNearby: (forceRefresh?: boolean) =>
     request<AiRecommendationsResponse>(`/ai/nearby-recommendations${forceRefresh ? '?force_refresh=true' : ''}`),
-  aiStatus: () => request<{ configured: boolean }>('/ai/status'),
+  aiStatus: () => request<{ configured: boolean; persona_name?: string }>('/ai/status'),
   // Full history resent every call - there's no server-side session,
   // see ai_chat_service.py for why that's the deliberate choice.
   aiChat: (messages: { role: 'user' | 'assistant'; content: string }[]) =>

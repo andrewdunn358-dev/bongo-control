@@ -583,7 +583,7 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
     return R({ centre: { latitude: lat, longitude: lon }, radius_m: 1500, results });
   }
 
-  if (p === '/ai/status') return R({ configured: true });
+  if (p === '/ai/status') return R({ configured: true, persona_name: 'Maggie' });
   if (p === '/ai/chat') {
     const last = (body?.messages ?? []).slice(-1)[0]?.content ?? '';
     return R({
