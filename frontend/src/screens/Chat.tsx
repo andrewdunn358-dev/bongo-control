@@ -29,7 +29,7 @@ function MaggieAvatar({ size = 40, className }: { size?: number; className?: str
   return (
     <img
       src="/avatars/maggie.jpg"
-      alt="Maggie"
+      alt="Diane"
       width={size}
       height={size}
       style={{ width: size, height: size }}
@@ -57,7 +57,7 @@ export function Chat() {
 
   const status = useQuery({ queryKey: ['ai-status'], queryFn: api.aiStatus });
   const configured = status.data?.configured ?? false;
-  const personaName = status.data?.persona_name || 'Maggie';
+  const personaName = status.data?.persona_name || 'Diane';
 
   const send = useMutation({
     mutationFn: (next: Message[]) => api.aiChat(next),

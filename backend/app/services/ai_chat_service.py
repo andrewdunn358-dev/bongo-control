@@ -65,7 +65,7 @@ class AiChatUnavailableError(RuntimeError):
 # The assistant's persona, used both in the system prompt and echoed
 # to the frontend (GET /api/ai/persona) so the name/avatar shown on the
 # page and the personality actually talking are never out of sync.
-PERSONA_NAME = "Maggie"
+PERSONA_NAME = "Diane"
 
 
 class AiChatService:
