@@ -17,7 +17,16 @@ export const NAV = {
   camera: 'nav-camera',
   history: 'nav-history',
   trips: 'nav-trips',
+  chat: 'nav-chat',
   settings: 'nav-settings',
+} as const;
+
+export const CHAT = {
+  root: 'chat-screen',
+  input: 'chat-input',
+  send: 'chat-send',
+  message: (i: number) => `chat-message-${i}`,
+  newChat: 'chat-new',
 } as const;
 
 export const HOME = {

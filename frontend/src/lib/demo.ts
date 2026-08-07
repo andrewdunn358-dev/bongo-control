@@ -584,6 +584,15 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
   }
 
   if (p === '/ai/status') return R({ configured: true });
+  if (p === '/ai/chat') {
+    const last = (body?.messages ?? []).slice(-1)[0]?.content ?? '';
+    return R({
+      reply:
+        `(Demo mode — this is a canned reply, not a real model call.) You asked: "${last}". In the real app, ` +
+        `this is answered by Claude with the van's actual live location, weather, and battery/solar readings ` +
+        `built into the prompt, plus web search for anything needing current info.`,
+    });
+  }
   if (p === '/ai/nearby-recommendations')
     return R({
       place_name: 'the Lake District',

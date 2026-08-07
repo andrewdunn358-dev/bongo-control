@@ -29,6 +29,7 @@ const Nearby = lazy(() => import('@/screens/Nearby').then((m) => ({ default: m.N
 const HistoryScreen = lazy(() => import('@/screens/History').then((m) => ({ default: m.HistoryScreen })));
 const Trips = lazy(() => import('@/screens/Trips').then((m) => ({ default: m.Trips })));
 const Coverage = lazy(() => import('@/screens/Coverage').then((m) => ({ default: m.Coverage })));
+const Chat = lazy(() => import('@/screens/Chat').then((m) => ({ default: m.Chat })));
 
 export function App() {
   const connected = useConnected();
@@ -66,6 +67,7 @@ export function App() {
               <Route path="/camera" element={<CameraView />} />
               <Route path="/history" element={<HistoryScreen />} />
               <Route path="/trips" element={<Trips />} />
+              <Route path="/chat" element={<Chat />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
             </Suspense>

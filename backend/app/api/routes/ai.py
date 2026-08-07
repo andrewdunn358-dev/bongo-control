@@ -11,6 +11,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api.routes.auth import require_app_token
 from app.services import location_service, poi_service
 from app.services.ai_recommendations_service import AiRecommendationsUnavailableError, ai_recommendations_service
+from app.services.ai_chat_service import AiChatUnavailableError, ChatMessage, ai_chat_service
+from pydantic import BaseModel
 
 # Gated by the same password auth as the camera - unlike viewing a
 # camera feed, this incurs real API cost per genuinely-new location,
@@ -51,3 +53,19 @@ async def nearby_recommendations(force_refresh: bool = False) -> dict:
         raise HTTPException(status_code=503, detail=str(e))
 
     return result
+
+
+class ChatRequest(BaseModel):
+    messages: list[ChatMessage]
+
+
+@router.post("/chat", dependencies=[Depends(require_app_token)])
+async def chat(body: ChatRequest) -> dict:
+    """A real back-and-forth, unlike /nearby-recommendations - see
+    ai_chat_service.py for why this one is worth having separately.
+    Gated the same way: real API cost per message, internet-exposed app."""
+    try:
+        reply = await ai_chat_service.reply(body.messages)
+    except AiChatUnavailableError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    return {"reply": reply}

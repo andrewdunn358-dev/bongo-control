@@ -144,6 +144,10 @@ export const api = {
   aiNearby: (forceRefresh?: boolean) =>
     request<AiRecommendationsResponse>(`/ai/nearby-recommendations${forceRefresh ? '?force_refresh=true' : ''}`),
   aiStatus: () => request<{ configured: boolean }>('/ai/status'),
+  // Full history resent every call - there's no server-side session,
+  // see ai_chat_service.py for why that's the deliberate choice.
+  aiChat: (messages: { role: 'user' | 'assistant'; content: string }[]) =>
+    request<{ reply: string }>('/ai/chat', { method: 'POST', body: JSON.stringify({ messages }) }),
 
   location: () => request<{ latitude: number | null; longitude: number | null; source?: string; city?: string; country?: string; updated_at?: number; satellites?: number | null; hdop?: number | null }>('/location'),
   setLocation: (latitude: number, longitude: number) =>

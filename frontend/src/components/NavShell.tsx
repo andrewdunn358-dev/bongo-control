@@ -18,6 +18,7 @@ import {
   SignalHigh,
   Thermometer,
   BatteryCharging,
+  Sparkles,
 } from 'lucide-react';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { NAV } from '@/constants/testIds';
@@ -56,6 +57,7 @@ const LINKS: NavLinkDef[] = [
   { to: '/camera', label: 'Camera', short: 'Cam', icon: Camera, testId: NAV.camera },
   { to: '/history', label: 'History', short: 'Graph', icon: LineChart, testId: NAV.history },
   { to: '/trips', label: 'Trips', short: 'Trips', icon: Route, testId: NAV.trips },
+  { to: '/chat', label: 'Chat', short: 'Chat', icon: Sparkles, testId: NAV.chat },
   { to: '/settings', label: 'Settings', short: 'Set', icon: SettingsIcon, testId: NAV.settings },
 ];
 
