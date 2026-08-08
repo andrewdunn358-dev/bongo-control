@@ -47,6 +47,15 @@ SNAPSHOT_TIMEOUT_SECONDS = 8.0
 # in a reasonable time rather than sitting on a black frame for minutes.
 FRAME_STALL_TIMEOUT_SECONDS = 10.0
 
+# How long a caller will wait to ACQUIRE the device lock before giving
+# up - separate from SNAPSHOT_TIMEOUT_SECONDS, which only bounds what
+# happens once a caller already holds it. Without this, a queue of
+# waiting requests has no ceiling on total wait at all - see
+# capture_snapshot() for the real failure this caused (a device 4+
+# minutes / a Cloudflare 504 away, not the fast local "device busy"
+# this was meant to smooth over).
+LOCK_WAIT_TIMEOUT_SECONDS = 4.0
+
 
 class CameraUnavailableError(RuntimeError):
     pass
@@ -136,8 +145,32 @@ class CameraService:
         open the V4L2 device at once and one would fail outright
         ("device busy" from ffmpeg). With it, the second caller just
         waits the fraction of a second the first's capture takes.
+
+        The wait to ACQUIRE the lock is itself bounded
+        (LOCK_WAIT_TIMEOUT_SECONDS), separately from
+        SNAPSHOT_TIMEOUT_SECONDS below which only bounds what happens
+        once a caller is already holding it. Reported symptom this
+        fixes: PC polling smoothly, phone getting a real 504 from
+        Cloudflare's own edge - not an auth problem, a queue-depth
+        problem. If the camera hits one of its known rough patches
+        (the USB stability issue this whole camera has had) and the
+        PC keeps firing a new poll every 1.5s regardless of whether
+        earlier ones have even resolved yet, requests can queue up
+        faster than 8s-bounded captures drain - and without a cap on
+        the wait itself, a second device's request can sit behind that
+        pile-up for however long it takes to clear, easily outlasting
+        any reasonable HTTP timeout. Failing fast here instead means
+        the frontend's own consecutive-failure/error-surfacing (just
+        added) sees a real, quick 503 to report, not Cloudflare's
+        opaque 504 after minutes of silence.
         """
-        async with self._device_lock:
+        try:
+            await asyncio.wait_for(self._device_lock.acquire(), timeout=LOCK_WAIT_TIMEOUT_SECONDS)
+        except asyncio.TimeoutError as e:
+            raise CameraUnavailableError(
+                f"Camera busy with another request for over {LOCK_WAIT_TIMEOUT_SECONDS}s - try again shortly"
+            ) from e
+        try:
             try:
                 process = await asyncio.create_subprocess_exec(
                     "ffmpeg",
@@ -180,6 +213,8 @@ class CameraService:
             if process.returncode != 0 or not stdout:
                 raise CameraUnavailableError(f"ffmpeg snapshot failed: {stderr.decode(errors='replace')[-500:]}")
             return stdout
+        finally:
+            self._device_lock.release()
 
     async def open(self) -> asyncio.subprocess.Process:
         """Starts ffmpeg and confirms the process itself launched.
