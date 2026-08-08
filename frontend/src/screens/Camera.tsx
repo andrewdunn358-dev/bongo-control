@@ -1,60 +1,37 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Camera as CameraIcon, Lock, RefreshCw, ImageDown, MoreVertical, Trash2, Download, Radio, GalleryHorizontal } from 'lucide-react';
+import { Camera as CameraIcon, Lock, RefreshCw, ImageDown, MoreVertical, Trash2, Download } from 'lucide-react';
 import { GlassCard, CardHeader } from '@/components/primitives/GlassCard';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { api, getToken, clearToken } from '@/lib/api';
 import { isDemo } from '@/lib/demo';
-import { readStored, writeStored } from '@/lib/theme';
 import { CAM } from '@/constants/testIds';
 import type { CameraSnapshot } from '@/lib/types';
 
 /**
  * Camera view.
  *
- * Two view modes, chosen per-device (stored in localStorage, not
- * synced — the phone and the in-van tablet may genuinely differ here):
+ * Uses SNAPSHOT POLLING (~1.5s), not the MJPEG stream. multipart/x-mixed-replace
+ * works on desktop but fails silently on mobile; snapshot polling is a plain
+ * HTTP GET repeated and has no such issues.
  *
- * - "Live" — the real MJPEG stream (multipart/x-mixed-replace), true
- *   continuous video with no polling gap. This always existed on the
- *   backend (camera_service.open()/mjpeg_frames(), GET /camera/stream)
- *   and in the API client (cameraStreamUrl()) - it just was never
- *   wired into this screen, because multipart/x-mixed-replace has a
- *   genuinely inconsistent history on mobile (works reliably on
- *   desktop; some mobile Safari and Android WebView contexts - which
- *   matters here, since the in-van tablet runs a WebView-based kiosk
- *   browser - have had gaps). If the <img> actually fails to load in
- *   Live mode, this auto-falls-back to Polling and says why, rather
- *   than silently showing nothing.
- * - "Polling" — snapshot polling (~1.5s), the previous default and
- *   still the safe fallback. A plain HTTP GET repeated on a timer has
- *   nothing platform-specific left to go wrong.
+ * Each frame is preloaded in a background Image() so the visible <img> only
+ * swaps once the new bytes are decoded — otherwise it flashes blank.
  *
- * Each polled frame is preloaded in a background Image() so the
- * visible <img> only swaps once the new bytes are decoded — otherwise
- * it flashes blank. Live mode doesn't need this - the browser handles
- * the continuous multipart stream itself.
+ * Unlock is handled app-wide by AppGate, so this screen only renders once a
+ * token exists; it never has to show a "locked" state itself.
  *
- * Unlock is handled app-wide by AppGate, so this screen only renders
- * once a token exists; it never has to show a "locked" state itself.
- *
- * The "Snapshot" button persists a frame to the Pi (see camera_service
- * / snapshot_store on the backend) regardless of which view mode is
- * active - it always grabs via capture_snapshot(), independent of
- * whatever's on screen. Saved snapshots survive a reload and are
+ * The "Snapshot" button persists a frame to the Pi (see camera_service /
+ * snapshot_store on the backend). Saved snapshots survive a reload and are
  * listed alongside, each with a kebab menu to delete it.
  */
 const POLL_MS = 1500;
-const MODE_KEY = 'vanos.cameraMode';
-type ViewMode = 'polling' | 'live';
 
 export function CameraView() {
   const qc = useQueryClient();
   const [token, setTok] = useState<string>(getToken());
   const [currentUrl, setCurrentUrl] = useState<string | null>(null);
-  const [mode, setMode] = useState<ViewMode>(() => readStored<ViewMode>(MODE_KEY, 'polling'));
-  const [liveFailed, setLiveFailed] = useState(false);
   // Demo only: play cam.mp4 as a looping "live feed" if it's present,
   // otherwise fall back to the polled image (real photos / drawn scene).
   const [videoFailed, setVideoFailed] = useState(false);
@@ -89,16 +66,9 @@ export function CameraView() {
     onError: () => toast.error('Could not delete snapshot'),
   });
 
-  const setViewMode = (next: ViewMode) => {
-    setMode(next);
-    writeStored(MODE_KEY, next);
-    setLiveFailed(false);
-  };
-
-  // Poll snapshots — only in Polling mode (Live mode's <img> holds its
-  // own open connection to /stream and needs no timer at all).
+  // Poll snapshots (live view)
   useEffect(() => {
-    if (!unlocked || mode !== 'polling' || showDemoVideo) return;
+    if (!unlocked) return;
     let cancelled = false;
 
     const tick = () => {
@@ -111,7 +81,7 @@ export function CameraView() {
     tick();
     const iv = setInterval(tick, POLL_MS);
     return () => { cancelled = true; clearInterval(iv); };
-  }, [unlocked, token, mode, showDemoVideo]);
+  }, [unlocked, token]);
 
   const lock = () => {
     clearToken();
@@ -136,20 +106,18 @@ export function CameraView() {
         : 'bg-ink/[0.04] ring-1 ring-ink/10 text-ink-soft hover:bg-ink/[0.08]';
     return (
       <>
-        {mode === 'polling' && (
-          <button
-            type="button"
-            onClick={refreshFrame}
-            disabled={!currentUrl}
-            className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm disabled:opacity-40 ${refreshCls}`}
-          >
-            <RefreshCw size={14} /> Refresh
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={refreshFrame}
+          disabled={!currentUrl}
+          className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm disabled:opacity-40 ${refreshCls}`}
+        >
+          <RefreshCw size={14} /> Refresh
+        </button>
         <button
           type="button"
           onClick={() => save.mutate()}
-          disabled={save.isPending}
+          disabled={!currentUrl || save.isPending}
           className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm bg-aurora-teal text-navy-900 font-semibold hover:brightness-110 disabled:opacity-40"
         >
           <CameraIcon size={14} /> {save.isPending ? 'Saving…' : 'Snapshot'}
@@ -164,32 +132,10 @@ export function CameraView() {
         <div>
           <div className="text-[11px] uppercase tracking-[0.24em] text-ink-muted">Camera</div>
           <h1 className="text-3xl md:text-5xl font-semibold tracking-tight mt-1">USB <span className="text-aurora-teal">webcam</span></h1>
-          <div className="text-sm text-ink-muted mt-2">
-            {mode === 'live'
-              ? 'True live stream — falls back to snapshots automatically if this device has trouble with it.'
-              : `Snapshot polling every ${POLL_MS} ms — reliable on every device.`}
-          </div>
+          <div className="text-sm text-ink-muted mt-2">Snapshot polling every {POLL_MS} ms — reliable on both tablet and phone.</div>
         </div>
         {unlocked && (
           <div className="flex items-center gap-2">
-            {!showDemoVideo && !isDemo && (
-              <div className="flex rounded-full ring-1 ring-ink/10 overflow-hidden text-xs font-medium">
-                <button
-                  type="button"
-                  onClick={() => setViewMode('live')}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 ${mode === 'live' ? 'bg-aurora-teal text-navy-900' : 'bg-transparent text-ink-soft hover:bg-ink/[0.05]'}`}
-                >
-                  <Radio size={12} /> Live
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('polling')}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 ${mode === 'polling' ? 'bg-aurora-teal text-navy-900' : 'bg-transparent text-ink-soft hover:bg-ink/[0.05]'}`}
-                >
-                  <GalleryHorizontal size={12} /> Polling
-                </button>
-              </div>
-            )}
             <StatusPill tone={isDemo ? 'purple' : 'red'} data-testid={CAM.liveBadge}>{isDemo ? 'DEMO' : 'LIVE'}</StatusPill>
             {authStatus.data?.required && (
               <button
@@ -217,18 +163,6 @@ export function CameraView() {
                 playsInline
                 className="w-full h-full object-cover"
                 onError={() => setVideoFailed(true)}
-              />
-            ) : mode === 'live' && !liveFailed ? (
-              <img
-                key={token /* remount (reopens the stream) if the token changes, e.g. after a re-unlock */}
-                src={api.cameraStreamUrl()}
-                alt="Live camera"
-                className="w-full h-full object-cover"
-                onError={() => {
-                  setLiveFailed(true);
-                  setViewMode('polling');
-                  toast.error("Live stream didn't work on this device — switched to snapshot polling instead.");
-                }}
               />
             ) : currentUrl ? (
               <img ref={imgRef} src={currentUrl} alt="Live camera" className="w-full h-full object-cover" />
