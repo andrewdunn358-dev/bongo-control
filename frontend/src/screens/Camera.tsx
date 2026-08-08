@@ -27,11 +27,16 @@ import type { CameraSnapshot } from '@/lib/types';
  * listed alongside, each with a kebab menu to delete it.
  */
 const POLL_MS = 1500;
+// One failed poll can just be a transient blip - not worth alarming
+// anyone over. A run of them in a row is the "stuck on Waiting for
+// first frame with zero explanation" failure mode this is fixing.
+const CONSECUTIVE_FAILURES_BEFORE_SHOWING_ERROR = 3;
 
 export function CameraView() {
   const qc = useQueryClient();
   const [token, setTok] = useState<string>(getToken());
   const [currentUrl, setCurrentUrl] = useState<string | null>(null);
+  const [frameError, setFrameError] = useState<string | null>(null);
   // Demo only: play cam.mp4 as a looping "live feed" if it's present,
   // otherwise fall back to the polled image (real photos / drawn scene).
   const [videoFailed, setVideoFailed] = useState(false);
@@ -66,35 +71,75 @@ export function CameraView() {
     onError: () => toast.error('Could not delete snapshot'),
   });
 
-  // Poll snapshots (live view)
+  // Poll snapshots (live view).
+  //
+  // Uses fetch() + object URLs, NOT a plain <img src> being re-pointed
+  // on a timer (the previous approach). That's a deliberate change:
+  // an <img>'s onerror event carries no information at all - just
+  // "it failed" - so every poll failure (wrong/expired token, camera
+  // busy, network blip) was being silently swallowed and the UI sat on
+  // "Waiting for first frame…" forever with zero explanation. Reported
+  // case: works on the PC, permanently stuck on the phone - which
+  // pointed straight at a per-device auth token, but that was
+  // impossible to actually confirm with the old approach because
+  // nothing surfaced what the real failure was. fetch() gives a real
+  // HTTP status + body to show instead of a guess.
   useEffect(() => {
-    if (!unlocked) return;
+    if (!unlocked || showDemoVideo) return;
     let cancelled = false;
+    let lastObjectUrl: string | null = null;
+    let consecutiveFailures = 0;
 
-    const tick = () => {
-      const url = api.cameraSnapshotUrl(Date.now());
-      const preload = new Image();
-      preload.onload = () => { if (!cancelled) setCurrentUrl(url); };
-      preload.onerror = () => { /* ignore; keep last good frame */ };
-      preload.src = url;
+    const tick = async () => {
+      try {
+        const res = await fetch(api.cameraSnapshotUrl(Date.now()));
+        if (!res.ok) {
+          const body = await res.text().catch(() => '');
+          throw new Error(`${res.status} ${res.statusText}${body ? ` — ${body.slice(0, 150)}` : ''}`);
+        }
+        const blob = await res.blob();
+        if (cancelled) return;
+        const url = URL.createObjectURL(blob);
+        setCurrentUrl(url);
+        setFrameError(null);
+        if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
+        lastObjectUrl = url;
+        consecutiveFailures = 0;
+      } catch (e) {
+        if (cancelled) return;
+        consecutiveFailures += 1;
+        if (consecutiveFailures >= CONSECUTIVE_FAILURES_BEFORE_SHOWING_ERROR) {
+          setFrameError(e instanceof Error ? e.message : 'Could not load camera frame');
+        }
+      }
     };
     tick();
     const iv = setInterval(tick, POLL_MS);
-    return () => { cancelled = true; clearInterval(iv); };
-  }, [unlocked, token]);
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+      if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
+    };
+  }, [unlocked, token, showDemoVideo]);
 
   const lock = () => {
     clearToken();
     setTok('');
     setCurrentUrl(null);
+    setFrameError(null);
     toast('Camera locked');
   };
 
-  const refreshFrame = () => {
-    const url = api.cameraSnapshotUrl(Date.now());
-    const i = new Image();
-    i.onload = () => setCurrentUrl(url);
-    i.src = url;
+  const refreshFrame = async () => {
+    try {
+      const res = await fetch(api.cameraSnapshotUrl(Date.now()));
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      const blob = await res.blob();
+      setCurrentUrl(URL.createObjectURL(blob));
+      setFrameError(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not load camera frame');
+    }
   };
 
   // Live-view controls, shared by the desktop overlay and the mobile
@@ -165,7 +210,19 @@ export function CameraView() {
                 onError={() => setVideoFailed(true)}
               />
             ) : currentUrl ? (
-              <img ref={imgRef} src={currentUrl} alt="Live camera" className="w-full h-full object-cover" />
+              <>
+                <img ref={imgRef} src={currentUrl} alt="Live camera" className="w-full h-full object-cover" />
+                {/* Last good frame stays up (same "don't blank out over a
+                    transient blip" principle as before) but now says so,
+                    rather than silently looking current when it isn't. */}
+                {frameError && (
+                  <div className="absolute top-3 left-3 right-3 rounded-lg bg-status-amber/90 text-navy-900 text-xs px-3 py-2 shadow-lg">
+                    Showing last good frame — {frameError}
+                  </div>
+                )}
+              </>
+            ) : frameError ? (
+              <div className="w-full h-full grid place-items-center text-center px-6 text-status-amber text-sm">{frameError}</div>
             ) : (
               <div className="w-full h-full grid place-items-center text-ink-muted text-sm">Waiting for first frame…</div>
             )}
