@@ -72,6 +72,20 @@ class CameraService:
         # dash-mounted display, or anything else that fetches the
         # snapshot endpoint directly.
         self.rotation = self._parse_rotation(os.environ.get("CAMERA_ROTATION", "0"))
+        # V4L2 devices only allow one process to have them open at a
+        # time (see the module docstring's "known limitation" note -
+        # this is that limitation actually being hit in practice:
+        # reported symptom was one device (PC) polling fine, a second
+        # device (phone) unable to open the same snapshot stream
+        # alongside it). Each snapshot is still a brief, independent
+        # open-grab-close (not a continuously-held connection - that
+        # approach is what caused the Live-mode USB stability problem
+        # this camera already had, so it's deliberately not being
+        # reintroduced here). This lock just serialises those brief
+        # opens instead of letting two land at the same instant and
+        # collide - a second viewer's request queues for a fraction of
+        # a second rather than failing outright.
+        self._device_lock = asyncio.Lock()
 
     @staticmethod
     def _parse_rotation(value: str) -> int:
@@ -115,49 +129,57 @@ class CameraService:
         single ordinary image fetch, repeated on an interval, has
         nothing platform-specific left to go wrong. Costs smoothness
         (a slideshow, not video) for universal reliability.
-        """
-        try:
-            process = await asyncio.create_subprocess_exec(
-                "ffmpeg",
-                "-f",
-                "v4l2",
-                "-input_format",
-                self.input_format,
-                "-video_size",
-                self.size,
-                "-i",
-                self.device,
-                *self._rotation_args(),
-                "-frames:v",
-                "1",
-                "-f",
-                "image2",
-                "-",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-        except FileNotFoundError as e:
-            raise CameraUnavailableError("ffmpeg not found in this container") from e
 
-        # Bound the wait: if ffmpeg opens the device but never produces a
-        # frame (device busy — the documented single-consumer limit — or a
-        # flaky USB cam), communicate() would otherwise await forever and
-        # the request would hang, holding the device. Kill on timeout so a
-        # wedged capture can't pile up processes contending for /dev/video0.
-        try:
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=SNAPSHOT_TIMEOUT_SECONDS)
-        except asyncio.TimeoutError as e:
+        Serialised via self._device_lock - see __init__ for why. Two
+        viewers polling independently means two callers can land here
+        within the same instant; without the lock, both would try to
+        open the V4L2 device at once and one would fail outright
+        ("device busy" from ffmpeg). With it, the second caller just
+        waits the fraction of a second the first's capture takes.
+        """
+        async with self._device_lock:
             try:
-                process.kill()
-                await process.wait()
-            except ProcessLookupError:
-                pass
-            raise CameraUnavailableError(
-                f"ffmpeg snapshot timed out after {SNAPSHOT_TIMEOUT_SECONDS}s — device busy or not responding"
-            ) from e
-        if process.returncode != 0 or not stdout:
-            raise CameraUnavailableError(f"ffmpeg snapshot failed: {stderr.decode(errors='replace')[-500:]}")
-        return stdout
+                process = await asyncio.create_subprocess_exec(
+                    "ffmpeg",
+                    "-f",
+                    "v4l2",
+                    "-input_format",
+                    self.input_format,
+                    "-video_size",
+                    self.size,
+                    "-i",
+                    self.device,
+                    *self._rotation_args(),
+                    "-frames:v",
+                    "1",
+                    "-f",
+                    "image2",
+                    "-",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+            except FileNotFoundError as e:
+                raise CameraUnavailableError("ffmpeg not found in this container") from e
+
+            # Bound the wait: if ffmpeg opens the device but never produces a
+            # frame (a flaky USB cam), communicate() would otherwise await
+            # forever and the request would hang, holding both the device
+            # AND the lock above - kill on timeout so a wedged capture can't
+            # block every other viewer indefinitely behind it.
+            try:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=SNAPSHOT_TIMEOUT_SECONDS)
+            except asyncio.TimeoutError as e:
+                try:
+                    process.kill()
+                    await process.wait()
+                except ProcessLookupError:
+                    pass
+                raise CameraUnavailableError(
+                    f"ffmpeg snapshot timed out after {SNAPSHOT_TIMEOUT_SECONDS}s — device busy or not responding"
+                ) from e
+            if process.returncode != 0 or not stdout:
+                raise CameraUnavailableError(f"ffmpeg snapshot failed: {stderr.decode(errors='replace')[-500:]}")
+            return stdout
 
     async def open(self) -> asyncio.subprocess.Process:
         """Starts ffmpeg and confirms the process itself launched.
