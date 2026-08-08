@@ -256,8 +256,19 @@ class CameraService:
                         b"Content-Length: " + str(len(frame)).encode() + b"\r\n\r\n" + frame + b"\r\n"
                     )
         finally:
-            process.kill()
-            await process.wait()
+            # ffmpeg may already have exited on its own by the time we
+            # get here (e.g. the device vanished mid-stream, as in the
+            # "Cannot open video device: No such device or address"
+            # case this is fixing) - kill() on an already-dead process
+            # raises ProcessLookupError, which was going unhandled and
+            # showing up as a noisy traceback in the logs on top of the
+            # real error. Match the same pattern already used in
+            # capture_snapshot()'s timeout handling below.
+            try:
+                process.kill()
+                await process.wait()
+            except ProcessLookupError:
+                pass
 
 
 camera_service = CameraService()
