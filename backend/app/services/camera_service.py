@@ -40,6 +40,13 @@ BOUNDARY = b"frame"
 # headroom for a slow USB cam, but never allow an unbounded hang.
 SNAPSHOT_TIMEOUT_SECONDS = 8.0
 
+# The continuous Live stream has no per-frame timeout equivalent, and
+# needed one - see mjpeg_frames() for the reported symptom this fixes.
+# Generous relative to a real frame interval (well under a second at
+# any normal framerate) but short enough that a genuine stall recovers
+# in a reasonable time rather than sitting on a black frame for minutes.
+FRAME_STALL_TIMEOUT_SECONDS = 10.0
+
 
 class CameraUnavailableError(RuntimeError):
     pass
@@ -200,11 +207,32 @@ class CameraService:
         stream on JPEG start/end markers rather than trusting any
         particular read-buffer size to align with frame boundaries - a
         single `read()` call has no reason to land exactly on a frame edge.
+
+        Bounded reads, unlike the original version of this method.
+        Reported symptom: Live view working fine, then going to a
+        black frame after a minute or two and staying that way. The
+        bug: `read()` had no timeout, so a webcam that stalls mid-
+        stream (still running, just stopped producing frames - a real
+        USB webcam failure mode) left this awaiting forever. ffmpeg
+        exiting cleanly was handled (the `if not chunk` branch below);
+        ffmpeg silently hanging was not, and hanging is exactly the
+        harder, more common failure. A stalled read now raises after
+        FRAME_STALL_TIMEOUT_SECONDS, which - critically - actually
+        closes the HTTP response the browser is reading, so the <img>
+        element's onerror fires and the frontend's already-built
+        Live-to-Polling fallback (Camera.tsx) actually triggers,
+        instead of the tab just sitting on a frozen black frame with
+        no error ever surfacing.
         """
         buffer = b""
         try:
             while True:
-                chunk = await process.stdout.read(4096)
+                try:
+                    chunk = await asyncio.wait_for(process.stdout.read(4096), timeout=FRAME_STALL_TIMEOUT_SECONDS)
+                except asyncio.TimeoutError as e:
+                    raise CameraUnavailableError(
+                        f"No frame data for {FRAME_STALL_TIMEOUT_SECONDS}s - camera stream stalled"
+                    ) from e
                 if not chunk:
                     stderr = await process.stderr.read()
                     raise CameraUnavailableError(f"ffmpeg exited unexpectedly: {stderr.decode(errors='replace')[-500:]}")
