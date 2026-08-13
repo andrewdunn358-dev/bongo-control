@@ -165,45 +165,20 @@ export function Switches() {
                 {r.commanded_on ? 'LAST: ON' : 'LAST: OFF'}
               </StatusPill>
             </div>
-            {/* Two explicit buttons, not a toggle switch - a toggle
-                visually implies "here's the current position, flip it,"
-                which claims certainty about the bulb's real state that
-                nothing here actually has (see the page-level note
-                above). Both buttons are always clickable, never
-                disabled based on r.commanded_on - clicking "Turn on"
-                sends an absolute ON regardless of what we last thought
-                the state was, matching exactly how the backend already
-                works (relay_service.set() is never a toggle either).
-                The highlighted one is just showing the last command as
-                reference info, not something to trust as current fact. */}
-            <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="mt-4">
               <button
                 type="button"
-                aria-label={`Turn ${r.name} on`}
-                onClick={() => setMut.mutate({ id: r.id, on: true })}
+                aria-label={`Toggle ${r.name}`}
+                onClick={() => setMut.mutate({ id: r.id, on: !r.commanded_on })}
                 disabled={setMut.isPending}
                 className={cn(
-                  'inline-flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed',
+                  'w-full inline-flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed',
                   r.commanded_on
                     ? 'bg-aurora-teal text-navy-900 ring-1 ring-inset ring-aurora-teal/60'
                     : 'bg-ink/[0.06] ring-1 ring-inset ring-ink/15 hover:bg-ink/[0.1]',
                 )}
               >
-                <Power size={14} /> Turn on
-              </button>
-              <button
-                type="button"
-                aria-label={`Turn ${r.name} off`}
-                onClick={() => setMut.mutate({ id: r.id, on: false })}
-                disabled={setMut.isPending}
-                className={cn(
-                  'inline-flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed',
-                  !r.commanded_on
-                    ? 'bg-ink/[0.12] text-ink ring-1 ring-inset ring-ink/25'
-                    : 'bg-ink/[0.06] ring-1 ring-inset ring-ink/15 hover:bg-ink/[0.1]',
-                )}
-              >
-                <PowerOff size={14} /> Turn off
+                {r.commanded_on ? <Power size={14} /> : <PowerOff size={14} />} Toggle
               </button>
             </div>
           </GlassCard>

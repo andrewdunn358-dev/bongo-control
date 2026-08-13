@@ -138,7 +138,11 @@ def record_relay_event(channel_id: int | None, channel_name: str, action: str, s
 # docstring). Names mirror the seeded config in configuration_service.py.
 DEFAULT_CHANNELS = [
     {"id": 1, "gpio": 17, "name": "Heater"},
-    {"id": 2, "gpio": 27, "name": "Lights"},
+    # inverted: True - confirmed 13 Aug via a clean, repeatable 3-for-3
+    # inversion (commanded ON -> bulb dark, commanded OFF -> bulb lit,
+    # switch untouched throughout) - see the note where this is
+    # consumed in start() for the full reasoning.
+    {"id": 2, "gpio": 27, "name": "Lights", "inverted": True},
     {"id": 3, "gpio": 22, "name": "Radio / amp"},
     {"id": 4, "gpio": 23, "name": "Fridge / TV"},
     {"id": 7, "gpio": 16, "name": "Roof up"},
@@ -170,6 +174,28 @@ class RelayService:
     def configure(self, channels: list[dict[str, Any]] | None = None, active_high: bool = True) -> None:
         self._channels = channels if channels else list(DEFAULT_CHANNELS)
         self._active_high = active_high
+        self._backfill_new_channel_fields()
+
+    def _backfill_new_channel_fields(self) -> None:
+        """A saved config.json's "relays.channels" list, once written
+        (e.g. via a rename), shadows DEFAULT_CHANNELS entirely - so a
+        field added to DEFAULT_CHANNELS later (like "inverted" here)
+        silently doesn't reach an existing install's saved channels at
+        all, not even after a deploy, until someone hand-edits the
+        JSON. Back-fill any DEFAULT_CHANNELS field that's genuinely
+        absent (not just falsy - a deliberate False must stick) from
+        the matching saved channel by id, so new optional metadata
+        reaches existing installs the same way a brand new "relays"
+        section already does.
+        """
+        defaults_by_id = {c["id"]: c for c in DEFAULT_CHANNELS}
+        for channel in self._channels:
+            default = defaults_by_id.get(channel.get("id"))
+            if not default:
+                continue
+            for key, value in default.items():
+                if key not in channel:
+                    channel[key] = value
 
     def start(self) -> None:
         """Claims the GPIO pins. Failure here is non-fatal and expected
@@ -201,9 +227,26 @@ class RelayService:
                 channel_id = channel["id"]
                 restored_on = bool(restore_state.get(str(channel_id), False)) if clean else False
 
+                # Board-wide active_high, XOR'd with a per-channel
+                # "inverted" flag for a circuit whose physical path
+                # (relay wiring, or something else specific to that one
+                # circuit) results in the opposite of what the board's
+                # own trigger polarity would normally produce - not
+                # claiming to know the exact physical cause, just
+                # correcting the observed behaviour. Confirmed on
+                # relay 2 (Lights) the night of 13 Aug: three consecutive
+                # tests logged a perfectly consistent, deterministic
+                # inversion (commanded ON -> bulb stayed dark, commanded
+                # OFF -> bulb lit, repeated identically with no switch
+                # touched in between) - that clean, repeatable pattern is
+                # what a physical wiring mistake looks like, not
+                # switch-position ambiguity, which would be inconsistent
+                # from test to test rather than perfectly opposite every
+                # single time.
+                effective_active_high = self._active_high != bool(channel.get("inverted", False))
                 device = OutputDevice(
                     channel["gpio"],
-                    active_high=self._active_high,
+                    active_high=effective_active_high,
                     initial_value=restored_on,
                 )
                 self._devices[channel_id] = device
