@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Radio as RadioIcon, Search, Play, Pause, Square, Music2 } from 'lucide-react';
 import { GlassCard } from '@/components/primitives/GlassCard';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { api } from '@/lib/api';
+import { isDemo } from '@/lib/demo';
 import { RADIO } from '@/constants/testIds';
 import type { RadioStation } from '@/lib/types';
 
@@ -15,11 +16,26 @@ import type { RadioStation } from '@/lib/types';
  * itself reuses the exact same internet_radio_service play/pause/stop
  * endpoints already built for Battery Bar, so there's only ever one
  * playback path in this app, not two competing ones.
+ *
+ * DEMO MODE IS THE EXCEPTION: the demo build has no backend at all
+ * (see demo.ts) - there's no mpv on a Pi to control, so the API calls
+ * above would just return canned JSON with nothing actually audible.
+ * A radio feature that shows a fake "PLAYING" pill but stays silent is
+ * a worse demo than no radio feature at all - people testing it are
+ * specifically trying to hear it work. So in demo mode only, this
+ * plays a real stream directly in the browser via a plain <audio>
+ * element instead of calling the (nonexistent) backend. <audio src>
+ * doesn't need CORS the way fetch() would - it's the same mechanism
+ * an <img> tag uses cross-origin, so this works with no server-side
+ * involvement at all.
  */
 export function RadioPage() {
   const qc = useQueryClient();
   const [query, setQuery] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [demoPlaying, setDemoPlaying] = useState(false);
+  const [demoUrl, setDemoUrl] = useState<string | null>(null);
 
   const stations = useQuery({
     queryKey: ['radio-directory', searchTerm],
@@ -29,29 +45,70 @@ export function RadioPage() {
   const status = useQuery({
     queryKey: ['internet-radio-status'],
     queryFn: api.internetRadioStatus,
-    refetchInterval: 5000,
+    refetchInterval: isDemo ? false : 5000, // demo status is local audio-element state, not worth polling
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['internet-radio-status'] });
 
   const play = useMutation({
-    mutationFn: (station: RadioStation) => {
+    mutationFn: async (station: RadioStation) => {
       if (station.uuid) api.radioDirectoryClick(station.uuid).catch(() => {}); // courtesy stat, never blocks playback
+      if (isDemo) {
+        const el = audioRef.current;
+        if (!el) return;
+        el.src = station.url;
+        await el.play(); // a direct result of the click that triggered this - satisfies browser autoplay policy
+        setDemoUrl(station.url); // only after play() actually resolves - a failed station shouldn't look "selected"
+        return;
+      }
       return api.internetRadioPlay(station.url);
     },
     onSuccess: invalidate,
-    onError: (e) => toast.error(e instanceof Error ? e.message : 'Could not play that station'),
+    onError: (e) => toast.error(isDemo ? "Couldn't play that station's demo stream - try another one" : e instanceof Error ? e.message : 'Could not play that station'),
   });
-  const pause = useMutation({ mutationFn: api.internetRadioPause, onSuccess: invalidate, onError: (e) => toast.error(e instanceof Error ? e.message : 'Could not pause') });
-  const resume = useMutation({ mutationFn: api.internetRadioResume, onSuccess: invalidate, onError: (e) => toast.error(e instanceof Error ? e.message : 'Could not resume') });
-  const stop = useMutation({ mutationFn: api.internetRadioStop, onSuccess: invalidate, onError: (e) => toast.error(e instanceof Error ? e.message : 'Could not stop') });
+  const pause = useMutation({
+    mutationFn: async () => (isDemo ? audioRef.current?.pause() : api.internetRadioPause()),
+    onSuccess: invalidate,
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Could not pause'),
+  });
+  const resume = useMutation({
+    mutationFn: async () => (isDemo ? audioRef.current?.play() : api.internetRadioResume()),
+    onSuccess: invalidate,
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Could not resume'),
+  });
+  const stop = useMutation({
+    mutationFn: async () => {
+      if (isDemo) {
+        const el = audioRef.current;
+        if (el) {
+          el.pause();
+          el.removeAttribute('src');
+        }
+        setDemoUrl(null);
+        return;
+      }
+      return api.internetRadioStop();
+    },
+    onSuccess: invalidate,
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Could not stop'),
+  });
 
-  const playing = status.data?.playing ?? false;
-  const running = status.data?.running ?? false;
-  const currentUrl = status.data?.stream_url;
+  const playing = isDemo ? demoPlaying : status.data?.playing ?? false;
+  const running = isDemo ? demoUrl !== null : status.data?.running ?? false;
+  const currentUrl = isDemo ? demoUrl : status.data?.stream_url;
 
   return (
     <div data-testid={RADIO.root} className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-10 py-6 lg:py-10">
+      {isDemo && (
+        <audio
+          ref={audioRef}
+          onPlay={() => setDemoPlaying(true)}
+          onPause={() => setDemoPlaying(false)}
+          onEnded={() => { setDemoPlaying(false); setDemoUrl(null); }}
+          onError={() => { setDemoPlaying(false); toast.error("Couldn't load that station's stream - try another one"); }}
+          className="hidden"
+        />
+      )}
       <div className="mb-6">
         <div className="text-[11px] uppercase tracking-[0.24em] text-ink-muted">Radio</div>
         <h1 className="text-3xl md:text-5xl font-semibold tracking-tight mt-1">

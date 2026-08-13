@@ -676,12 +676,20 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
   if (p === '/internet-radio/stop')
     return R({ available: true, running: false, playing: false, stream_url: null, configured_stream_url: 'https://radio.3bty.co.uk/listen/btybar/radio.mp3' });
   if (p.startsWith('/radio-directory/search'))
+    // Real, HTTPS, directly-playable MP3 streams - not placeholders.
+    // Demo mode plays these for real in the browser (see Radio.tsx),
+    // so a fake example.com URL would just silently fail to load and
+    // make the whole feature look broken to anyone testing the site.
+    // Heart 80s is confirmed working (curl-tested against the live
+    // stream); the other three are the same musicradio.com CDN and
+    // naming convention, not individually re-verified - worth a quick
+    // spot-check after deploying.
     return R({
       stations: [
-        { uuid: 'demo-1', name: 'BBC Radio 1', url: 'https://example.com/radio1', favicon: null, tags: ['pop', 'chart'], bitrate: 128, codec: 'MP3' },
-        { uuid: 'demo-2', name: 'BBC Radio 2', url: 'https://example.com/radio2', favicon: null, tags: ['adult contemporary'], bitrate: 128, codec: 'MP3' },
-        { uuid: 'demo-3', name: 'Classic FM', url: 'https://example.com/classicfm', favicon: null, tags: ['classical'], bitrate: 128, codec: 'AAC' },
-        { uuid: 'demo-4', name: 'Absolute Radio', url: 'https://example.com/absolute', favicon: null, tags: ['rock'], bitrate: 128, codec: 'MP3' },
+        { uuid: 'demo-1', name: 'Heart 80s', url: 'https://media-ssl.musicradio.com/Heart80sMP3', favicon: null, tags: ['80s', 'pop'], bitrate: 128, codec: 'MP3' },
+        { uuid: 'demo-2', name: 'Classic FM', url: 'https://media-ssl.musicradio.com/ClassicFMMP3', favicon: null, tags: ['classical'], bitrate: 128, codec: 'MP3' },
+        { uuid: 'demo-3', name: 'Capital', url: 'https://media-ssl.musicradio.com/CapitalMP3', favicon: null, tags: ['chart', 'pop'], bitrate: 128, codec: 'MP3' },
+        { uuid: 'demo-4', name: 'Smooth Radio', url: 'https://media-ssl.musicradio.com/SmoothRadioMP3', favicon: null, tags: ['adult contemporary'], bitrate: 128, codec: 'MP3' },
       ],
       count: 4,
     });
