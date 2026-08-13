@@ -366,6 +366,19 @@ class VoiceControlService:
         pause-only attempt didn't release the ALSA handle and arecord
         still saw the device as busy) before this runs, then reopens a
         fresh stream afterward.
+
+        Records at 44100Hz, not 16000 - found the hard way setting up a
+        new USB sound card: forcing this card to 16000Hz through ALSA's
+        plughw resampling layer produced dead silence, every time, with
+        no error at all - arecord reported success, the file was the
+        right size, just silent. Recording at the card's own comfortable
+        native-ish rate (44100 - close to universal across consumer
+        audio hardware) and letting Groq/Vosk handle whatever rate
+        actually comes back worked cleanly. Neither Whisper nor Vosk's
+        KaldiRecognizer (see _try_offline_relay_command, which reads
+        the rate straight out of the WAV header rather than assuming a
+        fixed number) cares what rate this file is at - forcing 16000
+        was gaining nothing and silently breaking a real device.
         """
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
             path = Path(f.name)
@@ -376,7 +389,7 @@ class VoiceControlService:
                     "arecord",
                     "-D", self._mic_device(),
                     "-f", "S16_LE",
-                    "-r", "16000",
+                    "-r", "44100",
                     "-c", "1",
                     "-d", str(int(COMMAND_RECORD_SECONDS)),
                     str(path),
