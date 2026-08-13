@@ -585,6 +585,12 @@ class VoiceControlService:
         backend restart every time a key changes."""
         if not self._groq_api_key():
             raise VoiceControlUnavailableError("No Groq API key set - add one above first")
+        if self._processing:
+            # _handle_wake() itself would just silently skip a second
+            # call (see its own docstring) - fine for the real listener,
+            # but a person tapping a test button deserves to know why
+            # nothing happened rather than seeing stale status.
+            raise VoiceControlUnavailableError("Already processing another voice interaction - wait a moment and try again")
         await self._handle_wake()
         return self.status()
 
@@ -618,6 +624,16 @@ class VoiceControlService:
         listener's own state, exactly as if it had been said aloud."""
         if not self._groq_api_key():
             raise VoiceControlUnavailableError("No Groq API key set - add one above first")
+        if self._processing:
+            # This doesn't call _handle_wake() itself, but its own
+            # playback still uses the same exclusive mic/speaker
+            # hardware _handle_wake() needs - if something else is
+            # already mid-interaction, starting this too is exactly
+            # the two-flows-fighting-over-one-device collision that
+            # caused real symptoms live (a confirm beep getting
+            # recorded as the "command", "Device or resource busy" on
+            # playback). Reject clearly rather than let it happen again.
+            raise VoiceControlUnavailableError("Already processing another voice interaction - wait a moment and try again")
         wake_word = self._wake_word()
         logger.info("Voice control: === manual speak-test starting: %r, pause, %r ===", wake_word, command_text)
 
@@ -638,7 +654,29 @@ class VoiceControlService:
         real error is caught and turned into a spoken apology rather
         than left to die silently in a background task - the whole
         point of voice control is not having to look at a screen to
-        know something went wrong."""
+        know something went wrong.
+
+        Guards against a SECOND call starting while this one is still
+        running - self._processing existed before this but was only
+        ever used to render "THINKING..." on the status card, never
+        actually checked as a lock. Real bug this caused, seen live:
+        the "Test without going to the van" feature deliberately plays
+        audio through the speaker for the real wake-word listener to
+        pick up (that's the intended design) - but with no guard, the
+        listener's own genuine trigger and the manual test's own
+        _handle_wake() call both ran at once, fighting over the same
+        mic and speaker. One side's confirm beep got recorded by the
+        other side as if it were the spoken command ("heard 'BEEP!'" in
+        the logs), and playback calls collided ("Device or resource
+        busy"). A single mic+speaker can only ever serve one
+        interaction at a time - there's no scenario where two SHOULD
+        run concurrently, so a second call while one's in flight is
+        rejected outright, not queued (queuing would mean processing a
+        stale recording seconds or minutes later, out of context -
+        worse than just saying no)."""
+        if self._processing:
+            logger.warning("Voice control: wake fired while already processing another interaction - ignoring, not queuing (see _handle_wake's own docstring for why)")
+            return
         self._processing = True
         self._last_wake_at = time.time()
         # Ducks internet radio for the ENTIRE wake-word-to-reply window,
