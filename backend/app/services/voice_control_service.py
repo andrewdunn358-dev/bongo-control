@@ -108,6 +108,18 @@ VOSK_MODEL_DIR = "/app/data/vosk-models"
 VOSK_MODEL_NAME = "vosk-model-small-en-us-0.15"
 VOSK_MODEL_URL = f"https://alphacephei.com/vosk/models/{VOSK_MODEL_NAME}.zip"
 
+# Temporarily off. The offline path was shown live tonight to
+# occasionally MISHEAR "on" as "off" (or vice versa) through the still-
+# unsettled new mic setup (loose TRRS/TRS connector, adapter on order) -
+# not a logic bug, a genuine mishearing, then faithfully acted on. For
+# a plain physical relay command that's worse than just not responding:
+# it can do the opposite of what was actually said. Groq's transcription
+# hasn't shown this problem. Set back to True once the new mic + adapter
+# are properly connected and this has been retested cleanly - the whole
+# _try_offline_relay_command implementation is untouched and ready to
+# go, this is the only thing gating it.
+OFFLINE_RELAY_COMMANDS_ENABLED = False
+
 # How long to record after the wake word fires. Reported concern: a
 # full interaction taking ~18 real seconds end to end wouldn't impress
 # anyone shown it - a fixed, invisible-in-the-logs 5s recording window
@@ -706,7 +718,10 @@ class VoiceControlService:
             # Vosk simply not being sure) falls straight through to the
             # normal Groq Whisper transcription exactly as before - this
             # is a first attempt, never a replacement for it.
-            offline_matched = await asyncio.to_thread(self._try_offline_relay_command, clip)
+            #
+            # Gated off for now (OFFLINE_RELAY_COMMANDS_ENABLED) - see
+            # that constant's own comment for why.
+            offline_matched = await asyncio.to_thread(self._try_offline_relay_command, clip) if OFFLINE_RELAY_COMMANDS_ENABLED else None
             if offline_matched:
                 channel_id, turn_on, name = offline_matched
                 relay_service.set(channel_id, turn_on, source="voice:ron-offline")
