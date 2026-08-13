@@ -108,17 +108,13 @@ VOSK_MODEL_DIR = "/app/data/vosk-models"
 VOSK_MODEL_NAME = "vosk-model-small-en-us-0.15"
 VOSK_MODEL_URL = f"https://alphacephei.com/vosk/models/{VOSK_MODEL_NAME}.zip"
 
-# Temporarily off. The offline path was shown live tonight to
-# occasionally MISHEAR "on" as "off" (or vice versa) through the still-
-# unsettled new mic setup (loose TRRS/TRS connector, adapter on order) -
-# not a logic bug, a genuine mishearing, then faithfully acted on. For
-# a plain physical relay command that's worse than just not responding:
-# it can do the opposite of what was actually said. Groq's transcription
-# hasn't shown this problem. Set back to True once the new mic + adapter
-# are properly connected and this has been retested cleanly - the whole
-# _try_offline_relay_command implementation is untouched and ready to
-# go, this is the only thing gating it.
-OFFLINE_RELAY_COMMANDS_ENABLED = False
+# Reverted back on same night - Andrew's call: the mic is working fine
+# right now, this shouldn't have been disabled on a guess about hardware
+# that wasn't actually confirmed still broken. Both this path and Groq
+# already command an absolute ON or OFF directly, never a toggle, never
+# dependent on assumed prior state - that's the whole design, and it
+# was never the problem.
+OFFLINE_RELAY_COMMANDS_ENABLED = True
 
 # How long to record after the wake word fires. Reported concern: a
 # full interaction taking ~18 real seconds end to end wouldn't impress
