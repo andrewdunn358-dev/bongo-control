@@ -287,6 +287,19 @@ class VoiceControlService:
             if c.get("id") not in roof_ids and c.get("name")
         }
 
+    @staticmethod
+    def _current_commanded_on(channel_id: int) -> bool:
+        """The last-known commanded state for one channel - used to
+        compute a toggle direction (see _handle_wake()'s two relay-
+        command branches). Defaults to False (so a lookup failure
+        toggles to ON rather than silently doing nothing) - genuinely
+        best-effort, never raises."""
+        try:
+            channels = relay_service.status().get("channels", [])
+            return bool(next((c.get("commanded_on") for c in channels if c.get("id") == channel_id), False))
+        except Exception:  # noqa: BLE001
+            return False
+
     def _match_relay_command(self, text: str) -> tuple[int, bool, str] | None:
         """A fixed, tiny grammar - not a second LLM call. A short list
         of physical actions matched by keyword is more reliable AND far
@@ -719,10 +732,22 @@ class VoiceControlService:
             # that constant's own comment for why.
             offline_matched = await asyncio.to_thread(self._try_offline_relay_command, clip) if OFFLINE_RELAY_COMMANDS_ENABLED else None
             if offline_matched:
-                channel_id, turn_on, name = offline_matched
-                relay_service.set(channel_id, turn_on, source="voice:ron-offline")
-                reply = f"Turning the {name} {'on' if turn_on else 'off'}."
-                self._last_command_text = f"[offline] {name} {'on' if turn_on else 'off'}"
+                channel_id, _heard_direction, name = offline_matched
+                # Toggle from current commanded state - deliberately
+                # IGNORING which word (on/off) was actually recognised.
+                # Andrew's own framing: "no matter what I say, just
+                # toggle the relay" - he's standing there, can see the
+                # actual light, and will just say it again if it went
+                # the wrong way, exactly like flicking a real switch.
+                # This also sidesteps every failure mode chased earlier
+                # tonight in one move - a misheard word, a relay wired
+                # the "wrong" way, an app that can't see the switch -
+                # none of it matters once the action no longer depends
+                # on getting on/off right in the first place.
+                new_state = not self._current_commanded_on(channel_id)
+                relay_service.set(channel_id, new_state, source="voice:ron-offline")
+                reply = f"Toggling the {name}."
+                self._last_command_text = f"[offline] toggle {name}"
                 self._last_reply_text = reply
                 self._last_error = None
                 confirm_beep = self._generate_beep_wav(frequency_hz=1400.0, duration_s=0.12)
@@ -738,9 +763,12 @@ class VoiceControlService:
 
             matched = self._match_relay_command(text)
             if matched:
-                channel_id, turn_on, name = matched
-                relay_service.set(channel_id, turn_on, source="voice:ron")
-                reply = f"Turning the {name} {'on' if turn_on else 'off'}."
+                channel_id, _heard_direction, name = matched
+                # Same toggle-not-absolute reasoning as the offline
+                # branch above - see that comment for why.
+                new_state = not self._current_commanded_on(channel_id)
+                relay_service.set(channel_id, new_state, source="voice:ron")
+                reply = f"Toggling the {name}."
                 self._last_reply_text = reply
                 self._last_error = None
                 # A relay command gets its own immediate, physical
