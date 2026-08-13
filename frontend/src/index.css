@@ -1,0 +1,269 @@
+/* Bongo Control — global stylesheet
+   - Theme-aware `ink` colour (§ Ink token) so opacity variants work in both
+     dark and light without hardcoding text-white / bg-white.
+   - Aurora + grid + noise backdrop
+   - Space Grotesk (UI) + JetBrains Mono (all telemetry numerics via .num)
+*/
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root,
+  html.dark {
+    /* Ink — high-contrast text tokens.
+       Contrast measured against --surface rgb(15,41,66), the card
+       background most body text actually sits on:
+         ink       12.9:1
+         ink-soft  10.7:1
+         ink-muted  7.0:1
+         ink-faint  5.3:1
+       ink-muted and ink-faint were originally 148/163/184 and
+       100/116/139, giving ink-faint just 3.12:1 - below the 4.5:1
+       WCAG AA minimum for body text, and it's used for exactly the
+       small print (backend endpoint hints, cache dates, GPIO numbers)
+       where legibility matters most on a screen being read at arm's
+       length in daylight. */
+    --ink: 230 240 255;         /* near-white */
+    --ink-soft: 214 224 238;
+    --ink-muted: 190 202 219;   /* brightened for readability on the aurora */
+    --ink-faint: 166 181 201;   /* brightened: was 140/156/178, too dim */
+
+    /* Surface — card/backdrop tones */
+    --surface: 15 41 66;
+    --surface-raised: 20 47 77;
+    --surface-sunken: 10 22 40;
+    --line: 148 163 184;         /* used with /15 style alpha */
+
+    /* Aurora aesthetic base gradient (dark) */
+    --aurora-base: linear-gradient(180deg, #0a1628 0%, #0f2942 100%);
+
+    /* Accent colours - unchanged from their original fixed values.
+       These look right on the dark navy surface they were designed
+       against (see the html.light block below for why they can't
+       just be reused as-is on white). */
+    --aurora-teal: 34 211 238;
+    --aurora-blue: 56 189 248;
+    --aurora-purple: 168 85 247;
+    --aurora-pink: 244 114 182;
+    --aurora-lime: 163 230 53;
+    --status-green: 16 185 129;
+    --status-amber: 245 158 11;
+    --status-red: 239 68 68;
+    /* New VanOS V2 brand accent, introduced for the redesigned Home
+       hero specifically - kept separate from status-amber (that's a
+       warning colour, semantically different from a brand colour,
+       even though both land in the orange family). Same computed-not-
+       guessed light-mode treatment as every other accent: contrast
+       against white measured before picking the light-mode value. */
+    --brand-orange: 255 138 0;
+  }
+  html.light {
+    --ink: 10 22 40;             /* near-black */
+    --ink-soft: 30 53 85;
+    --ink-muted: 71 85 105;
+    --ink-faint: 100 116 139;
+
+    --surface: 255 255 255;
+    --surface-raised: 248 251 255;
+    --surface-sunken: 234 240 249;
+    --line: 15 41 66;
+
+    --aurora-base: linear-gradient(180deg, #eef2f7 0%, #dbe4ee 100%);
+
+    /* These were the SAME fixed hex values as dark mode until now -
+       bright, saturated colours tuned to pop against a dark navy
+       background have almost no contrast against white (measured:
+       teal 1.81:1, lime 1.51:1, amber 2.15:1 - all far below the
+       4.5:1 WCAG AA minimum for body text, which is exactly the "hard
+       to read" complaint this was reported as). Same hue as the dark-
+       mode versions, darkened until each clears 4.5:1 against white -
+       computed, not eyeballed. */
+    --aurora-teal: 11 129 146;
+    --aurora-blue: 6 126 179;
+    --aurora-purple: 158 66 246;
+    --aurora-pink: 226 18 127;
+    --aurora-lime: 86 128 16;
+    --status-green: 12 135 94;
+    --status-amber: 165 106 7;
+    --status-red: 235 20 20;
+    /* Original #FF8A00 is only 2.36:1 on white - same class of failure
+       as every other accent fixed earlier tonight. Darkened until it
+       cleared 4.5:1, same hue. */
+    --brand-orange: 178 97 0;
+  }
+
+  html, body, #root {
+    height: 100%;
+    min-height: 100%;
+  }
+  body {
+    @apply font-sans antialiased text-ink;
+    background: var(--aurora-base) fixed;
+    letter-spacing: -0.005em;
+  }
+  ::selection {
+    background: rgba(34, 211, 238, 0.35);
+    color: rgb(var(--ink));
+  }
+  html.light ::selection {
+    background: rgba(168, 85, 247, 0.25);
+    color: rgb(var(--ink));
+  }
+}
+
+@layer components {
+  .num {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    color: rgb(var(--ink));
+  }
+
+  /* Settings' new CollapsibleGroup wrapper uses a native <details>/
+     <summary> for its collapse behaviour deliberately (free keyboard/
+     screen-reader support, no new React state) - but every browser
+     draws its own default disclosure marker on <summary>, and that
+     marker isn't reliably suppressed by list-style/list-none alone
+     (WebKit specifically needs its own pseudo-element targeted too).
+     CollapsibleGroup already renders its own chevron icon, so the
+     native one would just look like a stray duplicate arrow. */
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  summary {
+    list-style: none;
+  }
+
+  /* Neon-navy card. More opaque than the old near-transparent glass so
+     text reads cleanly against the busier aurora background, with a
+     faint teal edge + outer glow that matches the design mockups.
+     glow-teal / glow-purple below layer a stronger accent on top. */
+  .glass {
+    /* More opaque (was 0.55/0.58): at ~55% the bright aurora bled through
+       and washed out the muted label text, worst where a bright ribbon
+       passed behind a card. ~0.85 keeps the glass look but restores the
+       near-solid navy the text-contrast ratios were designed against. */
+    background: linear-gradient(180deg, rgba(18, 45, 74, 0.85) 0%, rgba(12, 30, 52, 0.88) 100%);
+    /* No backdrop-filter at all now, not even a light one - was
+       blur(16px) saturate(140%), then halved to blur(8px) with
+       saturate dropped (see below). Still not enough: reported
+       "horribly slow" rendering, general navigation, everywhere, on a
+       budget Android phone (Honor 200 Lite) - fine on desktop, which
+       is exactly the signature of a GPU-bound compositing cost a
+       desktop shrugs off and a phone GPU can't. backdrop-filter is one
+       of the most expensive things a mobile GPU can be asked to do,
+       and at ~85% background opacity it was already doing "very little
+       visible work" per the previous note - meaning removing it
+       entirely costs almost nothing visually while removing the single
+       biggest GPU expense on every screen (7+ of these cards on Home
+       alone). If this reads as too flat without it, the fix is more
+       border/shadow definition, not bringing blur back.
+    */
+    border: 1px solid rgba(34, 211, 238, 0.22);
+    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.05), 0 0 22px rgba(34, 211, 238, 0.07), 0 16px 38px rgba(2, 8, 20, 0.5);
+    border-radius: 1rem;
+  }
+  html.light .glass {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(255, 255, 255, 0.72) 100%);
+    border: 1px solid rgba(34, 211, 238, 0.28);
+    box-shadow: 0 0 18px rgba(34, 211, 238, 0.08), 0 8px 30px rgba(15, 41, 66, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+  }
+
+  .glow-teal {
+    box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.35), 0 0 60px -20px rgba(34, 211, 238, 0.7);
+  }
+  .glow-purple {
+    box-shadow: inset 0 0 0 1px rgba(168, 85, 247, 0.35), 0 0 60px -20px rgba(168, 85, 247, 0.7);
+  }
+  .glow-orange {
+    box-shadow: inset 0 0 0 1px rgb(var(--brand-orange) / 0.4), 0 0 60px -20px rgba(255, 138, 0, 0.7);
+  }
+
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+    background-size: 48px 48px;
+    -webkit-mask-image: radial-gradient(80% 60% at 50% 40%, black 40%, transparent 100%);
+            mask-image: radial-gradient(80% 60% at 50% 40%, black 40%, transparent 100%);
+  }
+  html.light .grid-bg {
+    background-image:
+      linear-gradient(rgba(15, 41, 66, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(15, 41, 66, 0.05) 1px, transparent 1px);
+  }
+
+  /* Flowing northern-lights bands for the background (see
+     AuroraBackground.tsx). Softer in light mode so it doesn't wash out. */
+  .aurora-ribbon {
+    position: absolute;
+    left: -25%;
+    width: 150%;
+    height: 46vh;
+    max-height: 520px;
+    filter: blur(50px);
+    opacity: 0.8;
+    mix-blend-mode: screen;
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  html.light .aurora-ribbon { opacity: 0.28; mix-blend-mode: multiply; }
+
+  .noise {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.04;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+  html.light .noise { opacity: 0.02; }
+
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium tracking-wide;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
+/* Touch nav override — NavShell.tsx's mobile/desktop split is driven by
+   Tailwind's md: width breakpoint, which can't tell a wide *window* from
+   a wide *touchscreen*. A tablet held in landscape (e.g. 11") is wider
+   than md but is still tapped with a finger, not driven with a mouse -
+   without this it gets shoved into the desktop top-nav layout, which is
+   what was happening. `pointer: coarse` is true for touchscreens (and
+   stays true on iPad even with a mouse attached, by design) and false
+   for anything mouse/trackpad-driven, so this forces the touch-friendly
+   bottom-nav layout back on for any touch device, at any width or
+   orientation - portrait and landscape both get the same layout. */
+@media (pointer: coarse) {
+  .nav-desktop-header { display: none !important; }
+  .nav-mobile-header { display: flex !important; }
+  .nav-mobile-bottom { display: block !important; }
+  .nav-main-padding { padding-bottom: 6rem !important; } /* matches pb-24 */
+  .nav-touch-stack { display: block !important; } /* forces the sidebar+main row back to a stacked mobile layout on any touch device, same reasoning as above */
+}
+
+/* MapLibre attribution */
+.maplibregl-ctrl-attrib,
+.maplibregl-ctrl-attrib a {
+  background: rgba(10, 22, 40, 0.7) !important;
+  color: rgb(var(--ink-muted)) !important;
+  font-size: 10px !important;
+}
+html.light .maplibregl-ctrl-attrib,
+html.light .maplibregl-ctrl-attrib a {
+  background: rgba(255, 255, 255, 0.85) !important;
+  color: rgb(var(--ink-muted)) !important;
+}
+.maplibregl-canvas { outline: none !important; }
+
+/* Aurora ribbon drift — slow, offset so the bands never move in lockstep. */
+@keyframes auroraDrift1 { from { transform: translateY(-18px) rotate(-8deg); } to { transform: translateY(26px) rotate(-5deg); } }
+@keyframes auroraDrift2 { from { transform: translateY(12px) rotate(6deg); } to { transform: translateY(-24px) rotate(9deg); } }
+@keyframes auroraDrift3 { from { transform: translateY(0) rotate(-14deg); } to { transform: translateY(32px) rotate(-11deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .aurora-ribbon { animation: none !important; }
+}
