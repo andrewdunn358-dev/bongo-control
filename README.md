@@ -133,6 +133,15 @@ on the backend for this).
 3. Nothing else changes — same domains, same message shape, same
    WebSocket stream, same frontend.
 
+## Building the physical van
+
+[`docs/parts-list.xlsx`](docs/parts-list.xlsx) — everything used in the
+build (relay board, switches, sensors, power system, audio, roof) with
+status (installed / outstanding / planned), approximate current cost,
+and a link where one genuinely exists. Not an inventory audit of any
+specific van — a working reference for anyone replicating the build or
+sourcing a replacement part.
+
 ## Roadmap
 
 | Milestone | Goal |
