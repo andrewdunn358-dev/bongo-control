@@ -169,6 +169,13 @@ class VoiceControlService:
         self._last_reply_text: str | None = None
         self._last_error: str | None = None
         self._processing = False
+        # Cached Vosk model instance - loaded once, shared by both the
+        # wake-word listener AND the offline relay-command recognizer
+        # below (see _load_vosk_model()'s caching). A Vosk Model is a
+        # read-only set of weights safe to share across multiple
+        # KaldiRecognizer instances; only the recognizer itself carries
+        # per-utterance state.
+        self._vosk_model = None
 
     # ---------------------------------------------------------- config
 
@@ -630,6 +637,28 @@ class VoiceControlService:
                 _reopen_mic_and_record(),
             )
 
+            # Try offline first: physical relay control shouldn't
+            # depend on the van having a working internet connection at
+            # all. If Vosk's constrained grammar confidently recognises
+            # a relay command, act on it immediately with zero Groq
+            # calls - same relay-setting code path, same confirm beep,
+            # as the Groq-matched branch below. Anything that doesn't
+            # confidently match (open-ended chat, an unclear command,
+            # Vosk simply not being sure) falls straight through to the
+            # normal Groq Whisper transcription exactly as before - this
+            # is a first attempt, never a replacement for it.
+            offline_matched = await asyncio.to_thread(self._try_offline_relay_command, clip)
+            if offline_matched:
+                channel_id, turn_on, name = offline_matched
+                relay_service.set(channel_id, turn_on, source="voice:ron-offline")
+                reply = f"Turning the {name} {'on' if turn_on else 'off'}."
+                self._last_command_text = f"[offline] {name} {'on' if turn_on else 'off'}"
+                self._last_reply_text = reply
+                self._last_error = None
+                confirm_beep = self._generate_beep_wav(frequency_hz=1400.0, duration_s=0.12)
+                await asyncio.to_thread(self._play_clip, confirm_beep)
+                return
+
             text = await asyncio.to_thread(self._transcribe, clip)
             self._last_command_text = text
             logger.info("Voice control: heard %r", text)
@@ -695,7 +724,16 @@ class VoiceControlService:
         bad zip, whatever - is a normal, catchable exception instead,
         and vosk.Model(model_path=...) (used below) doesn't go through
         get_model_by_lang() or its sys.exit() at all.
+
+        Caches the loaded model on self._vosk_model after the first
+        call - Vosk model loading parses a real model directory from
+        disk each time, not free, and both the wake-word listener and
+        the offline relay-command recognizer (_try_offline_relay_command
+        below) need the same model.
         """
+        if self._vosk_model is not None:
+            return self._vosk_model
+
         import vosk
         import zipfile
 
@@ -716,7 +754,73 @@ class VoiceControlService:
                     zf.extractall(model_dir)
             finally:
                 zip_path.unlink(missing_ok=True)
-        return vosk.Model(model_path=str(model_path))
+        self._vosk_model = vosk.Model(model_path=str(model_path))
+        return self._vosk_model
+
+    def _relay_command_grammar_words(self) -> list[str]:
+        """The fixed word list for the offline relay-command recognizer
+        below - Vosk's grammar mode (same mechanism already used for
+        wake-word detection) constrains recognition to only these
+        words/phrases, which is exactly what makes it reliable for a
+        small, known vocabulary like this. Built from the LIVE relay
+        names (so a rename keeps working, same as _match_relay_command's
+        own singular/plural handling) plus the fixed action/connector
+        words that grammar actually needs, and "[unk]" as the catch-all
+        for anything else - without it, every utterance gets forced
+        toward the closest listed word even when nothing close was
+        actually said.
+        """
+        words = {"on", "off", "turn", "switch", "put", "the", "please"}
+        for name in self._voice_controllable_relays():
+            words.add(name)
+            if name.endswith("s"):
+                words.add(name[:-1])
+            # Multi-word relay names ("radio / amp") need their
+            # individual words in the grammar too, not just the whole
+            # phrase - Vosk's grammar list matches whole list entries,
+            # so "radio" alone needs to be its own entry to recognise
+            # "radio off" without the "/ amp" part being spoken.
+            for part in name.replace("/", " ").split():
+                if part:
+                    words.add(part)
+        return sorted(words)
+
+    def _try_offline_relay_command(self, wav_bytes: bytes) -> tuple[int, bool, str] | None:
+        """Attempts to recognise the just-recorded command clip entirely
+        offline via Vosk's grammar mode, before ever reaching for Groq.
+        Returns the same (channel_id, turn_on, name) shape
+        _match_relay_command() does - reuses that exact matcher on
+        whatever text Vosk produces, rather than duplicating the on/off
+        and adjacency logic here. Returns None (never raises) for
+        anything that isn't confidently a relay command, so the caller
+        can fall through to the normal Groq Whisper + Ron pipeline
+        exactly as before - this is a first attempt, not a replacement.
+
+        The point: a relay command ("lights off") is physical control
+        of something in the van, and right now that only works with a
+        working internet connection to Groq. Nothing about turning a
+        light on or off should need to leave the vehicle.
+        """
+        try:
+            import vosk
+
+            model = self._load_vosk_model()
+            with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
+                sample_rate = wf.getframerate()
+                frames = wf.readframes(wf.getnframes())
+
+            grammar = json.dumps([*self._relay_command_grammar_words(), "[unk]"])
+            recognizer = vosk.KaldiRecognizer(model, sample_rate, grammar)
+            recognizer.AcceptWaveform(frames)
+            result = json.loads(recognizer.FinalResult())
+            text = str(result.get("text", "")).strip()
+            if not text or text == "[unk]":
+                return None
+            logger.info("Voice control: offline (Vosk) heard %r", text)
+            return self._match_relay_command(text)
+        except Exception as e:  # noqa: BLE001 - this is a best-effort first attempt, any failure just falls through to Groq
+            logger.debug("Voice control: offline relay-command recognition failed, falling through to Groq: %s", e)
+            return None
 
     def _resolve_sd_input_device(self) -> int:
         """Finds the actual PortAudio device index the wake-word
