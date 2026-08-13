@@ -192,6 +192,51 @@ class VoiceControlService:
     def _mic_device(self) -> str:
         return str(self._general().get("voice_mic_device") or "").strip() or DEFAULT_MIC_DEVICE
 
+    def _resolve_arecord_device(self) -> str:
+        """The SAME voice_mic_device setting is used two incompatible
+        ways: _resolve_sd_input_device() below matches it as a
+        descriptive NAME substring against sounddevice's own device
+        list (that's genuinely how PortAudio works, and correct for the
+        always-on listener) - but arecord (used for the per-command
+        recording in _record_command_clip) needs a real ALSA device
+        string like "plughw:2,0", not a description. Reported bug:
+        "Unknown PCM USB Audio Device" - the exact same config value
+        that correctly told the wake-word listener which mic to use was
+        being handed straight to `arecord -D`, which has no idea what
+        to do with a plain name at all.
+
+        Resolves properly instead of requiring two different-shaped
+        values in one field: if the configured value already looks like
+        real ALSA syntax (starts with a recognised prefix), use it
+        as-is - unchanged from before, so an already-correct
+        "plughw:2,0" style value (like the speaker field already uses)
+        keeps working exactly as it did. Otherwise, treat it as a name
+        to look up: parse `arecord -l`'s own output (the same listing
+        used to debug this by hand tonight) for a card whose
+        description contains it, and build "plughw:N,0" from whatever
+        card number that actually is right now - not a hardcoded
+        number, so this keeps working even if the card's number shifts
+        on a future reconnect (which it did, repeatedly, tonight).
+        """
+        configured = self._mic_device().strip()
+        if not configured or configured == DEFAULT_MIC_DEVICE:
+            return "default"
+        if any(configured.lower().startswith(prefix) for prefix in ("plughw:", "hw:", "default", "sysdefault")):
+            return configured  # already real ALSA syntax - pass through unchanged
+
+        try:
+            result = subprocess.run(["arecord", "-l"], capture_output=True, text=True, timeout=5)
+            for line in result.stdout.splitlines():
+                # arecord -l lines look like: "card 2: Device [USB Audio Device], device 0: ..."
+                if line.startswith("card ") and configured.lower() in line.lower():
+                    card_num = line.split("card ", 1)[1].split(":", 1)[0].strip()
+                    return f"plughw:{card_num},0"
+        except Exception as e:  # noqa: BLE001 - fall back to "default" rather than block recording entirely
+            logger.warning("Voice control: could not resolve mic device name %r via arecord -l, falling back to default: %s", configured, e)
+
+        logger.warning("Voice control: no card matched mic device name %r, falling back to default", configured)
+        return "default"
+
     def _playback_device(self) -> str:
         return str(self._general().get("voice_playback_device") or "").strip() or DEFAULT_PLAYBACK_DEVICE
 
@@ -383,11 +428,12 @@ class VoiceControlService:
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
             path = Path(f.name)
         try:
-            logger.info("Voice control: recording command for %.0fs via arecord on %s", COMMAND_RECORD_SECONDS, self._mic_device())
+            device = self._resolve_arecord_device()
+            logger.info("Voice control: recording command for %.0fs via arecord on %s", COMMAND_RECORD_SECONDS, device)
             result = subprocess.run(
                 [
                     "arecord",
-                    "-D", self._mic_device(),
+                    "-D", device,
                     "-f", "S16_LE",
                     "-r", "44100",
                     "-c", "1",
