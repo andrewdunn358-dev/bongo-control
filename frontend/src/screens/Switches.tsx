@@ -80,6 +80,11 @@ export function Switches() {
           <div className="text-[11px] uppercase tracking-[0.24em] text-ink-muted">Switches</div>
           <h1 className="text-3xl md:text-5xl font-semibold tracking-tight mt-1">Switches</h1>
           <div className="text-sm text-ink-muted mt-2">Four GPIO relays wired in parallel with the van&apos;s manual switches.</div>
+          <div className="text-xs text-ink-faint mt-1 max-w-2xl">
+            The tags below show what we last told each relay to do, not what&apos;s actually happening at the bulb — the
+            physical wall switch affects real power too, and the app has no way to sense that. A light can be lit or
+            dark independent of what&apos;s shown here.
+          </div>
         </div>
         <button
           type="button"
@@ -157,11 +162,11 @@ export function Switches() {
                 <div className="text-[11px] text-ink-faint mt-1 num">GPIO {r.gpio}</div>
               </div>
               <StatusPill tone={r.commanded_on ? 'teal' : 'slate'}>
-                {r.commanded_on ? 'ON' : 'OFF'}
+                {r.commanded_on ? 'CMD ON' : 'CMD OFF'}
               </StatusPill>
             </div>
             <div className="mt-4 flex items-center justify-between">
-              <span className="text-sm text-ink-muted">{r.commanded_on ? 'Powered on' : 'Tap to switch on'}</span>
+              <span className="text-sm text-ink-muted">{r.commanded_on ? 'Relay commanded on' : 'Relay commanded off'}</span>
               <button
                 type="button"
                 role="switch"
