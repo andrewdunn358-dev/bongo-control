@@ -162,33 +162,48 @@ export function Switches() {
                 <div className="text-[11px] text-ink-faint mt-1 num">GPIO {r.gpio}</div>
               </div>
               <StatusPill tone={r.commanded_on ? 'teal' : 'slate'}>
-                {r.commanded_on ? 'CMD ON' : 'CMD OFF'}
+                {r.commanded_on ? 'LAST: ON' : 'LAST: OFF'}
               </StatusPill>
             </div>
-            <div className="mt-4 flex items-center justify-between">
-              <span className="text-sm text-ink-muted">{r.commanded_on ? 'Relay commanded on' : 'Relay commanded off'}</span>
+            {/* Two explicit buttons, not a toggle switch - a toggle
+                visually implies "here's the current position, flip it,"
+                which claims certainty about the bulb's real state that
+                nothing here actually has (see the page-level note
+                above). Both buttons are always clickable, never
+                disabled based on r.commanded_on - clicking "Turn on"
+                sends an absolute ON regardless of what we last thought
+                the state was, matching exactly how the backend already
+                works (relay_service.set() is never a toggle either).
+                The highlighted one is just showing the last command as
+                reference info, not something to trust as current fact. */}
+            <div className="mt-4 grid grid-cols-2 gap-2">
               <button
                 type="button"
-                role="switch"
-                aria-checked={r.commanded_on}
-                aria-label={`Toggle ${r.name}`}
-                onClick={() => setMut.mutate({ id: r.id, on: !r.commanded_on })}
+                aria-label={`Turn ${r.name} on`}
+                onClick={() => setMut.mutate({ id: r.id, on: true })}
                 disabled={setMut.isPending}
                 className={cn(
-                  'relative h-9 w-16 rounded-full transition disabled:opacity-50 disabled:cursor-not-allowed',
+                  'inline-flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed',
                   r.commanded_on
-                    ? 'bg-aurora-teal/30 ring-1 ring-inset ring-aurora-teal/60 shadow-[0_0_18px_rgba(34,211,238,0.35)]'
-                    : 'bg-ink/[0.06] ring-1 ring-inset ring-ink/15',
+                    ? 'bg-aurora-teal text-navy-900 ring-1 ring-inset ring-aurora-teal/60'
+                    : 'bg-ink/[0.06] ring-1 ring-inset ring-ink/15 hover:bg-ink/[0.1]',
                 )}
               >
-                <span
-                  className={cn(
-                    'absolute top-1 h-7 w-7 rounded-full grid place-items-center transition-all duration-200',
-                    r.commanded_on ? 'left-[calc(100%-2rem)] bg-aurora-teal text-navy-900' : 'left-1 bg-ink-faint/70 text-navy-900',
-                  )}
-                >
-                  {r.commanded_on ? <Power size={13} /> : <PowerOff size={13} />}
-                </span>
+                <Power size={14} /> Turn on
+              </button>
+              <button
+                type="button"
+                aria-label={`Turn ${r.name} off`}
+                onClick={() => setMut.mutate({ id: r.id, on: false })}
+                disabled={setMut.isPending}
+                className={cn(
+                  'inline-flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed',
+                  !r.commanded_on
+                    ? 'bg-ink/[0.12] text-ink ring-1 ring-inset ring-ink/25'
+                    : 'bg-ink/[0.06] ring-1 ring-inset ring-ink/15 hover:bg-ink/[0.1]',
+                )}
+              >
+                <PowerOff size={14} /> Turn off
               </button>
             </div>
           </GlassCard>
