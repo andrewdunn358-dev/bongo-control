@@ -366,6 +366,7 @@ function VoiceControlCard() {
   const qc = useQueryClient();
   const cfg = useQuery({ queryKey: ['config-general'], queryFn: () => api.getConfig('general'), enabled: !isDemo });
   const [groqKey, setGroqKey] = useState('');
+  const [googleTtsKey, setGoogleTtsKey] = useState('');
   const [wakeWord, setWakeWord] = useState('');
   const [micDevice, setMicDevice] = useState('');
   const [playbackDevice, setPlaybackDevice] = useState('');
@@ -383,6 +384,7 @@ function VoiceControlCard() {
     }
   }, [cfg.data, seeded]);
   const groqKeySet = cfg.data?.groq_api_key_set === true;
+  const googleTtsKeySet = cfg.data?.google_tts_api_key_set === true;
 
   const save = useMutation({
     mutationFn: () => {
@@ -394,11 +396,13 @@ function VoiceControlCard() {
         voice_mic_gain: micGain.trim() ? Number(micGain.trim()) : '',
       };
       if (groqKey.trim()) value.groq_api_key = groqKey.trim(); // omit when blank -> keeps existing key
+      if (googleTtsKey.trim()) value.google_tts_api_key = googleTtsKey.trim(); // omit when blank -> keeps existing key
       return api.setConfig('general', value);
     },
     onSuccess: () => {
       toast.success('Voice control settings saved — restart the backend to pick up changes');
       setGroqKey('');
+      setGoogleTtsKey('');
       qc.invalidateQueries({ queryKey: ['config-general'] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : 'Save failed'),
@@ -440,9 +444,10 @@ function VoiceControlCard() {
     <GlassCard className="col-span-12 lg:col-span-6 p-6">
       <CardHeader label="Voice control" hint="Ron, by voice — say the wake word, then a command" />
       <div className="text-[11px] text-ink-faint mb-3">
-        Wake word listening runs locally, free, no account needed (Vosk). Everything after that — hearing what you
-        said, deciding what to do, replying out loud — goes through Groq, so it needs a connection to actually do
-        anything, same as Ron's text chat.
+        Wake word listening runs locally, free, no account needed (Vosk). Hearing what you said goes through Groq;
+        speaking replies out loud goes through Google Cloud TTS — a much larger free allowance than Groq's own
+        text-to-speech offered, after that ran out mid-testing more than once. Both need a connection to actually
+        do anything.
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -456,6 +461,24 @@ function VoiceControlCard() {
             className="mt-1.5 w-full rounded-xl bg-ink/[0.04] ring-1 ring-ink/10 focus:ring-aurora-teal/50 outline-none px-3 py-2 text-sm"
           />
         </div>
+        <div>
+          <label className="text-[11px] uppercase tracking-widest text-ink-muted">Google TTS API key</label>
+          <input
+            type="password"
+            value={googleTtsKey}
+            onChange={(e) => setGoogleTtsKey(e.target.value)}
+            placeholder={googleTtsKeySet ? '•••••••• set — blank keeps it' : 'from console.cloud.google.com'}
+            className="mt-1.5 w-full rounded-xl bg-ink/[0.04] ring-1 ring-ink/10 focus:ring-aurora-teal/50 outline-none px-3 py-2 text-sm"
+          />
+        </div>
+      </div>
+      <div className="text-[11px] text-ink-faint mt-1 mb-3">
+        Google key: Cloud Console → enable the "Cloud Text-to-Speech API" → APIs &amp; Services → Credentials →
+        Create Credentials → API key. Free tier covers roughly 1 million characters/month — realistically never hit
+        for actual use here.
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="text-[11px] uppercase tracking-widest text-ink-muted">Wake word</label>
           <input

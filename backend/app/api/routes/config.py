@@ -27,7 +27,7 @@ VALID_SECTIONS = {"general", "appearance", "hardware", "plugins", "notifications
 # Secret keys are stored but NEVER returned in a GET (the app is reachable
 # over the internet through the tunnel). Instead a "<key>_set" boolean is
 # exposed so the UI can show "configured" without ever handling the value.
-SECRET_KEYS = {"anthropic_api_key", "ofcom_api_key", "modem_password", "groq_api_key"}
+SECRET_KEYS = {"anthropic_api_key", "ofcom_api_key", "modem_password", "groq_api_key", "google_tts_api_key"}
 
 
 def _redact(section_data: dict) -> dict:

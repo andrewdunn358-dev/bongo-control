@@ -64,6 +64,7 @@ from __future__ import annotations
 
 import asyncio
 import audioop
+import base64
 import io
 import json
 import logging
@@ -189,15 +190,33 @@ DEFAULT_SPEECH_RMS_THRESHOLD = 2500
 WAKE_TEST_PAUSE_SECONDS = 2.0
 
 GROQ_STT_MODEL = "whisper-large-v3-turbo"  # fast + cheap - see ai_chat_service.py's cost-discipline notes; a short command doesn't need the slower, pricier non-turbo model
-GROQ_TTS_MODEL = "canopylabs/orpheus-v1-english"
-# Confirmed against a real 400 from Groq listing the actual valid set:
-# autumn, diana, hannah, austin, daniel, troy. Was "diana" (matched the
-# persona's old name, "Diane") - switched to a male-coded voice now the
-# persona's "Ron" (Ron Burgundy, after the van's own burgundy colour).
-# "daniel" is a reasonable pick for a warm, confident, van-companion
-# voice; easy one-line change if it doesn't land right in practice,
-# same as the original tara->diana pivot was.
-DEFAULT_GROQ_TTS_VOICE = "daniel"
+# TTS moved off Groq entirely - canopylabs/orpheus-v1-english's daily
+# quota (3600 tokens/day, confirmed from a real 429 error) turned out
+# to be nowhere near enough for actual conversational use once Ron's
+# replies got any real length, even on a dedicated, unshared Groq
+# project. Kept only as dead reference here, not called anywhere below.
+GROQ_TTS_MODEL_UNUSED = "canopylabs/orpheus-v1-english"
+
+# Google Cloud Text-to-Speech - the actual TTS provider now. Free tier
+# covers 1 million characters/month for Standard + WaveNet voices,
+# roughly 300x Groq's daily TTS allowance for a comparable amount of
+# speech - realistically never hit for a van app's usage. Simple API
+# key auth (Google confirms this works via ?key=, no OAuth/service-
+# account complexity needed), same pattern as every other key in this
+# app.
+GOOGLE_TTS_API_URL = "https://texttospeech.googleapis.com/v1/text:synthesize"
+GOOGLE_TTS_LANGUAGE_CODE = "en-GB"
+# Best current guess at a WaveNet-tier (free-tier-eligible) British
+# male voice, based on Google's long-standing, well-established
+# lettering convention (A/C typically female, B/D typically male) -
+# NOT independently verified against the live 2026 voice list the way
+# "daniel" was confirmed against a real Groq voice listing. If this
+# voice name doesn't exist or sounds wrong, it's a one-line change -
+# _synthesize() also falls back to a gender-only selection (no
+# specific name, just en-GB + MALE) if this exact name errors, so a
+# wrong guess here degrades gracefully rather than breaking TTS
+# outright.
+GOOGLE_TTS_VOICE_NAME = "en-GB-Wavenet-B"
 
 # "Computer" out of the box, deliberately - works immediately with zero
 # extra setup, no account, no training step. Vosk's grammar mode can
@@ -296,6 +315,9 @@ class VoiceControlService:
 
     def _groq_api_key(self) -> str:
         return str(self._general().get("groq_api_key") or "").strip()
+
+    def _google_tts_api_key(self) -> str:
+        return str(self._general().get("google_tts_api_key") or "").strip()
 
     def _wake_word(self) -> str:
         return str(self._general().get("voice_wake_word") or "").strip().lower() or DEFAULT_WAKE_WORD
@@ -409,9 +431,11 @@ class VoiceControlService:
         return audioop.mul(chunk, 2, gain)
 
     def is_configured(self) -> bool:
-        # Only the Groq key gates this - Vosk needs no account/key at
-        # all, just its model (auto-downloaded on first run).
-        return bool(self._groq_api_key())
+        # Groq (STT) AND Google (TTS) both required now - two separate
+        # providers each doing half the pipeline, not one covering both
+        # the way Groq alone used to. Vosk needs no account/key at all,
+        # just its model (auto-downloaded on first run).
+        return bool(self._groq_api_key()) and bool(self._google_tts_api_key())
 
     def status(self) -> dict[str, Any]:
         return {
@@ -834,41 +858,67 @@ class VoiceControlService:
         return str(transcription).strip()
 
     def _synthesize(self, text: str) -> bytes:
-        logger.info("Voice control: asking Groq to speak %r", text)
-        client = self._groq_client()
-        try:
-            response = client.audio.speech.create(
-                model=GROQ_TTS_MODEL,
-                voice=DEFAULT_GROQ_TTS_VOICE,
-                input=text,
-                response_format="wav",
-            )
-        except Exception as e:  # noqa: BLE001 - deliberately broad, narrowed by isinstance below (groq is a soft/optional import - see _groq_client())
-            from groq import RateLimitError
+        """Speaks a reply via Google Cloud TTS - moved off Groq entirely
+        (see GOOGLE_TTS_VOICE_NAME's own note for why). Requests
+        LINEAR16 encoding specifically, which Google's own docs
+        describe as "the encoding used in WAV files" - a complete,
+        directly-playable WAV file back, not headerless raw PCM, so
+        this needs no extra wrapping before _play_clip()/aplay can use
+        it (unverified assumption if this turns out wrong - a bad WAV
+        header would show up as a clear aplay format error, not silent
+        corruption, so it'll be obvious either way, not a silent
+        failure).
 
-            if isinstance(e, RateLimitError):
-                # Reported symptom: a raw nested-JSON error dump in the
-                # status card - technically accurate but genuinely ugly,
-                # and worse, it obscured the actually reassuring part:
-                # everything BEFORE this point worked fine (heard it
-                # correctly, matched or asked Ron, got a real reply -
-                # self._last_reply_text is already set by the caller
-                # before this runs) - only the SPOKEN version failed.
-                # Groq's TTS voice has its own separate, small daily
-                # quota from the rest of the account, and a single
-                # heavy testing session can burn through it - not a
-                # bug, just worth explaining plainly rather than
-                # dumping the raw API error.
-                logger.warning("Voice control: Groq TTS rate-limited: %s", e)
-                raise VoiceControlUnavailableError(
-                    "Reply generated fine, but Groq's daily voice quota is used up for now "
-                    "(a busy testing session adds up fast - it's a small separate allowance "
-                    "from the rest of the account). Resets within a few hours; the text reply "
-                    "above is still real, it just couldn't be spoken this time."
-                ) from e
-            raise
-        audio = response.read()
-        logger.info("Voice control: got %d bytes of speech audio back from Groq", len(audio))
+        Tries the specific GOOGLE_TTS_VOICE_NAME guess first; if that
+        exact voice doesn't exist (a real risk - it wasn't verified
+        against a live current voice listing the way the old Groq voice
+        was), falls back to selecting ANY voice matching just the
+        language + gender, which Google's API supports directly and
+        will always succeed if the language/gender combination is
+        real (en-GB + MALE unquestionably is)."""
+        api_key = self._google_tts_api_key()
+        if not api_key:
+            raise VoiceControlUnavailableError("No Google TTS API key set - add one in Settings first")
+
+        logger.info("Voice control: asking Google to speak %r", text)
+
+        def _request(voice: dict) -> httpx.Response:
+            return httpx.post(
+                GOOGLE_TTS_API_URL,
+                params={"key": api_key},
+                json={
+                    "input": {"text": text},
+                    "voice": voice,
+                    "audioConfig": {"audioEncoding": "LINEAR16"},
+                },
+                timeout=30.0,
+            )
+
+        response = _request({"languageCode": GOOGLE_TTS_LANGUAGE_CODE, "name": GOOGLE_TTS_VOICE_NAME})
+        if response.status_code == 400 and "voice" in response.text.lower():
+            # The specific named voice doesn't exist (an educated guess,
+            # not a verified one) - fall back to language+gender only,
+            # which Google resolves to whatever real voice matches.
+            logger.warning(
+                "Voice control: Google TTS voice %r not recognised, falling back to gender-only selection: %s",
+                GOOGLE_TTS_VOICE_NAME, response.text,
+            )
+            response = _request({"languageCode": GOOGLE_TTS_LANGUAGE_CODE, "ssmlGender": "MALE"})
+
+        if response.status_code == 429 or (response.status_code == 403 and "quota" in response.text.lower()):
+            logger.warning("Voice control: Google TTS rate/quota limited: %s", response.text)
+            raise VoiceControlUnavailableError(
+                "Reply generated fine, but Google's text-to-speech quota is used up for now "
+                "(a busy testing session adds up fast). The text reply above is still real, "
+                "it just couldn't be spoken this time."
+            )
+        if response.status_code != 200:
+            logger.warning("Voice control: Google TTS request failed (%s): %s", response.status_code, response.text)
+            raise VoiceControlUnavailableError(f"Google text-to-speech failed: {response.text[:200]}")
+
+        audio_b64 = response.json().get("audioContent", "")
+        audio = base64.b64decode(audio_b64) if audio_b64 else b""
+        logger.info("Voice control: got %d bytes of speech audio back from Google", len(audio))
         return audio
 
     # ----------------------------------------------------- the pipeline
@@ -882,6 +932,8 @@ class VoiceControlService:
         backend restart every time a key changes."""
         if not self._groq_api_key():
             raise VoiceControlUnavailableError("No Groq API key set - add one above first")
+        if not self._google_tts_api_key():
+            raise VoiceControlUnavailableError("No Google TTS API key set - add one above first")
         if self._processing:
             # _handle_wake() itself would just silently skip a second
             # call (see its own docstring) - fine for the real listener,
@@ -921,6 +973,8 @@ class VoiceControlService:
         listener's own state, exactly as if it had been said aloud."""
         if not self._groq_api_key():
             raise VoiceControlUnavailableError("No Groq API key set - add one above first")
+        if not self._google_tts_api_key():
+            raise VoiceControlUnavailableError("No Google TTS API key set - add one above first")
         if self._processing:
             # This doesn't call _handle_wake() itself, but its own
             # playback still uses the same exclusive mic/speaker
