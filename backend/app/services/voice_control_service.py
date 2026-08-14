@@ -234,18 +234,25 @@ GROQ_TTS_MODEL_UNUSED = "canopylabs/orpheus-v1-english"
 GOOGLE_TTS_API_URL = "https://texttospeech.googleapis.com/v1/text:synthesize"
 GOOGLE_TTS_LANGUAGE_CODE = "en-GB"
 GOOGLE_TTS_VOICE_GENDER = "MALE"  # used for the fallback path in _synthesize() if GOOGLE_TTS_VOICE_NAME below ever stops resolving
-# Switched back to male to match the persona name change (Ron ->
-# Ronald). Unlike the female pick this replaces, this specific name is
-# an educated guess based on Google's naming convention (confirmed for
-# en-US specifically: en-US-Wavenet-A and -B are BOTH male, matching
-# this same letter), not independently verified for en-GB the way
-# en-GB-Wavenet-A was confirmed female by two direct sources. Kept
-# safe by the same graceful-fallback path either way -
+# Upgraded from WaveNet to Neural2 - reported live: WaveNet "sounds
+# very robotic" compared to Groq's old Orpheus voice. Neural2 is a
+# genuinely more natural-sounding tier, and - confirmed by multiple
+# independent pricing sources, not just one - has its OWN separate 1M
+# characters/month free allowance, distinct from and in addition to
+# WaveNet's own 1M. VanOS's realistic usage (a handful of conversational
+# replies a day) is nowhere near a million characters a month, so this
+# should cost nothing in practice while sounding noticeably better -
+# not a quality-for-cost tradeoff the way Neural2 usually is elsewhere.
+#
+# Voice name itself is a reasonable guess sourced from a technical
+# blog's own recommended-voices table (en-GB male -> en-GB-Neural2-B),
+# not independently confirmed the specific way en-GB-Wavenet-A was
+# earlier. Kept safe by the same graceful-fallback path either way -
 # _synthesize() falls back to a gender-only selection (en-GB +
 # GOOGLE_TTS_VOICE_GENDER) if this exact name doesn't resolve, so a
 # wrong guess here still lands on a real male voice, just not
-# necessarily this specific one.
-GOOGLE_TTS_VOICE_NAME = "en-GB-Wavenet-B"
+# necessarily this specific one or this specific quality tier.
+GOOGLE_TTS_VOICE_NAME = "en-GB-Neural2-B"
 
 # "Computer" out of the box, deliberately - works immediately with zero
 # extra setup, no account, no training step. Vosk's grammar mode can
