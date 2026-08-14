@@ -224,10 +224,19 @@ EMOJI_PATTERN = re.compile(
 # genuinely small daily quota (3600 tokens/day, confirmed from a real
 # 429 error) separate from the rest of the account - fine for
 # realistic day-to-day use, but a heavy testing session can exhaust it.
+# No accent/locale control at all in this model (confirmed directly
+# from Groq's own docs) - just six fixed voice personas, no English
+# UK option to switch to the way Google has. If the American-sounding
+# default ever needs to change, that's a genuinely different voice
+# pick within this same fixed six, not a locale setting like Google's.
 GROQ_TTS_MODEL = "canopylabs/orpheus-v1-english"
 # Confirmed against a real 400 from Groq listing the actual valid set:
-# autumn, diana, hannah, austin, daniel, troy.
-DEFAULT_GROQ_TTS_VOICE = "daniel"
+# autumn, diana, hannah, austin, daniel, troy. Split by the same
+# convention used to originally pick "daniel" (male-coded) and, before
+# that, "diana" (matched the persona's old name, "Diane") for female -
+# not an official Groq gender label (they don't publish one), just the
+# same informed guess this app already made once before.
+GROQ_TTS_VOICES = {"male": "daniel", "female": "diana"}
 
 # Google Cloud Text-to-Speech - the actual TTS provider now. Free tier
 # covers 1 million characters/month for Standard + WaveNet voices,
@@ -238,24 +247,16 @@ DEFAULT_GROQ_TTS_VOICE = "daniel"
 # app.
 GOOGLE_TTS_API_URL = "https://texttospeech.googleapis.com/v1/text:synthesize"
 GOOGLE_TTS_LANGUAGE_CODE = "en-GB"
-GOOGLE_TTS_VOICE_GENDER = "FEMALE"  # used for the fallback path in _synthesize() if GOOGLE_TTS_VOICE_NAME below ever stops resolving
-# Female preferred over the male Neural2 voice, reported live - kept
-# the Neural2 tier though rather than reverting to the earlier female
-# WaveNet-A pick, since Neural2 is the genuinely more natural-sounding
-# upgrade (see its own note, still in git history) and there's a
-# separate 1M characters/month free allowance for Neural2 specifically,
-# distinct from WaveNet's - no real reason to give up the better tier
-# just to go back to female.
-#
-# Voice name itself is a reasonable guess sourced from a technical
-# blog's own recommended-voices table (en-GB female -> en-GB-Neural2-F),
-# not independently confirmed the specific way en-GB-Wavenet-A was
-# earlier. Kept safe by the same graceful-fallback path either way -
-# _synthesize() falls back to a gender-only selection (en-GB +
-# GOOGLE_TTS_VOICE_GENDER) if this exact name doesn't resolve, so a
-# wrong guess here still lands on a real female voice, just not
-# necessarily this specific one or this specific quality tier.
-GOOGLE_TTS_VOICE_NAME = "en-GB-Neural2-F"
+# One voice name per gender, both Neural2 tier (see the female pick's
+# own history in git log for why Neural2 over WaveNet) - the male name
+# is an educated guess from Google's naming convention (confirmed for
+# en-US specifically that -A/-B are both male), not independently
+# verified for en-GB the specific way the female one was (two direct
+# sources describing en-GB-Wavenet-A as female led to Neural2-F by the
+# same lettering). Both protected by the same graceful-fallback path
+# in _synthesize_google() either way - a wrong guess still lands on a
+# real voice of the right gender, just not necessarily this exact one.
+GOOGLE_TTS_VOICES = {"male": "en-GB-Neural2-B", "female": "en-GB-Neural2-F"}
 
 # "Computer" out of the box, deliberately - works immediately with zero
 # extra setup, no account, no training step. Vosk's grammar mode can
@@ -1047,6 +1048,17 @@ class VoiceControlService:
         raw = str(self._general().get("voice_tts_provider") or "").strip().lower()
         return raw if raw in ("google", "groq") else "google"
 
+    def _tts_gender(self) -> str:
+        """'male' or 'female' (default) - which voice within whichever
+        provider is currently selected. Andrew's own back-and-forth
+        tonight (male -> female -> male -> female again, each one a
+        code change) is the direct reason this exists as a real
+        Settings toggle rather than something requiring a redeploy
+        every time. 'female' as the default matches whatever was last
+        actually deployed, not an arbitrary pick."""
+        raw = str(self._general().get("voice_tts_gender") or "").strip().lower()
+        return raw if raw in ("male", "female") else "female"
+
     def _synthesize(self, text: str) -> bytes:
         """Dispatches to whichever provider is currently configured
         (see _tts_provider()). Both providers speak the SAME text and
@@ -1069,10 +1081,11 @@ class VoiceControlService:
         a raw API dump."""
         logger.info("Voice control: asking Groq to speak %r", text)
         client = self._groq_client()
+        groq_voice = GROQ_TTS_VOICES.get(self._tts_gender(), GROQ_TTS_VOICES["female"])
         try:
             response = client.audio.speech.create(
                 model=GROQ_TTS_MODEL,
-                voice=DEFAULT_GROQ_TTS_VOICE,
+                voice=groq_voice,
                 input=text,
                 response_format="wav",
             )
@@ -1103,16 +1116,20 @@ class VoiceControlService:
         corruption, so it'll be obvious either way, not a silent
         failure).
 
-        Tries the specific GOOGLE_TTS_VOICE_NAME guess first; if that
-        exact voice doesn't exist (a real risk - it wasn't verified
-        against a live current voice listing the way the old Groq voice
-        was), falls back to selecting ANY voice matching just the
-        language + gender, which Google's API supports directly and
-        will always succeed if the language/gender combination is
-        real (en-GB + FEMALE unquestionably is)."""
+        Tries the specific GOOGLE_TTS_VOICES[gender] guess first; if
+        that exact voice doesn't exist (a real risk - the male one
+        wasn't verified against a live current voice listing the way
+        the female one and the old Groq voice were), falls back to
+        selecting ANY voice matching just the language + gender, which
+        Google's API supports directly and will always succeed for a
+        real language/gender combination."""
         api_key = self._google_tts_api_key()
         if not api_key:
             raise VoiceControlUnavailableError("No Google TTS API key set - add one in Settings first")
+
+        gender = self._tts_gender()
+        voice_name = GOOGLE_TTS_VOICES.get(gender, GOOGLE_TTS_VOICES["female"])
+        ssml_gender = gender.upper()
 
         logger.info("Voice control: asking Google to speak %r", text)
 
@@ -1128,16 +1145,16 @@ class VoiceControlService:
                 timeout=30.0,
             )
 
-        response = _request({"languageCode": GOOGLE_TTS_LANGUAGE_CODE, "name": GOOGLE_TTS_VOICE_NAME})
+        response = _request({"languageCode": GOOGLE_TTS_LANGUAGE_CODE, "name": voice_name})
         if response.status_code == 400 and "voice" in response.text.lower():
             # The specific named voice doesn't exist (an educated guess,
             # not a verified one) - fall back to language+gender only,
             # which Google resolves to whatever real voice matches.
             logger.warning(
                 "Voice control: Google TTS voice %r not recognised, falling back to gender-only selection: %s",
-                GOOGLE_TTS_VOICE_NAME, response.text,
+                voice_name, response.text,
             )
-            response = _request({"languageCode": GOOGLE_TTS_LANGUAGE_CODE, "ssmlGender": GOOGLE_TTS_VOICE_GENDER})
+            response = _request({"languageCode": GOOGLE_TTS_LANGUAGE_CODE, "ssmlGender": ssml_gender})
 
         if response.status_code == 429 or (response.status_code == 403 and "quota" in response.text.lower()):
             logger.warning("Voice control: Google TTS rate/quota limited: %s", response.text)

@@ -373,6 +373,7 @@ function VoiceControlCard() {
   const [speechThreshold, setSpeechThreshold] = useState('');
   const [micGain, setMicGain] = useState('');
   const [ttsProvider, setTtsProvider] = useState('google');
+  const [ttsGender, setTtsGender] = useState('female');
   const [seeded, setSeeded] = useState(false);
   // Reported real data loss: this card bundles several unrelated
   // settings into one save. Local state is seeded once from the
@@ -406,6 +407,7 @@ function VoiceControlCard() {
       setSpeechThreshold(cfg.data.voice_speech_rms_threshold != null ? String(cfg.data.voice_speech_rms_threshold) : '');
       setMicGain(cfg.data.voice_mic_gain != null ? String(cfg.data.voice_mic_gain) : '');
       setTtsProvider(cfg.data.voice_tts_provider === 'groq' ? 'groq' : 'google');
+      setTtsGender(cfg.data.voice_tts_gender === 'male' ? 'male' : 'female');
       setSeeded(true);
     }
   }, [cfg.data, seeded]);
@@ -421,6 +423,7 @@ function VoiceControlCard() {
       if (touched.has('speechThreshold')) value.voice_speech_rms_threshold = speechThreshold.trim() ? Number(speechThreshold.trim()) : '';
       if (touched.has('micGain')) value.voice_mic_gain = micGain.trim() ? Number(micGain.trim()) : '';
       if (touched.has('ttsProvider')) value.voice_tts_provider = ttsProvider;
+      if (touched.has('ttsGender')) value.voice_tts_gender = ttsGender;
       if (groqKey.trim()) value.groq_api_key = groqKey.trim(); // omit when blank -> keeps existing key
       if (googleTtsKey.trim()) value.google_tts_api_key = googleTtsKey.trim(); // omit when blank -> keeps existing key
       return api.setConfig('general', value);
@@ -615,6 +618,29 @@ function VoiceControlCard() {
         the account — fine for normal day-to-day use, but a heavy testing session can run it dry until it resets at
         midnight UTC. Groq mode uses the same Groq key above for both listening and speaking — no separate key
         needed; the Google TTS key below is only required when Google is selected.
+      </div>
+
+      <div>
+        <label className="text-[11px] uppercase tracking-widest text-ink-muted">Voice gender</label>
+        <div className="mt-1.5 flex gap-2">
+          {(['female', 'male'] as const).map((gender) => (
+            <button
+              key={gender}
+              type="button"
+              onClick={() => { setTtsGender(gender); touch('ttsGender'); }}
+              className={`rounded-xl px-4 py-2 text-sm font-medium ring-1 capitalize ${
+                ttsGender === gender
+                  ? 'bg-aurora-teal text-navy-900 ring-aurora-teal'
+                  : 'bg-ink/[0.04] ring-ink/10 hover:bg-ink/[0.08]'
+              }`}
+            >
+              {gender}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="text-[11px] text-ink-faint mt-1 mb-3">
+        Applies to whichever provider is selected above — each has its own voice for each gender.
       </div>
 
       <div className="flex items-center gap-2 mb-4">
