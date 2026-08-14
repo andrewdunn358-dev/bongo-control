@@ -244,23 +244,42 @@ class ArrivalNotificationService:
         notification - reused here is the exact same TTS pipeline
         every other spoken reply in this app already goes through
         (voice_control_service's own _synthesize()/_play_clip()), not
-        a separate one. That also means this gets the SAME markdown
-        stripping (_clean_text_for_speech()) everything else does,
-        and the SAME radio-ducking _play_clip() already handles
-        internally - nothing extra needed here for either.
+        a separate one. That also means this gets the SAME text
+        cleanup (_clean_text_for_speech(), markdown+emoji) everything
+        else does, and the SAME radio-ducking _play_clip() already
+        handles internally - nothing extra needed here for either.
+
+        Second reported gap, found right after fixing the first one:
+        the very next "Ronald" went unheard after a real 19s automatic
+        announcement played - the SAME CPU-contention problem
+        _run_conversation_turn() was fixed for earlier (see
+        _resume_listener()'s own docstring) applies just as much here,
+        since this is a completely separate code path that
+        _run_conversation_turn() has no involvement in at all. Wrapped
+        with the same _pause_listener()/_resume_listener() pair, now
+        promoted to real methods specifically so this caller (and any
+        future one) can reuse them rather than duplicating the mic
+        hand-off logic a second time.
 
         Best-effort, deliberately: if speaking fails for any reason
         (no Google TTS key configured, a quota limit, anything) the
         notification itself has already gone out above - this
         shouldn't retroactively make the whole announcement a failure
-        over the speaking half specifically.
+        over the speaking half specifically. The mic pause/resume is
+        OUTSIDE that try/except on purpose - the listener must always
+        get reopened even if speaking itself fails partway through,
+        or it would be left paused indefinitely.
         """
+        had_listener = await voice_control_service._pause_listener()
         try:
-            spoken_text = voice_control_service._clean_text_for_speech(f"{title}. {message}")
-            audio = await asyncio.to_thread(voice_control_service._synthesize, spoken_text)
-            await asyncio.to_thread(voice_control_service._play_clip, audio)
-        except Exception as e:  # noqa: BLE001 - speaking is a bonus on top of the real notification, not something that should undo it
-            logger.warning("Arrival notification: speaking it aloud failed (notification was still sent): %s", e)
+            try:
+                spoken_text = voice_control_service._clean_text_for_speech(f"{title}. {message}")
+                audio = await asyncio.to_thread(voice_control_service._synthesize, spoken_text)
+                await asyncio.to_thread(voice_control_service._play_clip, audio)
+            except Exception as e:  # noqa: BLE001 - speaking is a bonus on top of the real notification, not something that should undo it
+                logger.warning("Arrival notification: speaking it aloud failed (notification was still sent): %s", e)
+        finally:
+            await voice_control_service._resume_listener(had_listener)
 
 
 arrival_notification_service = ArrivalNotificationService()
