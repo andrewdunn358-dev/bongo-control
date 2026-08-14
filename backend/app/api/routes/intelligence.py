@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.routes.auth import require_app_token
 from app.intelligence.engine import IntelligenceEngine, MissionBrief
+from app.services.arrival_notification_service import arrival_notification_service
 
 # Gated: the mission brief includes real battery/solar readings and
 # derived predictions - not as sensitive as location or the camera, but
@@ -43,3 +44,20 @@ async def get_mission_brief() -> MissionBrief:
     if brief is None:
         raise HTTPException(status_code=503, detail="No mission brief computed yet")
     return brief
+
+
+@router.post("/arrival-check")
+async def trigger_arrival_check(bypass_renotify_check: bool = False) -> dict:
+    """Manual test entrypoint for arrival_notification_service - runs
+    the real announce pipeline (POI search, AI recommendation, real
+    notification) immediately at the current location, bypassing the
+    normal 20-minute stay-duration wait. Same "let the real pipeline
+    be tested without waiting for the real trigger" reasoning as voice
+    control's own trigger_test().
+
+    bypass_renotify_check=true skips the cost-safety check that
+    normally stops a repeat announcement near somewhere already
+    covered - useful for testing the SAME spot twice in a row, but
+    means a real API call each time, so it's off by default.
+    """
+    return await arrival_notification_service.trigger_check_now(bypass_renotify_check=bypass_renotify_check)
