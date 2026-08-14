@@ -372,6 +372,7 @@ function VoiceControlCard() {
   const [playbackDevice, setPlaybackDevice] = useState('');
   const [speechThreshold, setSpeechThreshold] = useState('');
   const [micGain, setMicGain] = useState('');
+  const [ttsProvider, setTtsProvider] = useState('google');
   const [seeded, setSeeded] = useState(false);
   // Reported real data loss: this card bundles several unrelated
   // settings into one save. Local state is seeded once from the
@@ -404,6 +405,7 @@ function VoiceControlCard() {
       setPlaybackDevice(String(cfg.data.voice_playback_device ?? ''));
       setSpeechThreshold(cfg.data.voice_speech_rms_threshold != null ? String(cfg.data.voice_speech_rms_threshold) : '');
       setMicGain(cfg.data.voice_mic_gain != null ? String(cfg.data.voice_mic_gain) : '');
+      setTtsProvider(cfg.data.voice_tts_provider === 'groq' ? 'groq' : 'google');
       setSeeded(true);
     }
   }, [cfg.data, seeded]);
@@ -418,6 +420,7 @@ function VoiceControlCard() {
       if (touched.has('playbackDevice')) value.voice_playback_device = playbackDevice.trim();
       if (touched.has('speechThreshold')) value.voice_speech_rms_threshold = speechThreshold.trim() ? Number(speechThreshold.trim()) : '';
       if (touched.has('micGain')) value.voice_mic_gain = micGain.trim() ? Number(micGain.trim()) : '';
+      if (touched.has('ttsProvider')) value.voice_tts_provider = ttsProvider;
       if (groqKey.trim()) value.groq_api_key = groqKey.trim(); // omit when blank -> keeps existing key
       if (googleTtsKey.trim()) value.google_tts_api_key = googleTtsKey.trim(); // omit when blank -> keeps existing key
       return api.setConfig('general', value);
@@ -430,6 +433,14 @@ function VoiceControlCard() {
       qc.invalidateQueries({ queryKey: ['config-general'] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : 'Save failed'),
+  });
+
+  const restart = useMutation({
+    mutationFn: () => api.restartBackend(),
+    onSuccess: () => {
+      toast.success('Backend restarting — this page will reconnect automatically in a few seconds');
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Restart failed'),
   });
 
   // Polls while this card is on screen - saying the wake word and
@@ -579,14 +590,57 @@ function VoiceControlCard() {
         and speech starts sounding harsh rather than clearer.
       </div>
 
-      <button
-        type="button"
-        onClick={() => save.mutate()}
-        disabled={save.isPending}
-        className="rounded-full px-4 py-2 text-xs font-medium bg-ink/[0.04] ring-1 ring-ink/10 text-ink-soft hover:bg-ink/[0.08] disabled:opacity-40 mb-4"
-      >
-        Save voice settings
-      </button>
+      <div>
+        <label className="text-[11px] uppercase tracking-widest text-ink-muted">Voice (text-to-speech)</label>
+        <div className="mt-1.5 flex gap-2">
+          {(['google', 'groq'] as const).map((provider) => (
+            <button
+              key={provider}
+              type="button"
+              onClick={() => { setTtsProvider(provider); touch('ttsProvider'); }}
+              className={`rounded-xl px-4 py-2 text-sm font-medium ring-1 ${
+                ttsProvider === provider
+                  ? 'bg-aurora-teal text-navy-900 ring-aurora-teal'
+                  : 'bg-ink/[0.04] ring-ink/10 hover:bg-ink/[0.08]'
+              }`}
+            >
+              {provider === 'google' ? 'Google' : 'Groq'}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="text-[11px] text-ink-faint mt-1 mb-3">
+        Google: much larger free allowance (~1M characters/month), good for everyday use without watching a quota.
+        Groq: often sounds more natural, but has a small daily quota (3,600 tokens/day) separate from the rest of
+        the account — fine for normal day-to-day use, but a heavy testing session can run it dry until it resets at
+        midnight UTC. Groq mode uses the same Groq key above for both listening and speaking — no separate key
+        needed; the Google TTS key below is only required when Google is selected.
+      </div>
+
+      <div className="flex items-center gap-2 mb-4">
+        <button
+          type="button"
+          onClick={() => save.mutate()}
+          disabled={save.isPending}
+          className="rounded-full px-4 py-2 text-xs font-medium bg-ink/[0.04] ring-1 ring-ink/10 text-ink-soft hover:bg-ink/[0.08] disabled:opacity-40"
+        >
+          Save voice settings
+        </button>
+        {!isDemo && (
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm('Restart the backend now? Relays, voice control, and telemetry will briefly drop while it comes back up (usually a few seconds).')) {
+                restart.mutate();
+              }
+            }}
+            disabled={restart.isPending}
+            className="rounded-full px-4 py-2 text-xs font-medium bg-status-amber/10 ring-1 ring-status-amber/30 text-status-amber hover:bg-status-amber/20 disabled:opacity-40"
+          >
+            {restart.isPending ? 'Restarting…' : 'Reload backend'}
+          </button>
+        )}
+      </div>
 
       {!isDemo && (
         <div className="mb-4">

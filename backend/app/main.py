@@ -16,6 +16,7 @@ from app.api.routes import intelligence as intelligence_routes
 from app.api.routes import internet_radio as internet_radio_routes
 from app.api.routes import radio_directory as radio_directory_routes
 from app.api.routes import roof as roof_routes
+from app.api.routes import system as system_routes
 from app.api.routes import places as places_routes
 from app.api.routes import backup as backup_routes
 from app.api.routes import voice as voice_routes
@@ -164,6 +165,7 @@ app.include_router(telemetry.router)
 app.include_router(settings_routes.router)
 app.include_router(plugins_routes.router)
 app.include_router(config_routes.router)
+app.include_router(system_routes.router)
 app.include_router(location_routes.router)
 app.include_router(places_routes.router)
 app.include_router(backup_routes.router)

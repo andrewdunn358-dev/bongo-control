@@ -280,6 +280,8 @@ export const api = {
   radioRemoveFavorite: (url: string) =>
     request<RadioStation[]>(`/internet-radio/favorites?url=${encodeURIComponent(url)}`, { method: 'DELETE' }),
 
+  restartBackend: () => request<{ restarting: boolean }>('/system/restart-backend', { method: 'POST' }),
+
   radioDirectorySearch: (q?: string, country = 'GB') =>
     request<{ stations: RadioStation[]; count: number }>(
       `/radio-directory/search?${new URLSearchParams({ ...(q ? { q } : {}), country })}`,
