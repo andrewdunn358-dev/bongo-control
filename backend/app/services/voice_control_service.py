@@ -1282,12 +1282,46 @@ class VoiceControlService:
             self._conversation_history.append(ChatMessage(role="assistant", content=reply))
             if len(self._conversation_history) > MAX_CONVERSATION_HISTORY_MESSAGES:
                 self._conversation_history = self._conversation_history[-MAX_CONVERSATION_HISTORY_MESSAGES:]
-            self._last_reply_text = reply
+            self._last_reply_text = reply  # the ORIGINAL, markdown intact - this is what the status card/UI actually displays
             self._last_error = None
-            audio = await asyncio.to_thread(self._synthesize, reply)
+            # Reported live: TTS audibly reading out literal asterisks
+            # ("saying stuff like asterisk") - Ron's replies use real
+            # markdown (**bold**, bullet lists - seen directly in
+            # earlier logs, e.g. "**Overall: Amber**" and "- **Temps:**")
+            # for the on-screen text, but that same markdown was going
+            # straight into Google TTS, which has no reason to know
+            # '**' isn't meant to be spoken. _strip_markdown_for_speech()
+            # gives TTS a cleaned-up version with the formatting
+            # characters removed; self._last_reply_text above keeps the
+            # original with markdown intact for the UI, which can still
+            # render it properly.
+            audio = await asyncio.to_thread(self._synthesize, self._strip_markdown_for_speech(reply))
             await asyncio.to_thread(self._play_clip, audio)
 
         return True
+
+    @staticmethod
+    def _strip_markdown_for_speech(text: str) -> str:
+        """Removes common markdown syntax so TTS speaks the actual
+        words, not the formatting characters around them. Deliberately
+        simple regex substitution, not a full markdown parser - this
+        only needs to handle what Ron's own replies actually use
+        (bold, bullets, headers, inline code, links), not arbitrary
+        markdown documents."""
+        # Bold/italic: **text**, __text__, *text*, _text_ -> text
+        text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+        text = re.sub(r"__(.+?)__", r"\1", text)
+        text = re.sub(r"(?<!\*)\*([^*\n]+?)\*(?!\*)", r"\1", text)
+        text = re.sub(r"(?<!_)_([^_\n]+?)_(?!_)", r"\1", text)
+        # Headers: leading #'s on their own line
+        text = re.sub(r"^#{1,6}\s+", "", text, flags=re.MULTILINE)
+        # Bullet points: leading -, *, or + at the start of a line
+        text = re.sub(r"^[-*+]\s+", "", text, flags=re.MULTILINE)
+        # Inline code: `code` -> code
+        text = re.sub(r"`([^`]+)`", r"\1", text)
+        # Links: [label](url) -> label - the URL itself isn't speakable
+        text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
+        return text
 
     def _load_vosk_model(self):
         """Blocking - downloads the small English model on first run
