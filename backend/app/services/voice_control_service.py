@@ -206,17 +206,18 @@ GROQ_TTS_MODEL_UNUSED = "canopylabs/orpheus-v1-english"
 # app.
 GOOGLE_TTS_API_URL = "https://texttospeech.googleapis.com/v1/text:synthesize"
 GOOGLE_TTS_LANGUAGE_CODE = "en-GB"
-# Best current guess at a WaveNet-tier (free-tier-eligible) British
-# male voice, based on Google's long-standing, well-established
-# lettering convention (A/C typically female, B/D typically male) -
-# NOT independently verified against the live 2026 voice list the way
-# "daniel" was confirmed against a real Groq voice listing. If this
-# voice name doesn't exist or sounds wrong, it's a one-line change -
-# _synthesize() also falls back to a gender-only selection (no
-# specific name, just en-GB + MALE) if this exact name errors, so a
-# wrong guess here degrades gracefully rather than breaking TTS
-# outright.
-GOOGLE_TTS_VOICE_NAME = "en-GB-Wavenet-B"
+GOOGLE_TTS_VOICE_GENDER = "FEMALE"  # used for the fallback path in _synthesize() if GOOGLE_TTS_VOICE_NAME below ever stops resolving
+# A British female WaveNet voice (free-tier-eligible) - unlike the
+# earlier male pick, this one is independently confirmed real by two
+# separate sources describing it explicitly as "English (UK) WaveNet
+# female voice: en-GB-Wavenet-A", not just inferred from Google's
+# naming convention. Still kept on the same graceful-fallback path
+# as before in case it's ever retired (a real thing that's happened to
+# other Google voices, per a live forum report of en-GB-Neural2-C
+# vanishing without notice) - _synthesize() falls back to a
+# gender-only selection (en-GB + GOOGLE_TTS_VOICE_GENDER) if this
+# exact name ever stops resolving.
+GOOGLE_TTS_VOICE_NAME = "en-GB-Wavenet-A"
 
 # "Computer" out of the box, deliberately - works immediately with zero
 # extra setup, no account, no training step. Vosk's grammar mode can
@@ -924,7 +925,7 @@ class VoiceControlService:
                 "Voice control: Google TTS voice %r not recognised, falling back to gender-only selection: %s",
                 GOOGLE_TTS_VOICE_NAME, response.text,
             )
-            response = _request({"languageCode": GOOGLE_TTS_LANGUAGE_CODE, "ssmlGender": "MALE"})
+            response = _request({"languageCode": GOOGLE_TTS_LANGUAGE_CODE, "ssmlGender": GOOGLE_TTS_VOICE_GENDER})
 
         if response.status_code == 429 or (response.status_code == 403 and "quota" in response.text.lower()):
             logger.warning("Voice control: Google TTS rate/quota limited: %s", response.text)
