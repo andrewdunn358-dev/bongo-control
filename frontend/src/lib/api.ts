@@ -272,6 +272,8 @@ export const api = {
   internetRadioPause: () => request<InternetRadioStatus>('/internet-radio/pause', { method: 'POST' }),
   internetRadioResume: () => request<InternetRadioStatus>('/internet-radio/resume', { method: 'POST' }),
   internetRadioStop: () => request<InternetRadioStatus>('/internet-radio/stop', { method: 'POST' }),
+  internetRadioSetVolume: (level: number) =>
+    request<InternetRadioStatus>('/internet-radio/volume', { method: 'POST', body: JSON.stringify({ level }) }),
 
   radioDirectorySearch: (q?: string, country = 'GB') =>
     request<{ stations: RadioStation[]; count: number }>(

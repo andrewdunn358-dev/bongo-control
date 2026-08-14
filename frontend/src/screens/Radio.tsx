@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Radio as RadioIcon, Search, Play, Pause, Square, Music2 } from 'lucide-react';
+import { Radio as RadioIcon, Search, Play, Pause, Square, Music2, Volume2, VolumeX } from 'lucide-react';
 import { GlassCard } from '@/components/primitives/GlassCard';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { api } from '@/lib/api';
@@ -36,6 +36,13 @@ export function RadioPage() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [demoPlaying, setDemoPlaying] = useState(false);
   const [demoUrl, setDemoUrl] = useState<string | null>(null);
+  const [demoVolume, setDemoVolume] = useState(100);
+  // Local display value while dragging, seeded from the server's own
+  // status once loaded - shows instantly as the slider moves without
+  // waiting for a round trip per pixel; null means "not currently
+  // being dragged, just show whatever status.data.volume says".
+  const [draggingVolume, setDraggingVolume] = useState<number | null>(null);
+  const volumeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const stations = useQuery({
     queryKey: ['radio-directory', searchTerm],
@@ -93,9 +100,34 @@ export function RadioPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : 'Could not stop'),
   });
 
+  const setVolume = useMutation({
+    mutationFn: (level: number) => api.internetRadioSetVolume(level),
+    onSuccess: invalidate,
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Could not set volume'),
+  });
+
+  // Debounced, not fired on every slider pixel - dragging updates the
+  // displayed number instantly (draggingVolume) but only actually
+  // calls the API ~200ms after movement stops, same "don't spam a
+  // request per pixel" reasoning as any other live slider.
+  const handleVolumeChange = (level: number) => {
+    setDraggingVolume(level);
+    if (isDemo) {
+      setDemoVolume(level);
+      if (audioRef.current) audioRef.current.volume = level / 100;
+      return;
+    }
+    if (volumeDebounceRef.current) clearTimeout(volumeDebounceRef.current);
+    volumeDebounceRef.current = setTimeout(() => {
+      setVolume.mutate(level);
+      setDraggingVolume(null);
+    }, 200);
+  };
+
   const playing = isDemo ? demoPlaying : status.data?.playing ?? false;
   const running = isDemo ? demoUrl !== null : status.data?.running ?? false;
   const currentUrl = isDemo ? demoUrl : status.data?.stream_url;
+  const currentVolume = draggingVolume ?? (isDemo ? demoVolume : status.data?.volume ?? 100);
 
   return (
     <div data-testid={RADIO.root} className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-10 py-6 lg:py-10">
@@ -164,6 +196,31 @@ export function RadioPage() {
               <Square size={14} /> Stop
             </button>
           </div>
+        </div>
+
+        {/* Volume - a real, persistent level (survives a restart -
+            see internet_radio_service._configured_volume()), separate
+            from ducking, which only ever pauses the stream outright
+            for a voice interaction, never lowers it. Works regardless
+            of playing/running state - sets what the NEXT play() (or
+            the already-running stream) uses, same as adjusting a
+            physical radio's volume knob whether or not it's on. */}
+        <div className="flex items-center gap-3 mt-4 pt-4 border-t border-ink/10">
+          {currentVolume === 0 ? (
+            <VolumeX size={16} className="text-ink-faint shrink-0" />
+          ) : (
+            <Volume2 size={16} className="text-ink-faint shrink-0" />
+          )}
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={currentVolume}
+            onChange={(e) => handleVolumeChange(Number(e.target.value))}
+            className="flex-1 accent-aurora-teal"
+            aria-label="Radio volume"
+          />
+          <span className="text-xs text-ink-muted w-9 text-right tabular-nums">{currentVolume}%</span>
         </div>
       </GlassCard>
 

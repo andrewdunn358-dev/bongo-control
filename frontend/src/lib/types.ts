@@ -126,6 +126,7 @@ export interface InternetRadioStatus {
   playing: boolean;
   stream_url: string | null;
   configured_stream_url: string;
+  volume: number;
 }
 
 export interface MissionBriefPrediction {

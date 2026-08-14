@@ -39,9 +39,21 @@ class PlayRequest(BaseModel):
     url: str | None = None  # omit to play the configured default station
 
 
+class VolumeRequest(BaseModel):
+    level: int  # 0-100, clamped again service-side regardless of what's sent
+
+
 @router.get("/status")
 async def get_status() -> dict:
     return await asyncio.to_thread(internet_radio_service.status)
+
+
+@router.post("/volume")
+async def set_volume(body: VolumeRequest) -> dict:
+    try:
+        return await asyncio.to_thread(internet_radio_service.set_volume, body.level)
+    except InternetRadioUnavailableError as e:
+        raise HTTPException(status_code=503, detail=str(e))
 
 
 @router.post("/play")

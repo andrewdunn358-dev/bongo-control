@@ -54,6 +54,7 @@ logger = logging.getLogger("vanos.internet_radio_service")
 # -> "Direct streaming URLs" and it takes effect on the next play().
 DEFAULT_STREAM_URL = "https://radio.3bty.co.uk/listen/btybar/radio.mp3"
 DEFAULT_PLAYBACK_DEVICE = "default"
+DEFAULT_VOLUME = 100
 
 IPC_SOCKET_PATH = "/tmp/vanos-internet-radio-mpv.sock"
 MPV_LOG_PATH = "/tmp/vanos-internet-radio-mpv.log"
@@ -103,6 +104,18 @@ class InternetRadioService:
 
     def _configured_stream_url(self) -> str:
         return str(self._general().get("internet_radio_stream_url") or "").strip() or DEFAULT_STREAM_URL
+
+    def _configured_volume(self) -> int:
+        """Persisted across restarts (config, not just in-memory) - a
+        freshly (re)spawned mpv process defaults to its own 100% unless
+        told otherwise, which would silently discard whatever level was
+        last chosen every time the backend redeploys."""
+        raw = self._general().get("internet_radio_volume")
+        try:
+            level = int(raw) if raw not in (None, "") else DEFAULT_VOLUME
+        except (TypeError, ValueError):
+            level = DEFAULT_VOLUME
+        return max(0, min(100, level))
 
     def _playback_device(self) -> str:
         # Deliberately the SAME config key voice_control_service reads
@@ -183,6 +196,12 @@ class InternetRadioService:
                     # connection/ALSA failures (those showed at [e]
                     # error level, well above this) without the noise.
                     "--msg-level=all=warn",
+                    # Applied at spawn, not via a follow-up IPC call
+                    # right after - avoids a brief moment of audio at
+                    # mpv's own 100% default before a set_property call
+                    # could land. See _configured_volume() - this is
+                    # whatever was last actually chosen, not always 100.
+                    f"--volume={self._configured_volume()}",
                 ],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -289,20 +308,51 @@ class InternetRadioService:
         with self._lock:
             running = self._process is not None and self._process.poll() is None
             playing = False
+            volume = self._configured_volume()
             if running:
                 # mpv's own pause property is the actual truth, not
                 # whatever this service last commanded - see module
-                # docstring's honesty note.
+                # docstring's honesty note. Same reasoning applied to
+                # volume here - report what mpv actually has live, not
+                # just what was last persisted, falling back to the
+                # persisted value only when nothing's actually running
+                # to ask.
                 paused = self._query_property("pause")
                 idle = self._query_property("idle-active")
                 playing = paused is False and not idle
+                live_volume = self._query_property("volume")
+                if isinstance(live_volume, (int, float)):
+                    volume = int(round(live_volume))
             return {
                 "available": True,
                 "running": running,
                 "playing": playing,
                 "stream_url": self._current_url,
                 "configured_stream_url": self._configured_stream_url(),
+                "volume": volume,
             }
+
+    def set_volume(self, level: int) -> dict[str, Any]:
+        """Persists the chosen level (survives a restart - see
+        _configured_volume()) and applies it live via mpv's own
+        `volume` IPC property if a process is actually running right
+        now. If nothing's running yet, the persisted value alone is
+        enough - _ensure_process() applies it via --volume at spawn
+        the next time play() actually starts mpv, so there's no need
+        to force a start here just to set a number nobody's listening
+        to yet."""
+        from app.services.configuration_service import configuration_service
+
+        level = max(0, min(100, int(level)))
+        with self._lock:
+            configuration_service.set("general", {**configuration_service.get("general", {}), "internet_radio_volume": level})
+            if self._process is not None and self._process.poll() is None:
+                try:
+                    self._ipc_command(["set_property", "volume", level])
+                except OSError as e:
+                    raise InternetRadioUnavailableError(f"Could not command mpv: {e}") from e
+            logger.info("Internet radio: volume set to %d%%", level)
+            return self.status()
 
     def play(self, url: str | None = None) -> dict[str, Any]:
         with self._lock:
