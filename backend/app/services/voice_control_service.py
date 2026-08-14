@@ -560,6 +560,89 @@ class VoiceControlService:
                     return channel_id, turn_on, name
         return None
 
+    @staticmethod
+    def _match_radio_play_command(text: str) -> str | None:
+        """Detects 'play <station>' / 'put on <station>' / 'start
+        <station>' phrasing and returns the extracted search term - or
+        an empty string specifically for a generic 'play the radio'
+        with no station named, which _handle_radio_play_request()
+        treats as 'just start the configured default station' rather
+        than literally searching for a station called 'radio'. Returns
+        None if this doesn't look like a radio-play request at all,
+        falling through to the relay matcher then Ron's general chat
+        exactly as before.
+
+        Deliberately a separate matcher from _match_relay_command(),
+        not folded into it - a relay command is a closed, tiny set
+        (heater/lights/radio-amp/tv, on/off), genuinely safe to
+        pattern-match confidently. A station name is open-ended (any
+        text at all), so this can only ever narrow down to "this looks
+        like a play request for SOMETHING", leaving the actual search
+        (and the honest possibility of finding nothing) to
+        _handle_radio_play_request().
+        """
+        cleaned = text.strip().lower().rstrip(".!?")
+        match = re.match(r"^(?:play|put on|start)\s+(?:the\s+|some\s+|my\s+)?(.+)$", cleaned)
+        if not match:
+            return None
+        term = match.group(1).strip()
+        # "play classic fm radio" / "play classic fm station" -> "classic fm" -
+        # the trailing word is just how people naturally say it, not
+        # part of the actual station name to search for.
+        term = re.sub(r"\s+(?:radio|station)$", "", term).strip()
+        if not term or term == "radio":
+            return ""  # generic "play the radio" - the configured default, not a search
+        return term
+
+    async def _handle_radio_play_request(self, term: str) -> None:
+        """term == "" means 'play the radio' with nothing specific
+        named - starts the configured default station, same as tapping
+        Play with nothing selected on the Radio page. A real search
+        term picks the top (most popular) match from Radio Browser and
+        plays that - see _match_radio_play_command()'s own note on why
+        this needs to SPEAK the actual station name back rather than
+        just a confirm beep, given a search can genuinely pick the
+        "wrong" regional variant of what was asked for."""
+        from app.services.internet_radio_service import InternetRadioUnavailableError, internet_radio_service
+        from app.services.radio_directory_service import RadioDirectoryUnavailableError, radio_directory_service
+
+        if term == "":
+            try:
+                await asyncio.to_thread(internet_radio_service.play, None)
+                reply = "Playing the radio."
+            except InternetRadioUnavailableError as e:
+                reply = f"Couldn't start the radio: {e}"
+        else:
+            try:
+                stations = await radio_directory_service.search(term, limit=5)
+            except RadioDirectoryUnavailableError:
+                stations = []
+
+            if not stations:
+                reply = f"Couldn't find a station called {term}."
+            else:
+                # Already ordered by popularity (clickcount) - the
+                # first result is the best available guess at what was
+                # actually meant, same "most popular wins" reasoning
+                # the Radio page's own default search already uses.
+                best = stations[0]
+                try:
+                    await asyncio.to_thread(internet_radio_service.play, best["url"])
+                    if best.get("uuid"):
+                        # Courtesy click registration, same as the
+                        # Radio page does on a real tap - genuinely
+                        # best-effort, never blocks or fails the
+                        # actual play() above on it.
+                        asyncio.ensure_future(radio_directory_service.register_click(best["uuid"]))
+                    reply = f"Playing {best['name']}."
+                except InternetRadioUnavailableError as e:
+                    reply = f"Found {best['name']}, but couldn't start it: {e}"
+
+        self._last_reply_text = reply
+        self._last_error = None
+        audio = await asyncio.to_thread(self._synthesize, self._strip_markdown_for_speech(reply))
+        await asyncio.to_thread(self._play_clip, audio)
+
     # ---------------------------------------------------------- audio
 
     def _generate_beep_wav(self, frequency_hz: float = 880.0, duration_s: float = 0.25, sample_rate: int = 16000) -> bytes:
@@ -1287,6 +1370,7 @@ class VoiceControlService:
             return False  # nothing understood - same "end the conversation" outcome as a silent follow-up
 
         matched = self._match_relay_command(text)
+        radio_term = None if matched else self._match_radio_play_command(text)
         if matched:
             channel_id, _heard_direction, name = matched
             # Same toggle-not-absolute reasoning as the offline
@@ -1310,6 +1394,15 @@ class VoiceControlService:
             # to actually hear her answer.
             confirm_beep = self._generate_beep_wav(frequency_hz=1400.0, duration_s=0.12)
             await asyncio.to_thread(self._play_clip, confirm_beep)
+        elif radio_term is not None:
+            # A relay toggle gets away with a plain beep because it's
+            # deterministic - "lights" always means the same physical
+            # light. A radio search is genuinely NOT deterministic -
+            # "classic fm" could match several regional variants, and
+            # the person needs to actually hear which one got picked,
+            # not just a generic "done" beep - so this speaks the real
+            # station name back, same as a normal chat reply would.
+            await self._handle_radio_play_request(radio_term)
         else:
             # Conversation memory: this turn's utterance AND Ron's
             # reply both join self._conversation_history, which
