@@ -206,18 +206,19 @@ GROQ_TTS_MODEL_UNUSED = "canopylabs/orpheus-v1-english"
 # app.
 GOOGLE_TTS_API_URL = "https://texttospeech.googleapis.com/v1/text:synthesize"
 GOOGLE_TTS_LANGUAGE_CODE = "en-GB"
-GOOGLE_TTS_VOICE_GENDER = "FEMALE"  # used for the fallback path in _synthesize() if GOOGLE_TTS_VOICE_NAME below ever stops resolving
-# A British female WaveNet voice (free-tier-eligible) - unlike the
-# earlier male pick, this one is independently confirmed real by two
-# separate sources describing it explicitly as "English (UK) WaveNet
-# female voice: en-GB-Wavenet-A", not just inferred from Google's
-# naming convention. Still kept on the same graceful-fallback path
-# as before in case it's ever retired (a real thing that's happened to
-# other Google voices, per a live forum report of en-GB-Neural2-C
-# vanishing without notice) - _synthesize() falls back to a
-# gender-only selection (en-GB + GOOGLE_TTS_VOICE_GENDER) if this
-# exact name ever stops resolving.
-GOOGLE_TTS_VOICE_NAME = "en-GB-Wavenet-A"
+GOOGLE_TTS_VOICE_GENDER = "MALE"  # used for the fallback path in _synthesize() if GOOGLE_TTS_VOICE_NAME below ever stops resolving
+# Switched back to male to match the persona name change (Ron ->
+# Ronald). Unlike the female pick this replaces, this specific name is
+# an educated guess based on Google's naming convention (confirmed for
+# en-US specifically: en-US-Wavenet-A and -B are BOTH male, matching
+# this same letter), not independently verified for en-GB the way
+# en-GB-Wavenet-A was confirmed female by two direct sources. Kept
+# safe by the same graceful-fallback path either way -
+# _synthesize() falls back to a gender-only selection (en-GB +
+# GOOGLE_TTS_VOICE_GENDER) if this exact name doesn't resolve, so a
+# wrong guess here still lands on a real male voice, just not
+# necessarily this specific one.
+GOOGLE_TTS_VOICE_NAME = "en-GB-Wavenet-B"
 
 # "Computer" out of the box, deliberately - works immediately with zero
 # extra setup, no account, no training step. Vosk's grammar mode can
