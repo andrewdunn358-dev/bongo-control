@@ -354,6 +354,42 @@ class InternetRadioService:
             logger.info("Internet radio: volume set to %d%%", level)
             return self.status()
 
+    # ------------------------------------------------------- favourites
+
+    def _favorites(self) -> list[dict[str, Any]]:
+        raw = self._general().get("internet_radio_favorites")
+        return raw if isinstance(raw, list) else []
+
+    def favorites(self) -> list[dict[str, Any]]:
+        return self._favorites()
+
+    def add_favorite(self, station: dict[str, Any]) -> list[dict[str, Any]]:
+        """Stores the whole station object (name, url, favicon, tags,
+        etc.) as given, not just a URL - so the favourites list can be
+        rendered identically to a normal search result without a fresh
+        directory lookup every time. Deduped on url (a station's actual
+        playable identity - uuid can be missing from some directory
+        entries, url can't)."""
+        from app.services.configuration_service import configuration_service
+
+        url = str(station.get("url") or "").strip()
+        if not url:
+            raise InternetRadioUnavailableError("Station has no URL to save")
+        with self._lock:
+            favorites = self._favorites()
+            if not any(f.get("url") == url for f in favorites):
+                favorites = [*favorites, station]
+                configuration_service.set("general", {**configuration_service.get("general", {}), "internet_radio_favorites": favorites})
+            return favorites
+
+    def remove_favorite(self, url: str) -> list[dict[str, Any]]:
+        from app.services.configuration_service import configuration_service
+
+        with self._lock:
+            favorites = [f for f in self._favorites() if f.get("url") != url]
+            configuration_service.set("general", {**configuration_service.get("general", {}), "internet_radio_favorites": favorites})
+            return favorites
+
     def play(self, url: str | None = None) -> dict[str, Any]:
         with self._lock:
             target_url = (url or self._configured_stream_url()).strip()

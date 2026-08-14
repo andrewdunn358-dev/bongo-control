@@ -43,6 +43,16 @@ class VolumeRequest(BaseModel):
     level: int  # 0-100, clamped again service-side regardless of what's sent
 
 
+class FavoriteRequest(BaseModel):
+    uuid: str | None = None
+    name: str
+    url: str
+    favicon: str | None = None
+    tags: list[str] = []
+    bitrate: int | None = None
+    codec: str | None = None
+
+
 @router.get("/status")
 async def get_status() -> dict:
     return await asyncio.to_thread(internet_radio_service.status)
@@ -54,6 +64,24 @@ async def set_volume(body: VolumeRequest) -> dict:
         return await asyncio.to_thread(internet_radio_service.set_volume, body.level)
     except InternetRadioUnavailableError as e:
         raise HTTPException(status_code=503, detail=str(e))
+
+
+@router.get("/favorites")
+async def get_favorites() -> list[dict]:
+    return await asyncio.to_thread(internet_radio_service.favorites)
+
+
+@router.post("/favorites")
+async def add_favorite(body: FavoriteRequest) -> list[dict]:
+    try:
+        return await asyncio.to_thread(internet_radio_service.add_favorite, body.model_dump())
+    except InternetRadioUnavailableError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/favorites")
+async def remove_favorite(url: str) -> list[dict]:
+    return await asyncio.to_thread(internet_radio_service.remove_favorite, url)
 
 
 @router.post("/play")

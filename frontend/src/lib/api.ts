@@ -274,6 +274,11 @@ export const api = {
   internetRadioStop: () => request<InternetRadioStatus>('/internet-radio/stop', { method: 'POST' }),
   internetRadioSetVolume: (level: number) =>
     request<InternetRadioStatus>('/internet-radio/volume', { method: 'POST', body: JSON.stringify({ level }) }),
+  radioFavorites: () => request<RadioStation[]>('/internet-radio/favorites'),
+  radioAddFavorite: (station: RadioStation) =>
+    request<RadioStation[]>('/internet-radio/favorites', { method: 'POST', body: JSON.stringify(station) }),
+  radioRemoveFavorite: (url: string) =>
+    request<RadioStation[]>(`/internet-radio/favorites?url=${encodeURIComponent(url)}`, { method: 'DELETE' }),
 
   radioDirectorySearch: (q?: string, country = 'GB') =>
     request<{ stations: RadioStation[]; count: number }>(

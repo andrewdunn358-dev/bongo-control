@@ -147,6 +147,7 @@ export const RADIO = {
   player: 'radio-player',
   stationList: 'radio-station-list',
   searchInput: 'radio-search-input',
+  favorites: 'radio-favorites',
 } as const;
 
 export const APP = {

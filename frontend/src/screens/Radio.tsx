@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Radio as RadioIcon, Search, Play, Pause, Square, Music2, Volume2, VolumeX } from 'lucide-react';
+import { Radio as RadioIcon, Search, Play, Pause, Square, Music2, Volume2, VolumeX, Star } from 'lucide-react';
 import { GlassCard } from '@/components/primitives/GlassCard';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { api } from '@/lib/api';
@@ -29,6 +29,80 @@ import type { RadioStation } from '@/lib/types';
  * an <img> tag uses cross-origin, so this works with no server-side
  * involvement at all.
  */
+/**
+ * A single station row - reused for both the Favourites section and
+ * the search results list, so the two never visually or behaviourally
+ * drift apart. A plain <button> can't be used for the whole row like
+ * the original single-list version did, once a favourite star needs
+ * its own click target inside it - nesting a <button> inside another
+ * <button> is invalid HTML and browsers silently mishandle the click
+ * routing. This uses a <div role="button"> with its own onClick +
+ * onKeyDown (Enter/Space) for play, matching a real button's keyboard
+ * behaviour, and a genuine separate <button> for the star with
+ * stopPropagation() so tapping it doesn't also trigger playback.
+ */
+function StationRow({
+  station,
+  isCurrent,
+  playing,
+  onPlay,
+  playDisabled,
+  isFavorite,
+  onToggleFavorite,
+}: {
+  station: RadioStation;
+  isCurrent: boolean;
+  playing: boolean;
+  onPlay: () => void;
+  playDisabled: boolean;
+  isFavorite: boolean;
+  onToggleFavorite: () => void;
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={playDisabled ? -1 : 0}
+      onClick={() => !playDisabled && onPlay()}
+      onKeyDown={(e) => {
+        if (!playDisabled && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          onPlay();
+        }
+      }}
+      aria-disabled={playDisabled}
+      className={`w-full flex items-center gap-3 py-3 px-2 text-left rounded-lg transition-colors cursor-pointer ${
+        isCurrent ? 'bg-aurora-teal/10' : 'hover:bg-ink/[0.03]'
+      } ${playDisabled ? 'opacity-60 pointer-events-none' : ''}`}
+    >
+      <div className="h-10 w-10 rounded-full grid place-items-center ring-1 ring-ink/10 bg-ink/[0.04] shrink-0 overflow-hidden">
+        {station.favicon ? (
+          <img src={station.favicon} alt="" className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+        ) : (
+          <RadioIcon size={16} className="text-ink-faint" />
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className={`text-sm font-medium truncate ${isCurrent ? 'text-aurora-teal' : ''}`}>{station.name}</div>
+        <div className="text-[11px] text-ink-faint truncate mt-0.5">
+          {[station.tags.slice(0, 3).join(', '), station.bitrate ? `${station.bitrate}kbps` : null, station.codec]
+            .filter(Boolean)
+            .join(' · ') || 'UK radio'}
+        </div>
+      </div>
+      {isCurrent && playing && <StatusPill tone="teal" className="shrink-0">PLAYING</StatusPill>}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }}
+        aria-label={isFavorite ? `Remove ${station.name} from favourites` : `Add ${station.name} to favourites`}
+        className="shrink-0 p-1 -m-1 rounded-full hover:bg-ink/[0.06]"
+      >
+        <Star size={16} className={isFavorite ? 'fill-status-amber text-status-amber' : 'text-ink-faint'} />
+      </button>
+      {!(isCurrent && playing) && <Play size={16} className="text-ink-faint shrink-0" />}
+    </div>
+  );
+}
+
 export function RadioPage() {
   const qc = useQueryClient();
   const [query, setQuery] = useState('');
@@ -43,10 +117,32 @@ export function RadioPage() {
   // being dragged, just show whatever status.data.volume says".
   const [draggingVolume, setDraggingVolume] = useState<number | null>(null);
   const volumeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [demoFavorites, setDemoFavorites] = useState<RadioStation[]>([]);
 
   const stations = useQuery({
     queryKey: ['radio-directory', searchTerm],
     queryFn: () => api.radioDirectorySearch(searchTerm || undefined),
+  });
+
+  const favorites = useQuery({
+    queryKey: ['radio-favorites'],
+    queryFn: api.radioFavorites,
+    enabled: !isDemo, // demo mode uses demoFavorites (in-memory, not persisted) - matches the play/pause/stop demo pattern
+  });
+  const favoriteList = isDemo ? demoFavorites : favorites.data ?? [];
+  const favoriteUrls = new Set(favoriteList.map((f) => f.url));
+
+  const toggleFavorite = useMutation({
+    mutationFn: async (station: RadioStation) => {
+      const isFav = favoriteUrls.has(station.url);
+      if (isDemo) {
+        setDemoFavorites((prev) => (isFav ? prev.filter((f) => f.url !== station.url) : [...prev, station]));
+        return;
+      }
+      return isFav ? api.radioRemoveFavorite(station.url) : api.radioAddFavorite(station);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['radio-favorites'] }),
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Could not update favourites'),
   });
 
   const status = useQuery({
@@ -224,6 +320,35 @@ export function RadioPage() {
         </div>
       </GlassCard>
 
+      {/* Favourites - always visible regardless of search state, so
+          getting back to a saved station never needs re-searching
+          through however many results came back. Hidden entirely when
+          there are none yet, rather than showing an empty placeholder
+          card for a feature nobody's used. */}
+      {favoriteList.length > 0 && (
+        <div className="mb-5">
+          <div className="text-xs uppercase tracking-widest text-ink-muted mb-2 flex items-center gap-1.5">
+            <Star size={12} className="fill-status-amber text-status-amber" /> Favourites
+          </div>
+          <GlassCard className="p-4" data-testid={RADIO.favorites}>
+            <div className="divide-y divide-ink/5">
+              {favoriteList.map((station) => (
+                <StationRow
+                  key={station.uuid ?? station.url}
+                  station={station}
+                  isCurrent={currentUrl === station.url}
+                  playing={playing}
+                  onPlay={() => play.mutate(station)}
+                  playDisabled={play.isPending}
+                  isFavorite
+                  onToggleFavorite={() => toggleFavorite.mutate(station)}
+                />
+              ))}
+            </div>
+          </GlassCard>
+        </div>
+      )}
+
       {/* Search */}
       <div className="mb-5">
         <div className="relative">
@@ -270,36 +395,16 @@ export function RadioPage() {
             {stations.data.stations.map((station) => {
               const isCurrent = currentUrl === station.url;
               return (
-                <button
+                <StationRow
                   key={station.uuid ?? station.url}
-                  type="button"
-                  onClick={() => play.mutate(station)}
-                  disabled={play.isPending}
-                  className={`w-full flex items-center gap-3 py-3 px-2 text-left rounded-lg transition-colors ${
-                    isCurrent ? 'bg-aurora-teal/10' : 'hover:bg-ink/[0.03]'
-                  } disabled:opacity-60`}
-                >
-                  <div className="h-10 w-10 rounded-full grid place-items-center ring-1 ring-ink/10 bg-ink/[0.04] shrink-0 overflow-hidden">
-                    {station.favicon ? (
-                      <img src={station.favicon} alt="" className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                    ) : (
-                      <RadioIcon size={16} className="text-ink-faint" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className={`text-sm font-medium truncate ${isCurrent ? 'text-aurora-teal' : ''}`}>{station.name}</div>
-                    <div className="text-[11px] text-ink-faint truncate mt-0.5">
-                      {[station.tags.slice(0, 3).join(', '), station.bitrate ? `${station.bitrate}kbps` : null, station.codec]
-                        .filter(Boolean)
-                        .join(' · ') || 'UK radio'}
-                    </div>
-                  </div>
-                  {isCurrent && playing ? (
-                    <StatusPill tone="teal" className="shrink-0">PLAYING</StatusPill>
-                  ) : (
-                    <Play size={16} className="text-ink-faint shrink-0" />
-                  )}
-                </button>
+                  station={station}
+                  isCurrent={isCurrent}
+                  playing={playing}
+                  onPlay={() => play.mutate(station)}
+                  playDisabled={play.isPending}
+                  isFavorite={favoriteUrls.has(station.url)}
+                  onToggleFavorite={() => toggleFavorite.mutate(station)}
+                />
               );
             })}
           </div>
