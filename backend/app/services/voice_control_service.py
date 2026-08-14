@@ -826,10 +826,31 @@ class VoiceControlService:
                 f.write(audio_bytes)
                 path = Path(f.name)
             try:
+                # Reported symptom: aplay killed by this function's own
+                # timeout ("Command ... timed out after 60 seconds") on
+                # a genuinely long Ron reply (Google TTS, unlike the
+                # short Groq clips this was originally tuned against,
+                # can produce much longer audio - one real reply came
+                # back as ~90s of speech). A flat 60s was fine for
+                # everything seen before that, but there's no reason to
+                # assume every future reply stays under it too - Ron's
+                # replies vary a lot in length, and there'll be a longer
+                # one eventually regardless of where a fixed number is
+                # set. Compute the actual clip duration from the WAV
+                # header instead and size the timeout to that (plus a
+                # real margin for process startup/ALSA overhead, not
+                # cutting it close), with 60s as a floor so a short beep
+                # or reply behaves exactly as before.
+                try:
+                    with wave.open(str(path), "rb") as wf:
+                        clip_duration_s = wf.getnframes() / wf.getframerate()
+                except Exception:  # noqa: BLE001 - if duration can't be read for any reason, fall through to the safe floor below
+                    clip_duration_s = 0.0
+                timeout_s = max(60.0, clip_duration_s + 15.0)
                 result = subprocess.run(
                     ["aplay", "-D", device, str(path)],
                     capture_output=True,
-                    timeout=60,
+                    timeout=timeout_s,
                 )
                 if result.returncode != 0:
                     stderr = result.stderr.decode(errors="replace").strip()
