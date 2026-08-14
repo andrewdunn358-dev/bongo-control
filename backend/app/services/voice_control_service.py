@@ -606,9 +606,28 @@ class VoiceControlService:
         from app.services.internet_radio_service import InternetRadioUnavailableError, internet_radio_service
         from app.services.radio_directory_service import RadioDirectoryUnavailableError, radio_directory_service
 
+        # Reported live: "aplay: main:850: audio open error: Unknown
+        # error 524" the moment this feature actually started a stream
+        # - both the speaker and voice control's playback share the
+        # same ALSA device (deliberately - see internet_radio_service's
+        # own _playback_device(), one setting for "which device is the
+        # van's speaker"), and the Pi's simple onboard jack can't have
+        # two things open on it at once. Every OTHER reply in this app
+        # is safe from this because internet_radio_service.duck() (see
+        # _handle_wake()) only pauses something that was ALREADY
+        # playing before the turn began - it has no way to protect
+        # against a stream this exact turn is what STARTS. Paused again
+        # immediately below, right after actually starting it, and
+        # resumed right after the confirmation is spoken - explicit
+        # pause()/resume(), not another duck()/unduck() layered on the
+        # session-wide one already in progress, so this doesn't need to
+        # reason about nested depth counts.
+        started_playing = False
+
         if term == "":
             try:
                 await asyncio.to_thread(internet_radio_service.play, None)
+                started_playing = True
                 reply = "Playing the radio."
             except InternetRadioUnavailableError as e:
                 reply = f"Couldn't start the radio: {e}"
@@ -628,6 +647,7 @@ class VoiceControlService:
                 best = stations[0]
                 try:
                     await asyncio.to_thread(internet_radio_service.play, best["url"])
+                    started_playing = True
                     if best.get("uuid"):
                         # Courtesy click registration, same as the
                         # Radio page does on a real tap - genuinely
@@ -638,10 +658,23 @@ class VoiceControlService:
                 except InternetRadioUnavailableError as e:
                     reply = f"Found {best['name']}, but couldn't start it: {e}"
 
+        if started_playing:
+            await asyncio.to_thread(internet_radio_service.pause)
+
         self._last_reply_text = reply
         self._last_error = None
         audio = await asyncio.to_thread(self._synthesize, self._strip_markdown_for_speech(reply))
         await asyncio.to_thread(self._play_clip, audio)
+
+        if started_playing:
+            # The station carries on playing from here - the turn's
+            # own session-wide unduck() (see _handle_wake()) still runs
+            # at the very end same as always, but it's a safe no-op by
+            # then: resume() (like pause() above) explicitly clears
+            # _paused_by_duck itself, so unduck() correctly sees
+            # nothing left for IT to resume rather than trying to touch
+            # a stream that's already properly playing again.
+            await asyncio.to_thread(internet_radio_service.resume)
 
     # ---------------------------------------------------------- audio
 
