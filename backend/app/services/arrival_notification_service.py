@@ -52,6 +52,7 @@ from app.services import location_service, poi_service
 from app.services.ai_recommendations_service import AiRecommendationsUnavailableError, ai_recommendations_service
 from app.services.location_service import _haversine_metres
 from app.services.notification_service import NotificationLevel, notification_service
+from app.services.voice_control_service import voice_control_service
 
 logger = logging.getLogger("vanos.arrival_notification_service")
 
@@ -233,8 +234,33 @@ class ArrivalNotificationService:
         self._notified_this_stay = True
         self._save_last_notified_location(latitude, longitude)
         await notification_service.notify(NotificationLevel.INFO, title, message)
+        await self._speak(title, message)
         logger.info("Arrival notification sent for %s (%.4f, %.4f)", place_name, latitude, longitude)
         return {"announced": True, "place_name": place_name, "title": title, "message": message}
+
+    @staticmethod
+    async def _speak(title: str, message: str) -> None:
+        """Reported gap: this only ever sent a silent visual
+        notification - reused here is the exact same TTS pipeline
+        every other spoken reply in this app already goes through
+        (voice_control_service's own _synthesize()/_play_clip()), not
+        a separate one. That also means this gets the SAME markdown
+        stripping (_strip_markdown_for_speech()) everything else does,
+        and the SAME radio-ducking _play_clip() already handles
+        internally - nothing extra needed here for either.
+
+        Best-effort, deliberately: if speaking fails for any reason
+        (no Google TTS key configured, a quota limit, anything) the
+        notification itself has already gone out above - this
+        shouldn't retroactively make the whole announcement a failure
+        over the speaking half specifically.
+        """
+        try:
+            spoken_text = voice_control_service._strip_markdown_for_speech(f"{title}. {message}")
+            audio = await asyncio.to_thread(voice_control_service._synthesize, spoken_text)
+            await asyncio.to_thread(voice_control_service._play_clip, audio)
+        except Exception as e:  # noqa: BLE001 - speaking is a bonus on top of the real notification, not something that should undo it
+            logger.warning("Arrival notification: speaking it aloud failed (notification was still sent): %s", e)
 
 
 arrival_notification_service = ArrivalNotificationService()
