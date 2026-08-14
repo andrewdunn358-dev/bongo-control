@@ -373,6 +373,30 @@ function VoiceControlCard() {
   const [speechThreshold, setSpeechThreshold] = useState('');
   const [micGain, setMicGain] = useState('');
   const [seeded, setSeeded] = useState(false);
+  // Reported real data loss: this card bundles several unrelated
+  // settings into one save. Local state is seeded once from the
+  // server when the page first loads, then never re-synced - if the
+  // tab sits open a while (this app deliberately disables
+  // refetchOnWindowFocus globally - see main.tsx - so nothing
+  // refreshes it automatically) and the user comes back and edits just
+  // ONE field, every OTHER field's still-cached, possibly-stale local
+  // value gets resubmitted right along with it - confirmed directly
+  // from the actual saved config.json: voice_mic_gain and
+  // google_tts_api_key (the two fields genuinely edited that session)
+  // were correct; voice_wake_word, voice_mic_device and
+  // voice_playback_device (untouched, just along for the ride) had
+  // all been silently wiped blank.
+  //
+  // Fix: track which fields were ACTUALLY touched this session and
+  // only ever send those. The backend's own config route already
+  // merges an incoming save into the existing section rather than
+  // replacing it wholesale (confirmed by reading it directly) - so a
+  // field this payload simply never mentions at all is left exactly
+  // as it already was on the server, which is the only genuinely safe
+  // default for something the user never asked to change.
+  const [touched, setTouched] = useState<Set<string>>(new Set());
+  const touch = (field: string) => setTouched((prev) => new Set(prev).add(field));
+
   useEffect(() => {
     if (cfg.data && !seeded) {
       setWakeWord(String(cfg.data.voice_wake_word ?? ''));
@@ -388,13 +412,12 @@ function VoiceControlCard() {
 
   const save = useMutation({
     mutationFn: () => {
-      const value: Record<string, unknown> = {
-        voice_wake_word: wakeWord.trim().toLowerCase(),
-        voice_mic_device: micDevice.trim(),
-        voice_playback_device: playbackDevice.trim(),
-        voice_speech_rms_threshold: speechThreshold.trim() ? Number(speechThreshold.trim()) : '',
-        voice_mic_gain: micGain.trim() ? Number(micGain.trim()) : '',
-      };
+      const value: Record<string, unknown> = {};
+      if (touched.has('wakeWord')) value.voice_wake_word = wakeWord.trim().toLowerCase();
+      if (touched.has('micDevice')) value.voice_mic_device = micDevice.trim();
+      if (touched.has('playbackDevice')) value.voice_playback_device = playbackDevice.trim();
+      if (touched.has('speechThreshold')) value.voice_speech_rms_threshold = speechThreshold.trim() ? Number(speechThreshold.trim()) : '';
+      if (touched.has('micGain')) value.voice_mic_gain = micGain.trim() ? Number(micGain.trim()) : '';
       if (groqKey.trim()) value.groq_api_key = groqKey.trim(); // omit when blank -> keeps existing key
       if (googleTtsKey.trim()) value.google_tts_api_key = googleTtsKey.trim(); // omit when blank -> keeps existing key
       return api.setConfig('general', value);
@@ -403,6 +426,7 @@ function VoiceControlCard() {
       toast.success('Voice control settings saved — restart the backend to pick up changes');
       setGroqKey('');
       setGoogleTtsKey('');
+      setTouched(new Set());
       qc.invalidateQueries({ queryKey: ['config-general'] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : 'Save failed'),
@@ -483,7 +507,7 @@ function VoiceControlCard() {
           <label className="text-[11px] uppercase tracking-widest text-ink-muted">Wake word</label>
           <input
             value={wakeWord}
-            onChange={(e) => setWakeWord(e.target.value)}
+            onChange={(e) => { setWakeWord(e.target.value); touch('wakeWord'); }}
             placeholder="computer"
             className="mt-1.5 w-full rounded-xl bg-ink/[0.04] ring-1 ring-ink/10 focus:ring-aurora-teal/50 outline-none px-3 py-2 text-sm"
           />
@@ -499,7 +523,7 @@ function VoiceControlCard() {
           <label className="text-[11px] uppercase tracking-widest text-ink-muted">Mic device (ALSA)</label>
           <input
             value={micDevice}
-            onChange={(e) => setMicDevice(e.target.value)}
+            onChange={(e) => { setMicDevice(e.target.value); touch('micDevice'); }}
             placeholder="e.g. hw:2,0 — see arecord -l"
             className="mt-1.5 w-full rounded-xl bg-ink/[0.04] ring-1 ring-ink/10 focus:ring-aurora-teal/50 outline-none px-3 py-2 text-sm num"
           />
@@ -508,7 +532,7 @@ function VoiceControlCard() {
           <label className="text-[11px] uppercase tracking-widest text-ink-muted">Speaker device (ALSA)</label>
           <input
             value={playbackDevice}
-            onChange={(e) => setPlaybackDevice(e.target.value)}
+            onChange={(e) => { setPlaybackDevice(e.target.value); touch('playbackDevice'); }}
             placeholder="e.g. hw:1,0 — see aplay -l"
             className="mt-1.5 w-full rounded-xl bg-ink/[0.04] ring-1 ring-ink/10 focus:ring-aurora-teal/50 outline-none px-3 py-2 text-sm num"
           />
@@ -524,7 +548,7 @@ function VoiceControlCard() {
         <label className="text-[11px] uppercase tracking-widest text-ink-muted">Speech detection threshold</label>
         <input
           value={speechThreshold}
-          onChange={(e) => setSpeechThreshold(e.target.value)}
+          onChange={(e) => { setSpeechThreshold(e.target.value); touch('speechThreshold'); }}
           placeholder="2500 (default)"
           inputMode="numeric"
           className="mt-1.5 w-full max-w-[200px] rounded-xl bg-ink/[0.04] ring-1 ring-ink/10 focus:ring-aurora-teal/50 outline-none px-3 py-2 text-sm num"
@@ -541,7 +565,7 @@ function VoiceControlCard() {
         <label className="text-[11px] uppercase tracking-widest text-ink-muted">Mic gain</label>
         <input
           value={micGain}
-          onChange={(e) => setMicGain(e.target.value)}
+          onChange={(e) => { setMicGain(e.target.value); touch('micGain'); }}
           placeholder="1.0 (no change)"
           inputMode="decimal"
           className="mt-1.5 w-full max-w-[200px] rounded-xl bg-ink/[0.04] ring-1 ring-ink/10 focus:ring-aurora-teal/50 outline-none px-3 py-2 text-sm num"
