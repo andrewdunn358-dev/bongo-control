@@ -190,6 +190,33 @@ DEFAULT_SPEECH_RMS_THRESHOLD = 2500
 WAKE_TEST_PAUSE_SECONDS = 2.0
 
 GROQ_STT_MODEL = "whisper-large-v3-turbo"  # fast + cheap - see ai_chat_service.py's cost-discipline notes; a short command doesn't need the slower, pricier non-turbo model
+
+# Reported live: TTS reading emoji out loud (e.g. literally saying
+# something like "grinning face" or attempting to sound out the
+# character) - Ron's replies genuinely use them for warmth in the text
+# display, same as the markdown formatting _clean_text_for_speech()
+# already strips for the same underlying reason. Covers the actual
+# Unicode blocks emoji live in, not an exhaustive/official Unicode
+# emoji database (there isn't a simple stdlib one) - good enough for
+# what a chat model actually generates in practice, not a guarantee
+# against every obscure symbol that technically counts as an emoji.
+EMOJI_PATTERN = re.compile(
+    "["
+    "\U0001F600-\U0001F64F"  # emoticons
+    "\U0001F300-\U0001F5FF"  # symbols & pictographs
+    "\U0001F680-\U0001F6FF"  # transport & map symbols
+    "\U0001F1E0-\U0001F1FF"  # flags
+    "\U00002700-\U000027BF"  # dingbats
+    "\U0001F900-\U0001F9FF"  # supplemental symbols & pictographs
+    "\U0001FA70-\U0001FAFF"  # symbols & pictographs extended-A
+    "\U00002600-\U000026FF"  # miscellaneous symbols
+    "\U0001F000-\U0001F0FF"  # mahjong/domino/playing cards (rare, but genuinely emoji-range)
+    "\U00002B00-\U00002BFF"  # miscellaneous symbols and arrows (includes stars, arrows etc.)
+    "\U0000FE0F"             # variation selector-16 (forces emoji-style rendering of the preceding character)
+    "]+",
+    flags=re.UNICODE,
+)
+
 # TTS moved off Groq entirely - canopylabs/orpheus-v1-english's daily
 # quota (3600 tokens/day, confirmed from a real 429 error) turned out
 # to be nowhere near enough for actual conversational use once Ron's
@@ -664,7 +691,7 @@ class VoiceControlService:
 
         self._last_reply_text = reply
         self._last_error = None
-        audio = await asyncio.to_thread(self._synthesize, self._strip_markdown_for_speech(reply))
+        audio = await asyncio.to_thread(self._synthesize, self._clean_text_for_speech(reply))
         await asyncio.to_thread(self._play_clip, audio)
 
         if started_playing:
@@ -1461,24 +1488,25 @@ class VoiceControlService:
             # earlier logs, e.g. "**Overall: Amber**" and "- **Temps:**")
             # for the on-screen text, but that same markdown was going
             # straight into Google TTS, which has no reason to know
-            # '**' isn't meant to be spoken. _strip_markdown_for_speech()
+            # '**' isn't meant to be spoken. _clean_text_for_speech()
             # gives TTS a cleaned-up version with the formatting
             # characters removed; self._last_reply_text above keeps the
             # original with markdown intact for the UI, which can still
             # render it properly.
-            audio = await asyncio.to_thread(self._synthesize, self._strip_markdown_for_speech(reply))
+            audio = await asyncio.to_thread(self._synthesize, self._clean_text_for_speech(reply))
             await asyncio.to_thread(self._play_clip, audio)
 
         return True
 
     @staticmethod
-    def _strip_markdown_for_speech(text: str) -> str:
-        """Removes common markdown syntax so TTS speaks the actual
-        words, not the formatting characters around them. Deliberately
-        simple regex substitution, not a full markdown parser - this
-        only needs to handle what Ron's own replies actually use
-        (bold, bullets, headers, inline code, links), not arbitrary
-        markdown documents."""
+    def _clean_text_for_speech(text: str) -> str:
+        """Removes common markdown syntax AND emoji so TTS speaks the
+        actual words, not the formatting characters or symbols around
+        them. Deliberately simple regex substitution for markdown, not
+        a full parser - this only needs to handle what Ron's own
+        replies actually use (bold, bullets, headers, inline code,
+        links), not arbitrary markdown documents. See EMOJI_PATTERN's
+        own comment for the emoji side."""
         # Bold/italic: **text**, __text__, *text*, _text_ -> text
         text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
         text = re.sub(r"__(.+?)__", r"\1", text)
@@ -1492,6 +1520,12 @@ class VoiceControlService:
         text = re.sub(r"`([^`]+)`", r"\1", text)
         # Links: [label](url) -> label - the URL itself isn't speakable
         text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
+        # Emoji - see EMOJI_PATTERN's own comment
+        text = EMOJI_PATTERN.sub("", text)
+        # An emoji removed from mid-sentence can leave a double space
+        # or trailing space behind ("great! 🎉 nice") - tidy up rather
+        # than have TTS render an audible pause for empty whitespace.
+        text = re.sub(r" {2,}", " ", text).strip()
         return text
 
     def _load_vosk_model(self):

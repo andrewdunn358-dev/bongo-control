@@ -245,7 +245,7 @@ class ArrivalNotificationService:
         every other spoken reply in this app already goes through
         (voice_control_service's own _synthesize()/_play_clip()), not
         a separate one. That also means this gets the SAME markdown
-        stripping (_strip_markdown_for_speech()) everything else does,
+        stripping (_clean_text_for_speech()) everything else does,
         and the SAME radio-ducking _play_clip() already handles
         internally - nothing extra needed here for either.
 
@@ -256,7 +256,7 @@ class ArrivalNotificationService:
         over the speaking half specifically.
         """
         try:
-            spoken_text = voice_control_service._strip_markdown_for_speech(f"{title}. {message}")
+            spoken_text = voice_control_service._clean_text_for_speech(f"{title}. {message}")
             audio = await asyncio.to_thread(voice_control_service._synthesize, spoken_text)
             await asyncio.to_thread(voice_control_service._play_clip, audio)
         except Exception as e:  # noqa: BLE001 - speaking is a bonus on top of the real notification, not something that should undo it
