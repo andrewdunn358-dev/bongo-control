@@ -34,6 +34,8 @@ from pydantic import BaseModel
 
 from app.services.configuration_service import configuration_service
 from app.services import location_service
+from app.services.relay_service import relay_service
+from app.services.roof_service import roof_service
 from app.telemetry.bus import bus
 from app.telemetry.models import TelemetryDomain
 
@@ -155,10 +157,62 @@ class AiChatService:
         lines.append(self._describe_battery_and_solar())
         lines.append(self._describe_connectivity())
         lines.append(self._describe_mission_brief())
+        lines.append("")
+        lines.append(self._describe_capabilities())
         lines.append(
             "If asked something this context doesn't cover and you're not confident, say so plainly rather "
             "than guessing - the same honesty this whole app is built around (e.g. it never shows a fake "
             "battery percentage without a shunt installed)."
+        )
+        return "\n".join(lines)
+
+    @staticmethod
+    def _describe_capabilities() -> str:
+        """Reported real gap: Ron confidently told someone he had 'no
+        hands on the radio dial' and 'nobody's wired me up to your
+        media player' - both false. The system prompt used to only
+        ever describe TELEMETRY (weather, battery, location) and never
+        actual capabilities at all, so that answer wasn't a
+        hallucination so much as an honest, reasonable conclusion from
+        genuinely incomplete information - nothing in the prompt said
+        otherwise. This section exists so that's no longer true.
+
+        Deliberately doesn't claim Ron EXECUTES these - both are
+        handled by a separate pattern-matching layer in
+        voice_control_service.py BEFORE a request ever reaches this
+        chat at all (relay commands and 'play <station>' are matched
+        and acted on directly; only what doesn't match falls through
+        to here). So the honest instruction is "tell them the exact
+        phrase", not "do it yourself" - conversational rephrasing
+        ("play something else", "skip to another station") genuinely
+        can't be acted on by either layer, and Ron should say so rather
+        than pretend to try.
+
+        Relay names built from the live config, same as
+        voice_control_service's own _voice_controllable_relays() -
+        stays accurate if they're ever renamed, and the roof relays are
+        structurally excluded here the same deliberate way they are
+        there (hold-to-run only, never a plain voice on/off).
+        """
+        try:
+            channels = relay_service.status().get("channels", [])
+            roof_ids = roof_service.managed_channel_ids
+            relay_names = sorted({str(c["name"]).strip() for c in channels if c.get("id") not in roof_ids and c.get("name")})
+        except Exception:  # noqa: BLE001 - this is prompt context, not a critical path; missing it shouldn't break a reply
+            relay_names = []
+
+        lines = ["Things this app can actually DO by voice (not just report on) - you don't execute these yourself, a separate layer does, before your own reply even runs. If asked to control one of these, tell the person the exact phrase to say:"]
+        if relay_names:
+            lines.append(f"- Saying 'turn the {', '.join(relay_names)} on' or 'off' toggles that physical circuit.")
+        lines.append(
+            "- Saying 'play <station name>' searches UK internet radio and starts that station playing through "
+            "the van's speaker; 'play the radio' alone starts whatever's set as the default station."
+        )
+        lines.append(
+            "Anything phrased differently from those exact patterns - 'play something else', 'skip to another "
+            "station', 'turn the roof up' - genuinely can't be acted on by either you or that layer. Say so "
+            "honestly and suggest the phrasing that would actually work, rather than claiming no such feature "
+            "exists at all."
         )
         return "\n".join(lines)
 
