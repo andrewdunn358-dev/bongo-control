@@ -546,6 +546,16 @@ class VoiceControlService:
         speech_started = False
         silence_run_start: float | None = None
         start_time = time.monotonic()
+        # Diagnostic only, temporary: the reported symptom (recording
+        # ran the full 12s cap even with ~9s of genuine silence
+        # afterward, on two consecutive attempts) points at the RMS
+        # threshold being too low for this hardware's real background
+        # noise floor - but that's a theory, not confirmed yet. Log the
+        # actual measured levels (not just a final summary) so the next
+        # real test shows the true numbers instead of guessing further.
+        rms_min = float("inf")
+        rms_max = 0.0
+        last_log_time = start_time
         try:
             while True:
                 elapsed = time.monotonic() - start_time
@@ -556,10 +566,19 @@ class VoiceControlService:
                 chunk = proc.stdout.read(chunk_bytes) if proc.stdout else b""
                 if not chunk:
                     break  # arecord exited unexpectedly - stop with whatever we've got
+                if len(chunk) % 2:
+                    chunk = chunk[:-1]  # a pipe read can land on an odd byte count - audioop.rms needs whole 16-bit frames
+                if not chunk:
+                    continue
                 frames.extend(chunk)
 
                 rms = audioop.rms(chunk, 2)
+                rms_min = min(rms_min, rms)
+                rms_max = max(rms_max, rms)
                 now = time.monotonic()
+                if now - last_log_time >= 1.0:
+                    logger.info("Voice control: TIMING adaptive-recording rms=%d (threshold=%d) at %.1fs", rms, threshold, elapsed)
+                    last_log_time = now
                 if rms > threshold:
                     speech_started = True
                     silence_run_start = None
@@ -576,6 +595,8 @@ class VoiceControlService:
                 proc.wait(timeout=2)
             except subprocess.TimeoutExpired:
                 proc.kill()
+
+        logger.info("Voice control: TIMING adaptive-recording rms range over whole recording: min=%d max=%d threshold=%d", rms_min, rms_max, threshold)
 
         recorded_seconds = time.monotonic() - start_time
         logger.info(
