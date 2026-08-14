@@ -37,6 +37,7 @@ from app.plugins.manager import PluginManager
 from app.services.roof_service import roof_service
 from app.services.voice_control_service import voice_control_service
 from app.services.internet_radio_service import internet_radio_service
+from app.services.arrival_notification_service import arrival_notification_service
 from app.services import battery_service, configuration_service, history_service, location_service, notification_service, power_budget_service, telemetry_service
 from app.services.relay_service import relay_service
 from app.telemetry.bus import bus
@@ -117,12 +118,23 @@ async def lifespan(app: FastAPI):
     # pattern as the camera and GPS device passthrough.
     voice_control_service.start()
 
+    # Proactively notices when the van has genuinely settled somewhere
+    # new (not just moving) and surfaces a real AI recommendation as a
+    # notification, without anyone tapping anything - see the module's
+    # own docstring for the two independent cost safeguards (the
+    # underlying recommendations service's own week-long cache, plus
+    # this service's own last-notified-location tracking). Silently
+    # does nothing if no Anthropic key is configured, same "off until
+    # opted into" pattern as voice control above.
+    await arrival_notification_service.start()
+
     yield
 
     logger.info("Shutting down")
     relay_service.stop()
     await roof_service.stop_all()
     await voice_control_service.stop()
+    await arrival_notification_service.stop()
     internet_radio_service.stop()
     await intelligence_runner.stop()
     await power_budget_service.stop()
