@@ -769,7 +769,18 @@ class VoiceControlService:
             # Gated off for now (OFFLINE_RELAY_COMMANDS_ENABLED) - see
             # that constant's own comment for why.
             offline_matched = await asyncio.to_thread(self._try_offline_relay_command, clip) if OFFLINE_RELAY_COMMANDS_ENABLED else None
+            _t_returned = time.monotonic()
             if offline_matched:
+                # Timing instrumentation, temporary: a real, unexplained
+                # ~3s gap was measured in production logs between Vosk's
+                # own "heard X" line (inside _try_offline_relay_command,
+                # already returned by this point) and the relay actually
+                # being set - neither status() nor the DB write account
+                # for it on inspection. Rather than keep guessing, log
+                # exactly where the time inside this specific block goes
+                # on the next real test, then remove this once it's
+                # found.
+                _t0 = time.monotonic()
                 channel_id, _heard_direction, name = offline_matched
                 # Toggle from current commanded state - deliberately
                 # IGNORING which word (on/off) was actually recognised.
@@ -783,7 +794,13 @@ class VoiceControlService:
                 # none of it matters once the action no longer depends
                 # on getting on/off right in the first place.
                 new_state = not self._current_commanded_on(channel_id)
+                _t1 = time.monotonic()
                 relay_service.set(channel_id, new_state, source="voice:ron-offline")
+                _t2 = time.monotonic()
+                logger.info(
+                    "Voice control: TIMING offline-toggle - thread_return_to_here=%.3fs, current_commanded_on=%.3fs, relay.set=%.3fs",
+                    _t0 - _t_returned, _t1 - _t0, _t2 - _t1,
+                )
                 reply = f"Toggling the {name}."
                 self._last_command_text = f"[offline] toggle {name}"
                 self._last_reply_text = reply
