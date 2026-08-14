@@ -369,12 +369,14 @@ function VoiceControlCard() {
   const [wakeWord, setWakeWord] = useState('');
   const [micDevice, setMicDevice] = useState('');
   const [playbackDevice, setPlaybackDevice] = useState('');
+  const [speechThreshold, setSpeechThreshold] = useState('');
   const [seeded, setSeeded] = useState(false);
   useEffect(() => {
     if (cfg.data && !seeded) {
       setWakeWord(String(cfg.data.voice_wake_word ?? ''));
       setMicDevice(String(cfg.data.voice_mic_device ?? ''));
       setPlaybackDevice(String(cfg.data.voice_playback_device ?? ''));
+      setSpeechThreshold(cfg.data.voice_speech_rms_threshold != null ? String(cfg.data.voice_speech_rms_threshold) : '');
       setSeeded(true);
     }
   }, [cfg.data, seeded]);
@@ -386,6 +388,7 @@ function VoiceControlCard() {
         voice_wake_word: wakeWord.trim().toLowerCase(),
         voice_mic_device: micDevice.trim(),
         voice_playback_device: playbackDevice.trim(),
+        voice_speech_rms_threshold: speechThreshold.trim() ? Number(speechThreshold.trim()) : '',
       };
       if (groqKey.trim()) value.groq_api_key = groqKey.trim(); // omit when blank -> keeps existing key
       return api.setConfig('general', value);
@@ -489,6 +492,23 @@ function VoiceControlCard() {
         Leave blank for ALSA's own default — used for recording commands and speaking replies. The always-on wake-word
         listener finds the mic itself automatically (no config needed there), so this field doesn't need to match a
         specific format for it.
+      </div>
+
+      <div>
+        <label className="text-[11px] uppercase tracking-widest text-ink-muted">Speech detection threshold</label>
+        <input
+          value={speechThreshold}
+          onChange={(e) => setSpeechThreshold(e.target.value)}
+          placeholder="400 (default)"
+          inputMode="numeric"
+          className="mt-1.5 w-full max-w-[200px] rounded-xl bg-ink/[0.04] ring-1 ring-ink/10 focus:ring-aurora-teal/50 outline-none px-3 py-2 text-sm num"
+        />
+      </div>
+      <div className="text-[11px] text-ink-faint mt-1 mb-3">
+        How loud counts as "someone's talking" while recording a command — lower catches quieter speech but risks
+        picking up background noise as speech; higher is more forgiving of noise but might cut off a quiet start. 400
+        is a reasonable starting point, not a verified number for your actual mic — worth adjusting from real
+        testing if commands keep getting cut off early, or keep running to the full length even for short phrases.
       </div>
 
       <button

@@ -63,6 +63,7 @@ what gets said.
 from __future__ import annotations
 
 import asyncio
+import audioop
 import io
 import json
 import logging
@@ -74,6 +75,7 @@ import subprocess
 import tempfile
 import time
 import wave
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -130,6 +132,28 @@ OFFLINE_RELAY_COMMANDS_ENABLED = True
 # additional engineering; this is the honest, fast, low-risk trim.
 COMMAND_RECORD_SECONDS = 4.0
 
+# Adaptive/silence-based recording - the "real additional engineering"
+# the note above already flagged as the properly optimal fix, now
+# built. Real reported gap this closes: a fixed window either cuts off
+# a longer natural question ("what's the weather and how's the
+# battery") mid-sentence, or - if lengthened to avoid that - makes
+# every short command ("lights on", the common case) needlessly slower
+# for no reason. Adaptive solves both: keeps listening while there's
+# real speech, stops shortly after it actually pauses, whichever
+# happens first.
+MAX_COMMAND_RECORD_SECONDS = 12.0  # hard safety cap regardless of speech - must never record forever
+MIN_COMMAND_RECORD_SECONDS = 1.0  # never stop earlier than this even if the silence logic misfires early
+INITIAL_SILENCE_GRACE_SECONDS = 3.0  # how long to wait for speech to START before giving up entirely
+TRAILING_SILENCE_SECONDS = 1.3  # how long a pause AFTER speech has started counts as "finished talking"
+RECORD_CHUNK_SECONDS = 0.1  # how often the silence detector re-checks - small enough to feel responsive
+# Genuinely can't be tuned without live testing against real hardware
+# (mic gain, van's own background noise, the actual USB sound card's
+# output level) - this is a reasonable starting point for 16-bit PCM
+# audio, not a verified-correct number. Configurable via Settings
+# (voice_speech_rms_threshold) specifically so it can be adjusted from
+# real testing without a code change - see _speech_rms_threshold().
+DEFAULT_SPEECH_RMS_THRESHOLD = 400
+
 # Used only by speak_test_phrase() - the pause between speaking the
 # wake word and speaking the command, simulating the beat a real
 # person should leave after the beep. Generous on purpose: covers wake
@@ -161,6 +185,36 @@ DEFAULT_WAKE_WORD = "computer"
 DEFAULT_MIC_DEVICE = "default"  # ALSA device string, e.g. "hw:2,0" - see Settings
 DEFAULT_PLAYBACK_DEVICE = "default"  # e.g. "hw:1,0" for the Pi's own jack, or the USB DAC once fitted
 
+# Follow-up conversation, without repeating the wake word each time.
+# After speaking a reply, _handle_wake() listens again immediately
+# (silently - no beep, the reply just finishing IS the cue) using the
+# same adaptive recording as the first turn. If real speech is picked
+# up within its own INITIAL_SILENCE_GRACE_SECONDS, that's treated as a
+# continuation of the same conversation - carrying the same
+# conversation history, no "computer" needed. If nothing's said, the
+# session ends there and the next interaction needs the wake word
+# again, same as before this existed.
+MAX_FOLLOWUP_TURNS = 6  # a generous safety bound against a genuinely runaway loop, not a real UX limit anyone should hit
+# Each exchange is 2 entries (user + assistant) - 12 keeps roughly the
+# last 6 exchanges. Bounded so a long conversation doesn't grow the
+# prompt (and Groq's bill) without limit; old context past this simply
+# ages out rather than the conversation breaking.
+MAX_CONVERSATION_HISTORY_MESSAGES = 12
+
+
+@dataclass
+class _RecordResult:
+    wav_bytes: bytes
+    # Whether the recorder actually detected speech above the RMS
+    # threshold, vs. just silence for the whole listening window. Lets
+    # the follow-up loop decide "did they say something else" without
+    # needing to round-trip a near-silent clip through Groq first just
+    # to find out - _record_command_clip_fixed() (the non-adaptive
+    # fallback) can't know this, so it always reports True, since it's
+    # normally only reached on the FIRST turn anyway, where we already
+    # know the wake word fired.
+    speech_detected: bool
+
 
 class VoiceControlUnavailableError(RuntimeError):
     pass
@@ -184,6 +238,15 @@ class VoiceControlService:
         # KaldiRecognizer instances; only the recognizer itself carries
         # per-utterance state.
         self._vosk_model = None
+        # Conversation memory for the current wake-word session (the
+        # original trigger plus however many follow-up turns come after
+        # it, until the first silent gap ends it) - see _handle_wake()
+        # (resets this fresh) and _run_conversation_turn() (appends to
+        # it, trims to MAX_CONVERSATION_HISTORY_MESSAGES). Deliberately
+        # NOT persisted across separate sessions - a brand new "computer,
+        # ..." shouldn't inherit context from an unrelated conversation
+        # from an hour ago.
+        self._conversation_history: list[ChatMessage] = []
 
     # ---------------------------------------------------------- config
 
@@ -247,6 +310,20 @@ class VoiceControlService:
 
     def _playback_device(self) -> str:
         return str(self._general().get("voice_playback_device") or "").strip() or DEFAULT_PLAYBACK_DEVICE
+
+    def _speech_rms_threshold(self) -> float:
+        """How loud (in raw 16-bit PCM RMS) counts as 'someone is
+        speaking' for the adaptive recording cutoff. DEFAULT_SPEECH_RMS_THRESHOLD
+        is a starting guess, not a verified number - if commands keep
+        getting cut off early, or keep running to the max length even
+        for short phrases, this needs adjusting up or down from real
+        testing. Configurable so that's a Settings change, not a
+        redeploy."""
+        raw = self._general().get("voice_speech_rms_threshold")
+        try:
+            return float(raw) if raw not in (None, "") else float(DEFAULT_SPEECH_RMS_THRESHOLD)
+        except (TypeError, ValueError):
+            return float(DEFAULT_SPEECH_RMS_THRESHOLD)
 
     def is_configured(self) -> bool:
         # Only the Groq key gates this - Vosk needs no account/key at
@@ -413,7 +490,108 @@ class VoiceControlService:
             wf.writeframes(bytes(frames))
         return buf.getvalue()
 
-    def _record_command_clip(self) -> bytes:
+    def _record_command_clip(self) -> _RecordResult:
+        """Primary entry point - tries adaptive, silence-based recording
+        first, falling back to the old reliable fixed-duration approach
+        if anything about the adaptive path throws. This function
+        previously WAS the fixed-duration implementation directly;
+        that logic still exists, unchanged, as _record_command_clip_fixed()
+        below, specifically as a safety net - genuinely can't test the
+        new streaming/RMS logic against real hardware from where this
+        was written, so if it misbehaves in a way not caught here,
+        voice control degrades to exactly how it worked before rather
+        than breaking outright."""
+        try:
+            return self._record_command_clip_adaptive()
+        except Exception as e:  # noqa: BLE001 - the whole point of this fallback
+            logger.warning("Voice control: adaptive recording failed (%s), falling back to fixed-duration", e)
+            return _RecordResult(wav_bytes=self._record_command_clip_fixed(), speech_detected=True)
+
+    def _record_command_clip_adaptive(self) -> _RecordResult:
+        """Records via `arecord` streamed as raw PCM to stdout (not a
+        fixed -d duration to a file) so this can watch the audio as it
+        arrives and decide when the person's actually finished talking,
+        rather than always waiting a fixed window. Reuses
+        _resolve_arecord_device() and the 44100Hz rate exactly as the
+        fixed-duration path does - both proven working against this
+        actual hardware; only HOW the output is consumed changes here.
+
+        State machine, checked every RECORD_CHUNK_SECONDS:
+        - Before any speech is detected: keep waiting, up to
+          INITIAL_SILENCE_GRACE_SECONDS - covers the real gap between
+          the beep and someone actually starting to talk. If nothing's
+          said at all in that window, give up (an empty/near-silent
+          clip goes to transcription same as before, which already
+          handles that case).
+        - Once speech is detected (RMS above the configured threshold):
+          keep recording. A sustained quiet patch of TRAILING_SILENCE_SECONDS
+          is read as "they've finished the sentence" and stops early -
+          this is what lets a short command finish fast.
+        - MAX_COMMAND_RECORD_SECONDS is a hard cap regardless of any of
+          the above - a longer natural question gets real room to
+          breathe, but this can't run forever.
+        """
+        device = self._resolve_arecord_device()
+        sample_rate = 44100
+        chunk_frames = max(1, int(sample_rate * RECORD_CHUNK_SECONDS))
+        chunk_bytes = chunk_frames * 2  # 16-bit mono = 2 bytes/sample
+        threshold = self._speech_rms_threshold()
+
+        proc = subprocess.Popen(
+            ["arecord", "-D", device, "-f", "S16_LE", "-r", str(sample_rate), "-c", "1", "-t", "raw"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+        frames = bytearray()
+        speech_started = False
+        silence_run_start: float | None = None
+        start_time = time.monotonic()
+        try:
+            while True:
+                elapsed = time.monotonic() - start_time
+                if elapsed >= MAX_COMMAND_RECORD_SECONDS:
+                    logger.info("Voice control: adaptive recording hit the %.0fs safety cap", MAX_COMMAND_RECORD_SECONDS)
+                    break
+
+                chunk = proc.stdout.read(chunk_bytes) if proc.stdout else b""
+                if not chunk:
+                    break  # arecord exited unexpectedly - stop with whatever we've got
+                frames.extend(chunk)
+
+                rms = audioop.rms(chunk, 2)
+                now = time.monotonic()
+                if rms > threshold:
+                    speech_started = True
+                    silence_run_start = None
+                elif speech_started:
+                    if silence_run_start is None:
+                        silence_run_start = now
+                    elif (now - silence_run_start) >= TRAILING_SILENCE_SECONDS and elapsed >= MIN_COMMAND_RECORD_SECONDS:
+                        break  # said something, then paused for long enough - they're done
+                elif elapsed >= INITIAL_SILENCE_GRACE_SECONDS:
+                    break  # never started talking at all - give up rather than record silence for 12s
+        finally:
+            proc.terminate()
+            try:
+                proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+
+        recorded_seconds = time.monotonic() - start_time
+        logger.info(
+            "Voice control: adaptive recording finished after %.1fs (%s), %d bytes captured",
+            recorded_seconds, "speech detected" if speech_started else "no speech detected", len(frames),
+        )
+
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(sample_rate)
+            wf.writeframes(bytes(frames))
+        return _RecordResult(wav_bytes=buf.getvalue(), speech_detected=speech_started)
+
+    def _record_command_clip_fixed(self) -> bytes:
         """Records COMMAND_RECORD_SECONDS of audio via `arecord` (a
         plain ALSA CLI capture, same "shell out to a well-tested real
         tool" pattern as ffmpeg for the camera) and returns it as WAV
@@ -421,6 +599,11 @@ class VoiceControlService:
         directly on the event loop (same reasoning as every other
         subprocess call in this codebase that touches real hardware -
         see camera_service.py).
+
+        Kept as the fallback safety net for _record_command_clip() -
+        see that function's docstring. This was the primary recording
+        path before adaptive/silence-based recording was added; the
+        logic here is otherwise unchanged.
 
         Note on why this doesn't just crash outright when the wake-word
         listener is holding the same mic open: ALSA hardware devices
@@ -650,11 +833,13 @@ class VoiceControlService:
 
     async def _handle_wake(self) -> None:
         """Runs after the wake word fires: record -> transcribe -> act
-        (relay command) or think (Ron) -> speak the result. Every
-        real error is caught and turned into a spoken apology rather
-        than left to die silently in a background task - the whole
-        point of voice control is not having to look at a screen to
-        know something went wrong.
+        (relay command) or think (Ron) -> speak the result, then keeps
+        listening for a follow-up (see _run_conversation_turn()) rather
+        than immediately going quiet again. Every real error is caught
+        and turned into a spoken apology rather than left to die
+        silently in a background task - the whole point of voice
+        control is not having to look at a screen to know something
+        went wrong.
 
         Guards against a SECOND call starting while this one is still
         running - self._processing existed before this but was only
@@ -679,20 +864,96 @@ class VoiceControlService:
             return
         self._processing = True
         self._last_wake_at = time.time()
-        # Ducks internet radio for the ENTIRE wake-word-to-reply window,
-        # not just around the individual _play_clip() calls inside it
-        # (those still duck/unduck too - see internet_radio_service's
-        # reentrant depth counter for why nesting these is safe). The
-        # gap this closes: the actual command-RECORDING window sits
-        # between the beep and the reply, and radio was never paused
-        # for that part at all - confirmed via a real acoustic self-test
-        # (wake word + command played through the speaker, picked up by
-        # the mic) that came back with Whisper hearing only "." while
-        # radio was playing. It kept playing right through the person's
-        # spoken command, and the mic picked up radio audio mixed with
-        # (or instead of) actual speech.
+        # Ducks internet radio for the ENTIRE session - the original
+        # wake-word turn AND every follow-up turn after it, not just one
+        # exchange (those still duck/unduck too, per-turn - see
+        # internet_radio_service's reentrant depth counter for why
+        # nesting these is safe). The gap this closes: the actual
+        # command-RECORDING window sits between the beep and the reply,
+        # and radio was never paused for that part at all - confirmed
+        # via a real acoustic self-test (wake word + command played
+        # through the speaker, picked up by the mic) that came back
+        # with Whisper hearing only "." while radio was playing. It kept
+        # playing right through the person's spoken command, and the
+        # mic picked up radio audio mixed with (or instead of) actual
+        # speech.
         internet_radio_service.duck()
+        # Fresh conversation memory every time the wake word actually
+        # fires - persists across follow-up turns WITHIN this session
+        # (see _run_conversation_turn()), reset here so a brand new
+        # "computer, ..." doesn't inherit context from an unrelated
+        # conversation minutes or hours earlier.
+        self._conversation_history = []
         try:
+            should_continue = await self._run_conversation_turn(is_followup=False)
+            turn_count = 1
+            while should_continue and turn_count < MAX_FOLLOWUP_TURNS:
+                should_continue = await self._run_conversation_turn(is_followup=True)
+                turn_count += 1
+        except Exception as e:  # noqa: BLE001 - a voice-pipeline failure must never crash the listener
+            logger.warning("Voice control: error handling wake: %s", e)
+            self._last_error = str(e)
+        finally:
+            internet_radio_service.unduck()
+            self._processing = False
+            self._conversation_history = []
+
+    async def _run_conversation_turn(self, is_followup: bool) -> bool:
+        """One record -> transcribe -> act (relay) or think (Ron) ->
+        speak cycle. Returns True if a follow-up turn should be
+        listened for next (something was actually said or done this
+        turn), False if the conversation should end here (nothing was
+        understood - see the two early-outs below, one for a silent
+        follow-up window and one for empty transcription either way).
+
+        is_followup=False is the original wake-word-triggered turn:
+        plays the "go ahead" beep, same concurrent beep+mic-handoff fix
+        as before. is_followup=True skips the beep entirely - the
+        previous reply finishing IS the cue that it's the person's turn
+        again, and another beep after every single exchange in an
+        actual back-and-forth would get repetitive fast. Both paths use
+        the same _reopen_mic_and_record() mic handoff and the same
+        adaptive recording underneath, so a follow-up nobody responds
+        to gives up quickly (INITIAL_SILENCE_GRACE_SECONDS) rather than
+        sitting through the full window for nothing.
+        """
+        async def _reopen_mic_and_record() -> _RecordResult:
+            # Reported symptom: arecord failing with "Device or
+            # resource busy" (confirmed) whenever this ran while the
+            # always-on wake-word listener's own sounddevice stream
+            # was still holding the mic open, which is true by
+            # definition every time this is reached via an actual
+            # wake word (the listener has to be running to have
+            # heard it). ALSA hardware generally allows only one
+            # exclusive consumer, so arecord and the listener's own
+            # stream collided.
+            #
+            # .stop()/.start() alone (the first attempt at this fix)
+            # turned out not to be enough - PortAudio's stop() pauses
+            # the audio callback but doesn't necessarily release the
+            # underlying ALSA device handle, so arecord still saw it
+            # as busy. Actually closing the stream (releasing the
+            # hardware properly) and recreating it fresh afterward,
+            # using the same construction args stashed in
+            # _listen_loop() (self._stream_kwargs) so this doesn't
+            # need to re-run device/model resolution for every single
+            # command, is what genuinely frees the device in between.
+            had_listener = self._stream is not None
+            if had_listener:
+                await asyncio.to_thread(self._stream.close)
+                self._stream = None
+            try:
+                return await asyncio.to_thread(self._record_command_clip)
+            finally:
+                if had_listener and self._stream_kwargs is not None:
+                    import sounddevice as sd
+
+                    self._stream = sd.RawInputStream(**self._stream_kwargs)
+                    await asyncio.to_thread(self._stream.start)
+
+        if is_followup:
+            record_result = await _reopen_mic_and_record()
+        else:
             # Audible "go ahead, talk now" cue - see
             # _generate_beep_wav()'s own docstring. Reported symptom:
             # two commands in a row lost exactly their LAST word ("on"/
@@ -715,144 +976,128 @@ class VoiceControlService:
             # margin for natural speech instead of requiring it to be
             # timed around the software.
             beep = self._generate_beep_wav()
-
-            async def _reopen_mic_and_record() -> bytes:
-                # Reported symptom: arecord failing with "Device or
-                # resource busy" (confirmed) whenever this ran while the
-                # always-on wake-word listener's own sounddevice stream
-                # was still holding the mic open, which is true by
-                # definition every time this is reached via an actual
-                # wake word (the listener has to be running to have
-                # heard it). ALSA hardware generally allows only one
-                # exclusive consumer, so arecord and the listener's own
-                # stream collided.
-                #
-                # .stop()/.start() alone (the first attempt at this fix)
-                # turned out not to be enough - PortAudio's stop() pauses
-                # the audio callback but doesn't necessarily release the
-                # underlying ALSA device handle, so arecord still saw it
-                # as busy. Actually closing the stream (releasing the
-                # hardware properly) and recreating it fresh afterward,
-                # using the same construction args stashed in
-                # _listen_loop() (self._stream_kwargs) so this doesn't
-                # need to re-run device/model resolution for every single
-                # command, is what genuinely frees the device in between.
-                had_listener = self._stream is not None
-                if had_listener:
-                    await asyncio.to_thread(self._stream.close)
-                    self._stream = None
-                try:
-                    return await asyncio.to_thread(self._record_command_clip)
-                finally:
-                    if had_listener and self._stream_kwargs is not None:
-                        import sounddevice as sd
-
-                        self._stream = sd.RawInputStream(**self._stream_kwargs)
-                        await asyncio.to_thread(self._stream.start)
-
-            _, clip = await asyncio.gather(
+            _, record_result = await asyncio.gather(
                 asyncio.to_thread(self._play_clip, beep),
                 _reopen_mic_and_record(),
             )
 
-            # Try offline first: physical relay control shouldn't
-            # depend on the van having a working internet connection at
-            # all. If Vosk's constrained grammar confidently recognises
-            # a relay command, act on it immediately with zero Groq
-            # calls - same relay-setting code path, same confirm beep,
-            # as the Groq-matched branch below. Anything that doesn't
-            # confidently match (open-ended chat, an unclear command,
-            # Vosk simply not being sure) falls straight through to the
-            # normal Groq Whisper transcription exactly as before - this
-            # is a first attempt, never a replacement for it.
-            #
-            # Gated off for now (OFFLINE_RELAY_COMMANDS_ENABLED) - see
-            # that constant's own comment for why.
-            offline_matched = await asyncio.to_thread(self._try_offline_relay_command, clip) if OFFLINE_RELAY_COMMANDS_ENABLED else None
-            _t_returned = time.monotonic()
-            if offline_matched:
-                # Timing instrumentation, temporary: a real, unexplained
-                # ~3s gap was measured in production logs between Vosk's
-                # own "heard X" line (inside _try_offline_relay_command,
-                # already returned by this point) and the relay actually
-                # being set - neither status() nor the DB write account
-                # for it on inspection. Rather than keep guessing, log
-                # exactly where the time inside this specific block goes
-                # on the next real test, then remove this once it's
-                # found.
-                _t0 = time.monotonic()
-                channel_id, _heard_direction, name = offline_matched
-                # Toggle from current commanded state - deliberately
-                # IGNORING which word (on/off) was actually recognised.
-                # Andrew's own framing: "no matter what I say, just
-                # toggle the relay" - he's standing there, can see the
-                # actual light, and will just say it again if it went
-                # the wrong way, exactly like flicking a real switch.
-                # This also sidesteps every failure mode chased earlier
-                # tonight in one move - a misheard word, a relay wired
-                # the "wrong" way, an app that can't see the switch -
-                # none of it matters once the action no longer depends
-                # on getting on/off right in the first place.
-                new_state = not self._current_commanded_on(channel_id)
-                _t1 = time.monotonic()
-                relay_service.set(channel_id, new_state, source="voice:ron-offline")
-                _t2 = time.monotonic()
-                logger.info(
-                    "Voice control: TIMING offline-toggle - thread_return_to_here=%.3fs, current_commanded_on=%.3fs, relay.set=%.3fs",
-                    _t0 - _t_returned, _t1 - _t0, _t2 - _t1,
-                )
-                reply = f"Toggling the {name}."
-                self._last_command_text = f"[offline] toggle {name}"
-                self._last_reply_text = reply
-                self._last_error = None
-                confirm_beep = self._generate_beep_wav(frequency_hz=1400.0, duration_s=0.12)
-                await asyncio.to_thread(self._play_clip, confirm_beep)
-                return
+        clip = record_result.wav_bytes
 
-            text = await asyncio.to_thread(self._transcribe, clip)
-            self._last_command_text = text
-            logger.info("Voice control: heard %r", text)
+        if is_followup and not record_result.speech_detected:
+            # Nothing said in the follow-up window - end the
+            # conversation here rather than spend a Groq round-trip
+            # confirming a near-silent clip is, in fact, silent. This
+            # is the common case (most single-turn interactions have no
+            # follow-up at all), so worth skipping the network call for.
+            return False
 
-            if not text:
-                return
+        # Try offline first: physical relay control shouldn't
+        # depend on the van having a working internet connection at
+        # all. If Vosk's constrained grammar confidently recognises
+        # a relay command, act on it immediately with zero Groq
+        # calls - same relay-setting code path, same confirm beep,
+        # as the Groq-matched branch below. Anything that doesn't
+        # confidently match (open-ended chat, an unclear command,
+        # Vosk simply not being sure) falls straight through to the
+        # normal Groq Whisper transcription exactly as before - this
+        # is a first attempt, never a replacement for it.
+        #
+        # Gated off for now (OFFLINE_RELAY_COMMANDS_ENABLED) - see
+        # that constant's own comment for why.
+        offline_matched = await asyncio.to_thread(self._try_offline_relay_command, clip) if OFFLINE_RELAY_COMMANDS_ENABLED else None
+        _t_returned = time.monotonic()
+        if offline_matched:
+            # Timing instrumentation, temporary: a real, unexplained
+            # ~3s gap was measured in production logs between Vosk's
+            # own "heard X" line (inside _try_offline_relay_command,
+            # already returned by this point) and the relay actually
+            # being set - neither status() nor the DB write account
+            # for it on inspection. Rather than keep guessing, log
+            # exactly where the time inside this specific block goes
+            # on the next real test, then remove this once it's
+            # found.
+            _t0 = time.monotonic()
+            channel_id, _heard_direction, name = offline_matched
+            # Toggle from current commanded state - deliberately
+            # IGNORING which word (on/off) was actually recognised.
+            # Andrew's own framing: "no matter what I say, just
+            # toggle the relay" - he's standing there, can see the
+            # actual light, and will just say it again if it went
+            # the wrong way, exactly like flicking a real switch.
+            # This also sidesteps every failure mode chased earlier
+            # tonight in one move - a misheard word, a relay wired
+            # the "wrong" way, an app that can't see the switch -
+            # none of it matters once the action no longer depends
+            # on getting on/off right in the first place.
+            new_state = not self._current_commanded_on(channel_id)
+            _t1 = time.monotonic()
+            relay_service.set(channel_id, new_state, source="voice:ron-offline")
+            _t2 = time.monotonic()
+            logger.info(
+                "Voice control: TIMING offline-toggle - thread_return_to_here=%.3fs, current_commanded_on=%.3fs, relay.set=%.3fs",
+                _t0 - _t_returned, _t1 - _t0, _t2 - _t1,
+            )
+            reply = f"Toggling the {name}."
+            self._last_command_text = f"[offline] toggle {name}"
+            self._last_reply_text = reply
+            self._last_error = None
+            confirm_beep = self._generate_beep_wav(frequency_hz=1400.0, duration_s=0.12)
+            await asyncio.to_thread(self._play_clip, confirm_beep)
+            return True
 
-            matched = self._match_relay_command(text)
-            if matched:
-                channel_id, _heard_direction, name = matched
-                # Same toggle-not-absolute reasoning as the offline
-                # branch above - see that comment for why.
-                new_state = not self._current_commanded_on(channel_id)
-                relay_service.set(channel_id, new_state, source="voice:ron")
-                reply = f"Toggling the {name}."
-                self._last_reply_text = reply
-                self._last_error = None
-                # A relay command gets its own immediate, physical
-                # confirmation - the light/heater/whatever actually
-                # switching - so a full spoken "Turning the lights on"
-                # reply is genuinely redundant, not just slow. That was
-                # several real seconds of Groq TTS synthesis + playback
-                # on EVERY single relay command, for information the
-                # command already gave you. A short, distinct
-                # confirmation beep (higher/shorter than the "go ahead,
-                # talk" cue, so the two are tellable apart) says "done"
-                # instantly instead. Ron's own conversational replies
-                # below still get spoken in full - there's no other way
-                # to actually hear her answer.
-                confirm_beep = self._generate_beep_wav(frequency_hz=1400.0, duration_s=0.12)
-                await asyncio.to_thread(self._play_clip, confirm_beep)
-            else:
-                history = [ChatMessage(role="user", content=text)]
-                reply = await ai_chat_service.reply(history)
-                self._last_reply_text = reply
-                self._last_error = None
-                audio = await asyncio.to_thread(self._synthesize, reply)
-                await asyncio.to_thread(self._play_clip, audio)
-        except Exception as e:  # noqa: BLE001 - a voice-pipeline failure must never crash the listener
-            logger.warning("Voice control: error handling wake: %s", e)
-            self._last_error = str(e)
-        finally:
-            internet_radio_service.unduck()
-            self._processing = False
+        text = await asyncio.to_thread(self._transcribe, clip)
+        self._last_command_text = text
+        logger.info("Voice control: heard %r", text)
+
+        if not text:
+            return False  # nothing understood - same "end the conversation" outcome as a silent follow-up
+
+        matched = self._match_relay_command(text)
+        if matched:
+            channel_id, _heard_direction, name = matched
+            # Same toggle-not-absolute reasoning as the offline
+            # branch above - see that comment for why.
+            new_state = not self._current_commanded_on(channel_id)
+            relay_service.set(channel_id, new_state, source="voice:ron")
+            reply = f"Toggling the {name}."
+            self._last_reply_text = reply
+            self._last_error = None
+            # A relay command gets its own immediate, physical
+            # confirmation - the light/heater/whatever actually
+            # switching - so a full spoken "Turning the lights on"
+            # reply is genuinely redundant, not just slow. That was
+            # several real seconds of Groq TTS synthesis + playback
+            # on EVERY single relay command, for information the
+            # command already gave you. A short, distinct
+            # confirmation beep (higher/shorter than the "go ahead,
+            # talk" cue, so the two are tellable apart) says "done"
+            # instantly instead. Ron's own conversational replies
+            # below still get spoken in full - there's no other way
+            # to actually hear her answer.
+            confirm_beep = self._generate_beep_wav(frequency_hz=1400.0, duration_s=0.12)
+            await asyncio.to_thread(self._play_clip, confirm_beep)
+        else:
+            # Conversation memory: this turn's utterance AND Ron's
+            # reply both join self._conversation_history, which
+            # persists across follow-up turns within this same
+            # session (reset fresh in _handle_wake() itself) - a
+            # genuine "and what about tomorrow?" follow-up now has the
+            # actual prior exchange to work from, rather than every
+            # single turn starting from nothing. Trimmed to
+            # MAX_CONVERSATION_HISTORY_MESSAGES afterward, oldest
+            # first, so a long conversation doesn't grow the prompt
+            # (and the Groq bill) without limit.
+            self._conversation_history.append(ChatMessage(role="user", content=text))
+            reply = await ai_chat_service.reply(self._conversation_history)
+            self._conversation_history.append(ChatMessage(role="assistant", content=reply))
+            if len(self._conversation_history) > MAX_CONVERSATION_HISTORY_MESSAGES:
+                self._conversation_history = self._conversation_history[-MAX_CONVERSATION_HISTORY_MESSAGES:]
+            self._last_reply_text = reply
+            self._last_error = None
+            audio = await asyncio.to_thread(self._synthesize, reply)
+            await asyncio.to_thread(self._play_clip, audio)
+
+        return True
 
     def _load_vosk_model(self):
         """Blocking - downloads the small English model on first run
