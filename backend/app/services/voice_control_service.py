@@ -1107,7 +1107,7 @@ class VoiceControlService:
         to gives up quickly (INITIAL_SILENCE_GRACE_SECONDS) rather than
         sitting through the full window for nothing.
         """
-        async def _reopen_mic_and_record() -> _RecordResult:
+        async def _close_mic_for_recording() -> bool:
             # Reported symptom: arecord failing with "Device or
             # resource busy" (confirmed) whenever this ran while the
             # always-on wake-word listener's own sounddevice stream
@@ -1123,26 +1123,44 @@ class VoiceControlService:
             # the audio callback but doesn't necessarily release the
             # underlying ALSA device handle, so arecord still saw it
             # as busy. Actually closing the stream (releasing the
-            # hardware properly) and recreating it fresh afterward,
-            # using the same construction args stashed in
-            # _listen_loop() (self._stream_kwargs) so this doesn't
-            # need to re-run device/model resolution for every single
-            # command, is what genuinely frees the device in between.
+            # hardware properly) is what genuinely frees the device.
+            #
+            # Deliberately does NOT reopen the stream itself anymore -
+            # see the try/finally around the rest of this function for
+            # why: reopening immediately after recording (the original
+            # design) put the continuous listener back in front of
+            # Vosk WHILE the reply was still being generated and
+            # spoken, not after. Confirmed live: a single ~37s TTS
+            # reply left the listener's queue 86 chunks (~43s) behind
+            # real time by the time it finished - the listener was
+            # actively competing for the Pi's limited CPU for the
+            # entire time Ron was talking, exactly when there's nothing
+            # useful for it to be doing anyway (nobody's saying the
+            # wake word while still listening to the previous reply).
             had_listener = self._stream is not None
             if had_listener:
                 await asyncio.to_thread(self._stream.close)
                 self._stream = None
-            try:
-                return await asyncio.to_thread(self._record_command_clip)
-            finally:
-                if had_listener and self._stream_kwargs is not None:
-                    import sounddevice as sd
+            return had_listener
 
-                    self._stream = sd.RawInputStream(**self._stream_kwargs)
-                    await asyncio.to_thread(self._stream.start)
+        async def _record_only(had_listener: bool) -> _RecordResult:
+            # Deliberately does NOT reopen the mic here - see the
+            # try/finally wrapping the rest of this function, below,
+            # for why: reopening immediately after recording (the
+            # original design) put the continuous listener back in
+            # front of Vosk WHILE the reply was still being generated
+            # and spoken, not after. Confirmed live: a single ~37s TTS
+            # reply left the listener's queue 86 chunks (~43s) behind
+            # real time by the time it finished - the listener was
+            # actively competing for the Pi's limited CPU for the
+            # entire time Ron was talking, exactly when there's nothing
+            # useful for it to be doing anyway (nobody's saying the
+            # wake word while still listening to the previous reply).
+            return await asyncio.to_thread(self._record_command_clip)
 
         if is_followup:
-            record_result = await _reopen_mic_and_record()
+            had_listener = await _close_mic_for_recording()
+            record_result = await _record_only(had_listener)
         else:
             # Audible "go ahead, talk now" cue - see
             # _generate_beep_wav()'s own docstring. Reported symptom:
@@ -1166,11 +1184,37 @@ class VoiceControlService:
             # margin for natural speech instead of requiring it to be
             # timed around the software.
             beep = self._generate_beep_wav()
+            had_listener = await _close_mic_for_recording()
             _, record_result = await asyncio.gather(
                 asyncio.to_thread(self._play_clip, beep),
-                _reopen_mic_and_record(),
+                _record_only(had_listener),
             )
 
+        async def _reopen_mic() -> None:
+            if had_listener and self._stream_kwargs is not None:
+                import sounddevice as sd
+
+                self._stream = sd.RawInputStream(**self._stream_kwargs)
+                await asyncio.to_thread(self._stream.start)
+
+        try:
+            return await self._process_recorded_command(record_result, is_followup)
+        finally:
+            # The ONE place the mic gets reopened for this whole turn -
+            # only now, after everything (relay toggle + confirm beep,
+            # or the full transcribe -> think -> speak cycle) has
+            # genuinely finished, not right after recording. See
+            # _record_only()'s own comment for the real symptom this
+            # fixes.
+            await _reopen_mic()
+
+    async def _process_recorded_command(self, record_result: _RecordResult, is_followup: bool) -> bool:
+        """The transcribe -> act (relay) or think (Ron) -> speak half
+        of one turn - split out from _run_conversation_turn() so that
+        function's try/finally can guarantee the mic gets reopened
+        after this fully completes (including a long TTS reply),
+        regardless of which branch below actually runs or whether one
+        raises."""
         clip = record_result.wav_bytes
 
         if is_followup and not record_result.speech_detected:
