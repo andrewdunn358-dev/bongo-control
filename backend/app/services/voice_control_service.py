@@ -365,6 +365,49 @@ class VoiceControlService:
         except (TypeError, ValueError):
             return float(DEFAULT_SPEECH_RMS_THRESHOLD)
 
+    def _mic_gain(self) -> float:
+        """Digital gain multiplier applied to raw mic audio before it
+        reaches Vosk or gets recorded - both the always-on wake-word
+        listener and the adaptive command recording use this. Needed
+        because the actual mic hardware's own Capture level is already
+        at its maximum (confirmed: 100%, no separate boost control
+        exists on this device) - there's nowhere further to go at the
+        hardware level, so any more sensitivity has to come from
+        software instead. Real motivating case: the mic will sit
+        mounted high up in the van, further from a speaking voice than
+        the close, on-the-body range a lavalier mic is actually
+        designed for.
+
+        1.0 = no change. Genuinely untested against the real, final
+        mounted position - a reasonable starting point, not a verified
+        number. Digital gain amplifies whatever's already captured,
+        background noise included - it doesn't recover detail that was
+        never captured in the first place, so there's a real ceiling to
+        how much this alone can compensate for distance. Configurable
+        via Settings (voice_mic_gain) so it's a Settings change, not a
+        redeploy, once the mic's actually mounted where it'll live and
+        this can be tuned against reality.
+        """
+        raw = self._general().get("voice_mic_gain")
+        try:
+            return float(raw) if raw not in (None, "") else 1.0
+        except (TypeError, ValueError):
+            return 1.0
+
+    def _apply_mic_gain(self, chunk: bytes) -> bytes:
+        """Applies _mic_gain() to a raw 16-bit PCM chunk. audioop.mul()
+        saturates (clamps) rather than wrapping on overflow, so pushing
+        the gain too high produces clipping/distortion rather than
+        garbage-value wraparound - still worth not setting this
+        extremely high, but a bad value fails towards "sounds harsh"
+        rather than towards silent corruption. A gain of exactly 1.0
+        skips the multiply entirely - the common case (not yet tuned,
+        or deliberately left at unity) shouldn't pay for it."""
+        gain = self._mic_gain()
+        if gain == 1.0:
+            return chunk
+        return audioop.mul(chunk, 2, gain)
+
     def is_configured(self) -> bool:
         # Only the Groq key gates this - Vosk needs no account/key at
         # all, just its model (auto-downloaded on first run).
@@ -610,6 +653,7 @@ class VoiceControlService:
                     chunk = chunk[:-1]  # a pipe read can land on an odd byte count - audioop.rms needs whole 16-bit frames
                 if not chunk:
                     continue
+                chunk = self._apply_mic_gain(chunk)
                 frames.extend(chunk)
 
                 rms = audioop.rms(chunk, 2)
@@ -1453,6 +1497,7 @@ class VoiceControlService:
                 # visible, not just a single snapshot.
                 if chunks_processed % 20 == 0:
                     logger.info("Voice control: still listening, %d chunks queued (~%.1fs behind real time if any)", audio_q.qsize(), audio_q.qsize() * 0.5)
+                chunk_bytes = self._apply_mic_gain(chunk_bytes)
                 got_final = recognizer.AcceptWaveform(chunk_bytes)
                 if got_final:
                     result = json.loads(recognizer.Result())

@@ -370,6 +370,7 @@ function VoiceControlCard() {
   const [micDevice, setMicDevice] = useState('');
   const [playbackDevice, setPlaybackDevice] = useState('');
   const [speechThreshold, setSpeechThreshold] = useState('');
+  const [micGain, setMicGain] = useState('');
   const [seeded, setSeeded] = useState(false);
   useEffect(() => {
     if (cfg.data && !seeded) {
@@ -377,6 +378,7 @@ function VoiceControlCard() {
       setMicDevice(String(cfg.data.voice_mic_device ?? ''));
       setPlaybackDevice(String(cfg.data.voice_playback_device ?? ''));
       setSpeechThreshold(cfg.data.voice_speech_rms_threshold != null ? String(cfg.data.voice_speech_rms_threshold) : '');
+      setMicGain(cfg.data.voice_mic_gain != null ? String(cfg.data.voice_mic_gain) : '');
       setSeeded(true);
     }
   }, [cfg.data, seeded]);
@@ -389,6 +391,7 @@ function VoiceControlCard() {
         voice_mic_device: micDevice.trim(),
         voice_playback_device: playbackDevice.trim(),
         voice_speech_rms_threshold: speechThreshold.trim() ? Number(speechThreshold.trim()) : '',
+        voice_mic_gain: micGain.trim() ? Number(micGain.trim()) : '',
       };
       if (groqKey.trim()) value.groq_api_key = groqKey.trim(); // omit when blank -> keeps existing key
       return api.setConfig('general', value);
@@ -499,16 +502,34 @@ function VoiceControlCard() {
         <input
           value={speechThreshold}
           onChange={(e) => setSpeechThreshold(e.target.value)}
-          placeholder="400 (default)"
+          placeholder="2500 (default)"
           inputMode="numeric"
           className="mt-1.5 w-full max-w-[200px] rounded-xl bg-ink/[0.04] ring-1 ring-ink/10 focus:ring-aurora-teal/50 outline-none px-3 py-2 text-sm num"
         />
       </div>
       <div className="text-[11px] text-ink-faint mt-1 mb-3">
         How loud counts as "someone's talking" while recording a command — lower catches quieter speech but risks
-        picking up background noise as speech; higher is more forgiving of noise but might cut off a quiet start. 400
-        is a reasonable starting point, not a verified number for your actual mic — worth adjusting from real
+        picking up background noise as speech; higher is more forgiving of noise but might cut off a quiet start.
+        2500 is a reasonable starting point, not a verified number for your actual mic — worth adjusting from real
         testing if commands keep getting cut off early, or keep running to the full length even for short phrases.
+      </div>
+
+      <div>
+        <label className="text-[11px] uppercase tracking-widest text-ink-muted">Mic gain</label>
+        <input
+          value={micGain}
+          onChange={(e) => setMicGain(e.target.value)}
+          placeholder="1.0 (no change)"
+          inputMode="decimal"
+          className="mt-1.5 w-full max-w-[200px] rounded-xl bg-ink/[0.04] ring-1 ring-ink/10 focus:ring-aurora-teal/50 outline-none px-3 py-2 text-sm num"
+        />
+      </div>
+      <div className="text-[11px] text-ink-faint mt-1 mb-3">
+        Digital amplification applied to the mic before it's analysed or recorded — for when the mic's hardware
+        level is already maxed out but still not picking things up clearly enough (e.g. mounted further from a
+        voice than it's really designed for). 1.0 leaves it unchanged; 2.0 doubles it. This amplifies background
+        noise right along with everything else, so it's not a substitute for good mic placement — push it too high
+        and speech starts sounding harsh rather than clearer.
       </div>
 
       <button
