@@ -146,6 +146,26 @@ MIN_COMMAND_RECORD_SECONDS = 1.0  # never stop earlier than this even if the sil
 INITIAL_SILENCE_GRACE_SECONDS = 3.0  # how long to wait for speech to START before giving up entirely
 TRAILING_SILENCE_SECONDS = 1.3  # how long a pause AFTER speech has started counts as "finished talking"
 RECORD_CHUNK_SECONDS = 0.1  # how often the silence detector re-checks - small enough to feel responsive
+# The go-ahead confirm beep (_generate_beep_wav's default, 0.25s) plays
+# CONCURRENTLY with the start of recording, deliberately - not one
+# after another - so recording is already live before the beep even
+# finishes, avoiding losing a fast talker's first word. Real bug this
+# caused: the beep itself is loud (a plain tone, easily above the RMS
+# threshold), so it was triggering speech_started=True on its OWN
+# sound - which then started the SHORT TRAILING_SILENCE_SECONDS
+# countdown instead of the generous INITIAL_SILENCE_GRACE_SECONDS one.
+# Any real gap after the beep before actual words begin (Groq's own
+# TTS generation latency in the "Test without going to the van" flow,
+# or just normal human reaction time saying it live) then read as
+# "they've finished talking" and cut the recording off before the real
+# command was ever spoken - confirmed live: transcribed as literally
+# "BEEP!", nothing else, because that beep tone was the only audio the
+# recording ever actually captured. Audio during this window is still
+# CAPTURED normally (nothing is lost) - only the speech-detection
+# decision is suppressed until the beep's own known duration has
+# passed, so it can't be mistaken for the person having started (or
+# finished) talking.
+BEEP_IGNORE_SECONDS = 0.5  # the 0.25s beep itself, plus margin for acoustic tail/propagation
 # Confirmed via real logged RMS levels (13 Aug testing): this hardware's
 # background noise floor genuinely sits at 489-899 minimum, well above
 # the original 400 guess - meaning "silence" never actually read as
@@ -599,6 +619,15 @@ class VoiceControlService:
                 if now - last_log_time >= 1.0:
                     logger.info("Voice control: TIMING adaptive-recording rms=%d (threshold=%d) at %.1fs", rms, threshold, elapsed)
                     last_log_time = now
+
+                if elapsed < BEEP_IGNORE_SECONDS:
+                    # Still capturing (frames.extend already ran above)
+                    # but not making any speech-detection decision yet -
+                    # this window is where the go-ahead beep's own sound
+                    # lives, and it must never count as "the person
+                    # started talking" or "the person stopped talking".
+                    continue
+
                 if rms > threshold:
                     speech_started = True
                     silence_run_start = None
