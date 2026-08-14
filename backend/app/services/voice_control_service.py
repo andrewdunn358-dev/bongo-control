@@ -146,13 +146,19 @@ MIN_COMMAND_RECORD_SECONDS = 1.0  # never stop earlier than this even if the sil
 INITIAL_SILENCE_GRACE_SECONDS = 3.0  # how long to wait for speech to START before giving up entirely
 TRAILING_SILENCE_SECONDS = 1.3  # how long a pause AFTER speech has started counts as "finished talking"
 RECORD_CHUNK_SECONDS = 0.1  # how often the silence detector re-checks - small enough to feel responsive
-# Genuinely can't be tuned without live testing against real hardware
-# (mic gain, van's own background noise, the actual USB sound card's
-# output level) - this is a reasonable starting point for 16-bit PCM
-# audio, not a verified-correct number. Configurable via Settings
-# (voice_speech_rms_threshold) specifically so it can be adjusted from
-# real testing without a code change - see _speech_rms_threshold().
-DEFAULT_SPEECH_RMS_THRESHOLD = 400
+# Confirmed via real logged RMS levels (13 Aug testing): this hardware's
+# background noise floor genuinely sits at 489-899 minimum, well above
+# the original 400 guess - meaning "silence" never actually read as
+# silence, and recording ran to the full MAX_COMMAND_RECORD_SECONDS
+# cap every single time regardless of what was actually said. Raised
+# to sit clearly above the observed noise floor. Still not a fully
+# tuned number - genuine human speech at normal mic distance (not the
+# TTS-through-speaker test, which is unusually direct/loud) hasn't
+# been measured yet, so this may still need adjusting either way once
+# tested with an actual voice. Configurable via Settings
+# (voice_speech_rms_threshold) specifically so that's a Settings
+# change, not a redeploy - see _speech_rms_threshold().
+DEFAULT_SPEECH_RMS_THRESHOLD = 2500
 
 # Used only by speak_test_phrase() - the pause between speaking the
 # wake word and speaking the command, simulating the beat a real
@@ -194,6 +200,20 @@ DEFAULT_PLAYBACK_DEVICE = "default"  # e.g. "hw:1,0" for the Pi's own jack, or t
 # conversation history, no "computer" needed. If nothing's said, the
 # session ends there and the next interaction needs the wake word
 # again, same as before this existed.
+#
+# Disabled for now (FOLLOWUP_CONVERSATION_ENABLED). Confirmed live: a
+# genuinely elevated background noise floor on this hardware (see
+# DEFAULT_SPEECH_RMS_THRESHOLD's own note) caused a false-positive
+# follow-up - background noise alone was enough to register as
+# "someone's still talking", triggering a full unwanted recording +
+# transcription + a genuinely unprompted Ron reply about battery
+# status, burning real Groq quota for an interaction nobody asked for.
+# A false MISS on a real follow-up just costs saying "computer" again
+# - mildly annoying. A false POSITIVE costs an unwanted interruption
+# and real API spend - a worse failure mode, so this stays off until
+# the noise floor / threshold situation is confirmed properly sorted
+# with real speech testing, not just the raised threshold guess.
+FOLLOWUP_CONVERSATION_ENABLED = False
 MAX_FOLLOWUP_TURNS = 6  # a generous safety bound against a genuinely runaway loop, not a real UX limit anyone should hit
 # Each exchange is 2 entries (user + assistant) - 12 keeps roughly the
 # last 6 exchanges. Bounded so a long conversation doesn't grow the
@@ -908,7 +928,7 @@ class VoiceControlService:
         try:
             should_continue = await self._run_conversation_turn(is_followup=False)
             turn_count = 1
-            while should_continue and turn_count < MAX_FOLLOWUP_TURNS:
+            while FOLLOWUP_CONVERSATION_ENABLED and should_continue and turn_count < MAX_FOLLOWUP_TURNS:
                 should_continue = await self._run_conversation_turn(is_followup=True)
                 turn_count += 1
         except Exception as e:  # noqa: BLE001 - a voice-pipeline failure must never crash the listener
