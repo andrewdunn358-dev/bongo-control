@@ -70,6 +70,29 @@ intelligence_runner = IntelligenceRunner(telemetry_service, intelligence_engine)
 async def lifespan(app: FastAPI):
     logger.info("Starting %s (environment=%s)", settings.app_name, settings.environment)
 
+    # Claimed and driven to a safe, known state FIRST, before anything
+    # else in this whole startup sequence - a real, reported regression
+    # traced back to exactly this ordering: relay pins sit unclaimed
+    # (electrically undefined on this high-trigger board) from the
+    # moment the process starts until whatever line actually claims
+    # them - previously the LAST thing to happen, after DB init, plugin
+    # discovery and startup, battery monitoring, history, power budget,
+    # and the intelligence engine. Every one of those adds real time to
+    # that window. As the app has grown, that window grew with it -
+    # this used to be brief enough to never visibly click a relay;
+    # tonight it clearly wasn't anymore. Moving this to be genuinely
+    # first minimises the gap to whatever Python/import overhead alone
+    # takes, not that PLUS every other service's own startup work.
+    # relay_service.configure()/start() have no dependency on anything
+    # below - configuration_service is a plain, already-loaded-at-import
+    # singleton, not something needing its own async start() first.
+    relay_config = configuration_service.get("relays", {})
+    relay_service.configure(
+        channels=relay_config.get("channels"),
+        active_high=relay_config.get("active_high", True),
+    )
+    relay_service.start()
+
     init_db()
 
     # Discovery is real: scans app/plugins/* for PLUGIN_CLASSES. A real
@@ -94,15 +117,6 @@ async def lifespan(app: FastAPI):
     intelligence_routes.set_engine(intelligence_engine)
     await intelligence_runner.start()
     logger.info("Intelligence engine started")
-
-    # Non-fatal if there's no GPIO hardware - relay control simply
-    # reports itself unavailable rather than taking the backend down.
-    relay_config = configuration_service.get("relays", {})
-    relay_service.configure(
-        channels=relay_config.get("channels"),
-        active_high=relay_config.get("active_high", True),
-    )
-    relay_service.start()
 
     # Roof control is off unless explicitly enabled - a fresh install
     # must not be able to drive a roof motor before anyone has wired
