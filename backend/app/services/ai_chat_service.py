@@ -208,6 +208,21 @@ class AiChatService:
             "- Saying 'play <station name>' searches UK internet radio and starts that station playing through "
             "the van's speaker; 'play the radio' alone starts whatever's set as the default station."
         )
+        # Reported live: asked to "turn off the radio", Ron said there was
+        # no stop command in his playbook at all and suggested killing the
+        # Amp circuit instead. The command did exist - it just wasn't
+        # listed here, so he had no way to know. The only radio this app
+        # can play is its own internet stream, so "the radio" from a user
+        # means that stream unless a relay is literally named radio (which
+        # the list above would then show).
+        radio_stop_phrases = "'stop the radio', 'pause the radio'"
+        if "radio" not in {n.lower() for n in relay_names}:
+            radio_stop_phrases += " or 'turn the radio off'"
+        lines.append(
+            f"- Saying {radio_stop_phrases} stops that stream. The only radio this app can play is that "
+            "internet stream - so if someone asks to stop or turn off 'the radio', they mean it, and the "
+            "command exists. Do not tell them to switch off a relay circuit instead."
+        )
         lines.append(
             "Anything phrased differently from those exact patterns - 'play something else', 'skip to another "
             "station', 'turn the roof up' - genuinely can't be acted on by either you or that layer. Say so "

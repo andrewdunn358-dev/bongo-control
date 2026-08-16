@@ -707,27 +707,48 @@ class VoiceControlService:
             return ""  # generic "play the radio" - the configured default, not a search
         return term
 
-    @staticmethod
-    def _match_radio_stop_command(text: str) -> bool:
-        """Detects 'stop the radio' / 'stop playing' / 'pause the
-        radio' - the missing other half of _match_radio_play_command().
-        Reported live: 'play <station>' worked, but there was no way
-        to stop it again by voice at all.
+    def _match_radio_stop_command(self, text: str) -> bool:
+        """Detects 'stop the radio' / 'pause the radio' / 'stop
+        playing', AND 'turn the radio off' / 'turn off the radio' -
+        the other half of _match_radio_play_command().
 
-        Deliberately does NOT use 'turn the radio off' as a trigger -
-        that phrase already means something else entirely in this app:
-        _match_relay_command() reads it as toggling the physical
-        Radio/amp RELAY (a real 12V circuit, wired to an actual amp),
-        completely unrelated to the internet stream this method stops.
-        Both features happen to share the word "radio" - a real,
-        pre-existing naming collision this app already lives with (the
-        play command has the same note) - so this uses distinctly
-        different trigger words (stop/pause) specifically to avoid
-        colliding with the relay grammar, not to be clever about
-        phrasing.
+        The turn-off phrasing used to be deliberately excluded, to
+        avoid colliding with _match_relay_command() reading "radio" as
+        the physical Radio/amp RELAY. That exclusion was correct when
+        written and is now stale: the live config renamed that channel
+        to "Amp", so NO voice-controllable relay is named "radio" any
+        more. The guard was protecting against a collision that no
+        longer exists, while "turn off the radio" - the single most
+        natural way to say it - matched nothing at all and fell
+        through to Ron, who then correctly-but-uselessly explained
+        that no such command exists. Reported live, exactly that.
+
+        So the exclusion is now CONDITIONAL on the live config rather
+        than hardcoded: if a relay genuinely is named "radio" again
+        (a rename is a UI action, so this can happen at any time), the
+        relay keeps that phrasing and only stop/pause reach the
+        stream - the original collision rule, restored automatically.
+        Checked against the same _voice_controllable_relays() the
+        relay matcher itself uses, so the two can't drift apart.
+
+        Ordering note: _match_relay_command() runs FIRST at the call
+        site, so when a "radio" relay does exist it wins on that
+        phrasing before this is ever consulted - this check makes the
+        intent explicit rather than relying on that ordering alone.
         """
         cleaned = text.strip().lower().rstrip(".!?")
-        return bool(re.match(r"^(?:stop|pause)\s+(?:the\s+)?(?:radio|playing|music|station)\b", cleaned))
+        if re.match(r"^(?:stop|pause)\s+(?:the\s+)?(?:radio|playing|music|station)\b", cleaned):
+            return True
+
+        # "turn/switch the radio off" or "turn/switch off the radio" -
+        # only when no relay actually owns the word "radio".
+        if "radio" in self._voice_controllable_relays():
+            return False
+        return bool(
+            re.search(r"\b(?:turn|switch|shut)\b", cleaned)
+            and re.search(r"\boff\b", cleaned)
+            and re.search(r"\bradio\b", cleaned)
+        )
 
     async def _handle_radio_play_request(self, term: str) -> None:
         """term == "" means 'play the radio' with nothing specific
