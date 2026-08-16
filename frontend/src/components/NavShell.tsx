@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+// Imported rather than referenced as /brand-mark.png from public/.
+// Reported live: after deploying a new badge the app still showed the
+// old one. Not caching bad luck - the service worker serves everything
+// same-origin outside /assets/ stale-while-revalidate, so an
+// unversioned filename is ALWAYS served from cache first and only
+// updates on a later load. Importing it puts the file through Vite,
+// which content-hashes the filename, so changing the image changes the
+// URL and the old one can never be served in its place.
+import brandMark from '../assets/brand-mark.png';
 import {
   Home,
   ToggleRight,
@@ -126,7 +135,7 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
               same-origin asset. Corners are rounded by CSS below, so
               the file itself is a plain square. */}
           <img
-            src="/brand-mark.png"
+            src={brandMark}
             alt=""
             width={36}
             height={36}
