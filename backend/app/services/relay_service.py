@@ -203,24 +203,28 @@ class RelayService:
         the rest of the app must keep working, with the relay feature
         reporting itself unavailable rather than taking the backend down.
 
-        Every channel ALWAYS starts OFF, unconditionally, on every
-        single startup - no exceptions, no restoring a previous state.
-        This used to restore each channel's last commanded state after
-        a clean shutdown - removed entirely after a real, reported
-        incident: the reload-backend button (a genuinely graceful
-        SIGTERM-based restart, not a crash) brought a light back on
-        that had deliberately been turned off. The underlying save/
-        restore bookkeeping was working exactly as designed even then
-        - it was the DESIGN ITSELF, not a bug in it, that was unsafe:
-        restoring "whatever was last commanded" is a guess at best on
-        a two-way-wired circuit the app can't actually sense (see the
-        module docstring), and guessing wrong means a real 12V circuit
-        - potentially the heater - re-energising with nobody having
-        asked for that, right when a backend restart is already
-        underway. Every startup now leaves every channel in the one
-        state that's unconditionally safe regardless of what was
-        happening before: off, requiring an explicit new command
-        either way.
+        Restores each channel's PREVIOUS commanded state, but only if
+        the previous run shut down cleanly (see stop() - it tags the
+        saved state, and _consume_clean_shutdown_state() consumes/
+        clears that tag immediately so it can never be reused by a
+        later crash). No clean-shutdown record at all - first-ever
+        boot, or the previous run crashed - and every channel defaults
+        to off.
+
+        This restore behaviour was REMOVED entirely earlier tonight,
+        then reinstated after real pushback that correctly identified
+        a genuine mistake, not just a disagreement: on a two-way
+        (staircase) wired circuit, "relay off" does not mean "load
+        off" - it depends on which side the physical switch is
+        currently on. If a switch sits on the relay's NC side,
+        commanding the relay ON is what's actually needed to keep that
+        load off. Removing the restore behaviour meant every restart
+        forced every relay back to the "off" COMMAND regardless of
+        what state was actually needed for that switch position -
+        correct for circuits switched to the NO side, exactly backwards
+        for circuits switched to NC. The original restore-last-state
+        design was doing real, correct work for exactly this reason -
+        the mistake was removing it, not the design itself.
         """
         if not self._channels:
             self.configure()
@@ -232,9 +236,16 @@ class RelayService:
             logger.warning("Relay control unavailable - %s", self._unavailable_reason)
             return
 
+        restore_state, clean = self._consume_clean_shutdown_state()
+
         try:
             for channel in self._channels:
                 channel_id = channel["id"]
+                # The LOGICAL "should this channel be commanded on"
+                # state - restored from a clean-shutdown record if one
+                # exists, defaulting to off otherwise (first boot, or
+                # the previous run crashed without ever reaching stop()).
+                logical_on = bool(restore_state.get(str(channel_id), False)) if clean else False
 
                 # Board-wide active_high, XOR'd with a per-channel
                 # "inverted" flag for a circuit whose physical path
@@ -254,48 +265,43 @@ class RelayService:
                 # single time.
                 effective_active_high = self._active_high != bool(channel.get("inverted", False))
 
-                # Reported live: Lights - and ONLY Lights, every other
-                # channel unaffected - turning ON during every reload,
-                # then off again once the app finished starting.
-                # Real bug, found by reading gpiozero's own behaviour
-                # for active_high=False (which is exactly what Lights
-                # gets, being the one inverted channel): initial_value
-                # is a LOGICAL value, translated through active_high -
-                # for an active_high=False device, initial_value=False
-                # actually drives the PHYSICAL pin HIGH, not low. On
-                # this high-trigger board, a high pin energises the
-                # relay - so "start it off" was accidentally telling
-                # the hardware to switch Lights ON, for exactly the one
-                # channel where active_high comes out False. Every
-                # other channel is active_high=True, where False
-                # correctly means physically low - which is why nothing
-                # else was ever affected.
-                #
-                # Fix: compute whichever initial_value actually produces
-                # a physically LOW pin (safe/de-energised on this
-                # high-trigger board) for THIS channel's own polarity,
-                # rather than assuming False always means "safe" -
-                # normal channels: not True = False (unchanged).
-                # Lights (active_high=False): not False = True - passing
-                # True is what correctly drives ITS physical pin low.
-                # self._commanded stays False either way - that's the
-                # app's own logical "is this on" bookkeeping, separate
-                # from whatever value gpiozero needed to reach a
-                # physically safe pin state.
-                physically_off_value = not effective_active_high
+                # gpiozero's initial_value is a LOGICAL value, translated
+                # THROUGH active_high - for an active_high=False device
+                # (exactly what the inverted channel gets), passing the
+                # logical value directly would drive the PHYSICAL pin
+                # the wrong way. Real, reported bug found earlier
+                # tonight from exactly this: Lights - the one inverted
+                # channel - energising instead of de-energising at
+                # startup, because this wasn't accounted for. Correct
+                # for either polarity: pass logical_on unchanged when
+                # active_high=True, invert it when active_high=False -
+                # this is what makes gpiozero actually reach the
+                # intended LOGICAL state on the correct physical pin
+                # level, regardless of which polarity this channel has.
+                initial_value = logical_on if effective_active_high else (not logical_on)
                 device = OutputDevice(
                     channel["gpio"],
                     active_high=effective_active_high,
-                    initial_value=physically_off_value,
+                    initial_value=initial_value,
                 )
                 self._devices[channel_id] = device
-                self._commanded[channel_id] = False
+                self._commanded[channel_id] = logical_on
 
-                logger.info("Relay %s starting OFF (via system:startup)", channel_id)
-                record_relay_event(
-                    channel_id, channel["name"], "reset-off", "system:startup",
-                    detail="every startup always begins with every relay off",
-                )
+                if clean:
+                    logger.info(
+                        "Relay %s restored to %s (via system:startup-restore, last state before clean shutdown)",
+                        channel_id, "ON" if logical_on else "OFF",
+                    )
+                    record_relay_event(
+                        channel_id, channel["name"], "restored" if logical_on else "restored-off",
+                        "system:startup-restore", detail="last state before clean shutdown",
+                    )
+                else:
+                    logger.info("Relay %s reset to OFF (via system:startup, no clean-shutdown record)", channel_id)
+                    record_relay_event(
+                        channel_id, channel["name"], "reset-off", "system:startup",
+                        detail="no clean-shutdown record",
+                    )
             self._available = True
             logger.info("Relay control ready on %d channel(s)", len(self._devices))
         except Exception as e:  # noqa: BLE001 - no GPIO hardware is a normal dev-machine state
@@ -303,11 +309,47 @@ class RelayService:
             logger.warning("Relay control unavailable - %s", e)
             self._release()
 
+    def _consume_clean_shutdown_state(self) -> tuple[dict[str, Any], bool]:
+        """Reads AND clears the clean-shutdown record in one step, so a
+        restore can only ever be applied once. Any read/parse failure
+        is treated as "no record" (safe default), never as a reason to
+        fail startup."""
+        try:
+            from app.services.configuration_service import configuration_service
+
+            saved = configuration_service.get("relays_runtime_state", {}) or {}
+            configuration_service.set("relays_runtime_state", {})  # consume immediately
+            if saved.get("clean_shutdown") is True:
+                return dict(saved.get("channels", {})), True
+        except Exception as e:  # noqa: BLE001 - a bad persisted record must never block startup
+            logger.warning("Could not read previous relay state, defaulting to off: %s", e)
+        return {}, False
+
     def stop(self) -> None:
-        """Turns everything off and releases the pins. No longer
-        persists anything for a future startup to restore - see
-        start()'s own docstring for why that was removed entirely,
-        not just fixed."""
+        """Persists the current commanded state (tagged as a CLEAN
+        shutdown, for start() to restore next time) before turning
+        everything off and releasing the pins. The relays themselves
+        always end up physically off HERE, at shutdown - restoring the
+        commanded state is entirely start()'s job, on the NEXT run, not
+        something this method does itself.
+
+        This only genuinely protects the restore if stop() actually
+        gets to run - see the reload-backend route's own fix (using a
+        real SIGTERM, not a hard kill) for why that matters."""
+        try:
+            from app.services.configuration_service import configuration_service
+
+            configuration_service.set(
+                "relays_runtime_state",
+                {
+                    "clean_shutdown": True,
+                    "channels": {str(k): v for k, v in self._commanded.items()},
+                    "saved_at": time.time(),
+                },
+            )
+        except Exception as e:  # noqa: BLE001 - failing to persist must never block shutdown
+            logger.warning("Could not persist relay state for next startup: %s", e)
+
         for channel_id, device in self._devices.items():
             try:
                 device.off()
