@@ -27,7 +27,9 @@ import { api } from '@/lib/api';
 import { useBattery, useEnvironment } from '@/lib/telemetry';
 import { fmtVolt, fmtTemp, DASH } from '@/lib/format';
 
-const BRAND = { letter: 'V', sub: isDemo ? 'campervan dashboard' : 'van cockpit' };
+// `letter` used to live here too - the "V" placeholder shown before
+// there was a real logo. Removed with it; the badge is brand-mark.svg now.
+const BRAND = { sub: isDemo ? 'campervan dashboard' : 'van cockpit' };
 function BrandName() {
   return (
     <>Van<span className="text-aurora-teal">OS</span></>
@@ -110,9 +112,22 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
         className="sticky top-0 z-40 flex items-center justify-between gap-3 px-4 md:px-6 py-3 bg-[#0a1628] border-b border-white/8 flex-wrap"
       >
         <div data-testid={NAV.brand} className="flex items-center gap-2.5 shrink-0">
-          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-brand-orange to-amber-400 grid place-items-center shadow-[0_0_14px_rgba(178,97,0,0.4)]">
-            <span className="text-navy-900 font-bold">{BRAND.letter}</span>
-          </div>
+          {/* Was a CSS gradient square with the letter "V" in it - a
+              placeholder from before there was a real logo. Now the
+              actual brand mark. Deliberately brand-mark.svg, not
+              icon.svg: the installed-app icon carries the wordmark,
+              which at 36px is unreadable AND redundant, since "VanOS"
+              is printed as text right beside it. Plain <img> rather
+              than an inlined component so it stays out of the JS
+              bundle and is cached by the service worker like any other
+              same-origin asset. */}
+          <img
+            src="/brand-mark.svg"
+            alt=""
+            width={36}
+            height={36}
+            className="h-9 w-9 rounded-xl shadow-[0_0_14px_rgba(178,97,0,0.4)]"
+          />
           <div className="leading-tight hidden sm:block">
             <div className="font-semibold tracking-tight text-sm"><BrandName /></div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-ink-muted">{BRAND.sub}</div>

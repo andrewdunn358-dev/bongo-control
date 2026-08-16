@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="VanOS">
+  <!--
+    Header badge variant of icon.svg: same crest, NO wordmark.
+
+    The app header already prints "VanOS" as text immediately to the
+    right of this badge, and the badge renders at 36px - where the
+    wordmark inside icon.svg is illegible anyway. Dropping it lets the
+    van and ridge fill the tile properly instead of being squeezed into
+    the top two thirds.
+
+    Kept as a separate file rather than a transform of icon.svg so the
+    installed-app icon and this can't accidentally constrain each
+    other - they have genuinely different jobs and different framing.
+  -->
+  <defs>
+    <linearGradient id="mSky" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0%" stop-color="#12315c"/>
+      <stop offset="55%" stop-color="#0d2244"/>
+      <stop offset="100%" stop-color="#08172a"/>
+    </linearGradient>
+    <linearGradient id="mGold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffdf85"/>
+      <stop offset="55%" stop-color="#f2b52e"/>
+      <stop offset="100%" stop-color="#d8971c"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#mSky)"/>
+
+  <circle cx="378" cy="150" r="52" fill="url(#mGold)" opacity="0.85"/>
+
+  <path d="M 74 300 L 176 132 L 226 194 L 300 108 L 438 300 Z" fill="url(#mGold)" opacity="0.6"/>
+
+  <g fill="url(#mGold)">
+    <path d="M 140 300 L 372 300 L 372 258 L 208 258 Z"/>
+    <path d="M 118 314 h 260 a 16 16 0 0 1 15 10 l 15 39 a 11 11 0 0 1 -10 16 H 118 a 14 14 0 0 1 -14 -14 v -37 a 14 14 0 0 1 14 -14 z"/>
+  </g>
+
+  <g fill="#0d2244">
+    <rect x="134" y="330" width="88" height="32" rx="7"/>
+    <rect x="238" y="330" width="72" height="32" rx="7"/>
+    <circle cx="170" cy="379" r="20"/>
+    <circle cx="344" cy="379" r="20"/>
+  </g>
+  <g fill="url(#mGold)">
+    <circle cx="170" cy="379" r="10"/>
+    <circle cx="344" cy="379" r="10"/>
+  </g>
+</svg>
