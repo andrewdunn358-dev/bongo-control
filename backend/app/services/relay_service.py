@@ -265,20 +265,24 @@ class RelayService:
                 # single time.
                 effective_active_high = self._active_high != bool(channel.get("inverted", False))
 
-                # gpiozero's initial_value is a LOGICAL value, translated
-                # THROUGH active_high - for an active_high=False device
-                # (exactly what the inverted channel gets), passing the
-                # logical value directly would drive the PHYSICAL pin
-                # the wrong way. Real, reported bug found earlier
-                # tonight from exactly this: Lights - the one inverted
-                # channel - energising instead of de-energising at
-                # startup, because this wasn't accounted for. Correct
-                # for either polarity: pass logical_on unchanged when
-                # active_high=True, invert it when active_high=False -
-                # this is what makes gpiozero actually reach the
-                # intended LOGICAL state on the correct physical pin
-                # level, regardless of which polarity this channel has.
-                initial_value = logical_on if effective_active_high else (not logical_on)
+                # gpiozero's initial_value is a LOGICAL value and gpiozero
+                # itself translates it through active_high - exactly the
+                # same translation device.on()/device.off() get at runtime.
+                # So it must be passed straight through. An earlier fix
+                # (a8a8de6) pre-inverted it here for the active_high=False
+                # channel, which meant the inversion was applied TWICE -
+                # once here, once inside gpiozero - and cancelled out.
+                # Net effect, measured: for the one inverted channel
+                # (Lights) the startup path drove the pin the OPPOSITE way
+                # from the runtime path for the same logical state
+                # (restored ON -> pin HIGH, but commanding ON at runtime ->
+                # pin LOW). Every other channel was consistent because
+                # effective_active_high is True for them, where the
+                # pre-inversion was a no-op - which is exactly why Lights,
+                # and only Lights, kept coming back wrong after a restart.
+                # Passing the logical value directly makes startup and
+                # runtime agree by construction, for either polarity.
+                initial_value = logical_on
                 device = OutputDevice(
                     channel["gpio"],
                     active_high=effective_active_high,
