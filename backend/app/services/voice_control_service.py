@@ -280,19 +280,20 @@ DEFAULT_PLAYBACK_DEVICE = "default"  # e.g. "hw:1,0" for the Pi's own jack, or t
 # session ends there and the next interaction needs the wake word
 # again, same as before this existed.
 #
-# Disabled for now (FOLLOWUP_CONVERSATION_ENABLED). Confirmed live: a
-# genuinely elevated background noise floor on this hardware (see
-# DEFAULT_SPEECH_RMS_THRESHOLD's own note) caused a false-positive
-# follow-up - background noise alone was enough to register as
-# "someone's still talking", triggering a full unwanted recording +
-# transcription + a genuinely unprompted Ron reply about battery
-# status, burning real Groq quota for an interaction nobody asked for.
-# A false MISS on a real follow-up just costs saying "computer" again
-# - mildly annoying. A false POSITIVE costs an unwanted interruption
-# and real API spend - a worse failure mode, so this stays off until
-# the noise floor / threshold situation is confirmed properly sorted
-# with real speech testing, not just the raised threshold guess.
-FOLLOWUP_CONVERSATION_ENABLED = False
+# Re-enabled for testing, reported live from real overnight use: with
+# this off, when Ron asks a genuine clarifying question ("can you
+# repeat that?"), nothing is actually listening for the answer -
+# saying it back only works if the wake word is said again first,
+# which reads as Ron "carrying on asking" rather than actually
+# listening. Originally disabled after a confirmed false-positive
+# (background noise alone registering as "someone's still talking",
+# burning real Groq quota on an unwanted interaction) - but that was
+# on the OLD hardware, before the mic/speaker split, the new USB mic,
+# and the tunable mic gain setting all existed. Worth a real retest
+# under today's actual setup rather than assuming the old failure
+# still applies - if the same false-positive pattern comes back, this
+# is a one-line revert, same as it was a one-line enable.
+FOLLOWUP_CONVERSATION_ENABLED = True
 MAX_FOLLOWUP_TURNS = 6  # a generous safety bound against a genuinely runaway loop, not a real UX limit anyone should hit
 # Each exchange is 2 entries (user + assistant) - 12 keeps roughly the
 # last 6 exchanges. Bounded so a long conversation doesn't grow the
