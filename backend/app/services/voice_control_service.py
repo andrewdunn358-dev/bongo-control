@@ -641,6 +641,28 @@ class VoiceControlService:
             return ""  # generic "play the radio" - the configured default, not a search
         return term
 
+    @staticmethod
+    def _match_radio_stop_command(text: str) -> bool:
+        """Detects 'stop the radio' / 'stop playing' / 'pause the
+        radio' - the missing other half of _match_radio_play_command().
+        Reported live: 'play <station>' worked, but there was no way
+        to stop it again by voice at all.
+
+        Deliberately does NOT use 'turn the radio off' as a trigger -
+        that phrase already means something else entirely in this app:
+        _match_relay_command() reads it as toggling the physical
+        Radio/amp RELAY (a real 12V circuit, wired to an actual amp),
+        completely unrelated to the internet stream this method stops.
+        Both features happen to share the word "radio" - a real,
+        pre-existing naming collision this app already lives with (the
+        play command has the same note) - so this uses distinctly
+        different trigger words (stop/pause) specifically to avoid
+        colliding with the relay grammar, not to be clever about
+        phrasing.
+        """
+        cleaned = text.strip().lower().rstrip(".!?")
+        return bool(re.match(r"^(?:stop|pause)\s+(?:the\s+)?(?:radio|playing|music|station)\b", cleaned))
+
     async def _handle_radio_play_request(self, term: str) -> None:
         """term == "" means 'play the radio' with nothing specific
         named - starts the configured default station, same as tapping
@@ -722,6 +744,31 @@ class VoiceControlService:
             # nothing left for IT to resume rather than trying to touch
             # a stream that's already properly playing again.
             await asyncio.to_thread(internet_radio_service.resume)
+
+    async def _handle_radio_stop_request(self) -> None:
+        """The other half of the radio-play voice command - reported
+        live as missing entirely: 'play' worked, there was no way to
+        stop it again by voice. internet_radio_service.stop() already
+        handles "nothing was actually playing" gracefully (a safe
+        no-op, not an error) - checked directly by reading its own
+        code - so this only needs to give an honest, DIFFERENT spoken
+        reply for that case rather than claiming to have stopped
+        something that was never running."""
+        from app.services.internet_radio_service import InternetRadioUnavailableError, internet_radio_service
+
+        try:
+            status_before = await asyncio.to_thread(internet_radio_service.status)
+        except InternetRadioUnavailableError:
+            status_before = {"playing": False}
+
+        was_playing = bool(status_before.get("playing"))
+        await asyncio.to_thread(internet_radio_service.stop)
+        reply = "Radio stopped." if was_playing else "Radio wasn't playing anything."
+
+        self._last_reply_text = reply
+        self._last_error = None
+        audio = await asyncio.to_thread(self._synthesize, self._clean_text_for_speech(reply))
+        await asyncio.to_thread(self._play_clip, audio)
 
     # ---------------------------------------------------------- audio
 
@@ -1533,6 +1580,7 @@ class VoiceControlService:
 
         matched = self._match_relay_command(text)
         radio_term = None if matched else self._match_radio_play_command(text)
+        radio_stop = False if (matched or radio_term is not None) else self._match_radio_stop_command(text)
         if matched:
             channel_id, _heard_direction, name = matched
             # Same toggle-not-absolute reasoning as the offline
@@ -1565,6 +1613,8 @@ class VoiceControlService:
             # not just a generic "done" beep - so this speaks the real
             # station name back, same as a normal chat reply would.
             await self._handle_radio_play_request(radio_term)
+        elif radio_stop:
+            await self._handle_radio_stop_request()
         else:
             # Conversation memory: this turn's utterance AND Ron's
             # reply both join self._conversation_history, which
