@@ -348,11 +348,12 @@ class VoiceControlService:
         # ..." shouldn't inherit context from an unrelated conversation
         # from an hour ago.
         self._conversation_history: list[ChatMessage] = []
-        # Cache for _radio_is_playing_cached() - see its own docstring
-        # for why this needs throttling. 0.0 guarantees the very first
-        # call always does a real check rather than trusting a default.
+        # Written only by _refresh_radio_playing_cache_loop() (a proper
+        # background task), read only by _radio_is_playing_cached() (a
+        # pure, instant read with no I/O of its own) - see both
+        # docstrings for why this split exists.
         self._radio_playing_cache = False
-        self._radio_playing_cache_time = 0.0
+        self._radio_cache_task: asyncio.Task | None = None
 
     # ---------------------------------------------------------- config
 
@@ -480,27 +481,47 @@ class VoiceControlService:
         return configured
 
     def _radio_is_playing_cached(self) -> bool:
-        """A cheap, throttled check for 'is internet radio actually
-        playing right now' - internet_radio_service.status() makes
-        THREE real IPC round-trips to mpv (confirmed by reading its
-        own code: separate queries for pause, idle-active, and volume)
-        - genuinely too expensive to call on every single audio chunk
-        in the always-on wake-word listener's hot path, which runs
-        continuously, many times a second. Re-checks at most once every
-        RADIO_PLAYING_CHECK_INTERVAL_SECONDS, reusing the cached answer
-        in between - reacts to radio starting/stopping within a couple
-        of seconds, not instantly, which is a reasonable trade for not
-        hammering mpv's IPC socket continuously."""
-        now = time.monotonic()
-        if now - self._radio_playing_cache_time >= RADIO_PLAYING_CHECK_INTERVAL_SECONDS:
-            self._radio_playing_cache_time = now
-            try:
-                from app.services.internet_radio_service import internet_radio_service
-
-                self._radio_playing_cache = bool(internet_radio_service.status().get("playing"))
-            except Exception:  # noqa: BLE001 - a failed check must never break mic gain - just assume radio isn't playing
-                self._radio_playing_cache = False
+        """A pure, instant read of the last-known answer - a real
+        regression reported live right after this feature shipped:
+        saying the wake word started taking ~4s to get a beep back.
+        Root cause: this used to trigger the actual refresh itself,
+        synchronously, right here - and _apply_mic_gain() (which calls
+        this) is itself called synchronously, directly inside the
+        always-on listener's async loop, with no asyncio.to_thread
+        around it. internet_radio_service.status() makes THREE real
+        blocking IPC round-trips to mpv - running that directly in this
+        call path blocks the entire asyncio event loop for however long
+        those round-trips take, not just this one listener. The
+        THROTTLING (only refreshing every couple of seconds) was
+        correct and already tested - the mistake was WHERE the actual
+        refresh happened, still synchronously and still inline, just
+        less often. Fixed by moving the real refresh into
+        _refresh_radio_playing_cache_loop() - a proper background
+        asyncio task using asyncio.to_thread for the blocking call -
+        so this method never does any I/O itself, just reads whatever
+        that task last wrote. Always instant, by construction."""
         return self._radio_playing_cache
+
+    async def _refresh_radio_playing_cache_loop(self) -> None:
+        """Background task started alongside the wake-word listener
+        (see start()) - periodically refreshes self._radio_playing_cache
+        via a real, correctly-threaded call, so _radio_is_playing_cached()
+        (called synchronously from the listener's hot path) never has to
+        do any blocking I/O itself. See that method's own docstring for
+        the real regression this fixes."""
+        try:
+            while True:
+                await asyncio.sleep(RADIO_PLAYING_CHECK_INTERVAL_SECONDS)
+                try:
+                    from app.services.internet_radio_service import internet_radio_service
+
+                    status = await asyncio.to_thread(internet_radio_service.status)
+                    self._radio_playing_cache = bool(status.get("playing"))
+                except Exception as e:  # noqa: BLE001 - a failed check must never break mic gain or kill this loop - just assume radio isn't playing and keep going
+                    self._radio_playing_cache = False
+                    logger.warning("Voice control: radio-playing check failed, will retry: %s", e)
+        except asyncio.CancelledError:
+            raise
 
     def _apply_mic_gain(self, chunk: bytes) -> bytes:
         """Applies _mic_gain() to a raw 16-bit PCM chunk. audioop.mul()
@@ -2050,6 +2071,7 @@ class VoiceControlService:
             return
         self._enabled = True
         self._task = asyncio.create_task(self._listen_loop())
+        self._radio_cache_task = asyncio.create_task(self._refresh_radio_playing_cache_loop())
 
     async def stop(self) -> None:
         self._enabled = False
@@ -2062,6 +2084,13 @@ class VoiceControlService:
             except Exception as e:  # noqa: BLE001 - shutdown must not raise
                 logger.warning("Voice control: error during stop: %s", e)
             self._task = None
+        if self._radio_cache_task:
+            self._radio_cache_task.cancel()
+            try:
+                await self._radio_cache_task
+            except asyncio.CancelledError:
+                pass
+            self._radio_cache_task = None
 
 
 voice_control_service = VoiceControlService()
