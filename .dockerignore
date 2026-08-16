@@ -1,0 +1,69 @@
+# Build context sent to the Docker daemon on EVERY build, backend or
+# frontend. Without this file that was the entire repo - measured at
+# 226 MB here, dominated by frontend/node_modules (215 MB) plus .git
+# (3 MB) - read off the Pi's SD card each time, before any layer
+# caching even gets a chance to help.
+#
+# Both Dockerfiles copy narrowly (backend/requirements.txt,
+# backend/app, frontend/, docker/nginx*), so everything excluded below
+# is genuinely unused by either build.
+
+# ---------------------------------------------------------------
+# node_modules - the big one, and not just a size problem.
+# docker/frontend.Dockerfile runs `npm ci` in its own cached layer and
+# THEN does `COPY frontend/ ./`. If a node_modules directory exists on
+# the host it lands directly on top of the one npm ci just built - and
+# on this Pi that would be armv7 host binaries overwriting the
+# container's, or vice versa. Native modules would be the wrong
+# architecture. Excluding it keeps the ci layer authoritative.
+# ---------------------------------------------------------------
+**/node_modules
+
+# Build output - regenerated inside the image by `npm run build`.
+# Copying the host's stale dist in only to overwrite it wastes
+# context and risks leaving orphaned files from an older build.
+**/dist
+**/.vite
+*.tsbuildinfo
+
+# Git history. Nothing in either build reads it, and it grows forever.
+.git
+.gitignore
+.github
+
+# Python caches and local virtualenvs - wrong architecture in an
+# image anyway.
+**/__pycache__
+**/*.pyc
+**/.venv
+**/venv
+
+# LIVE DATA - must never be baked into an image. This is the running
+# SQLite DB and config.json (which holds auth tokens and API keys) on
+# the Pi; in the running stack it comes from a mounted volume, not
+# from the build.
+backend/data
+**/*.db
+
+# Secrets. .env.example is committed and harmless, but the real .env
+# has no business in a layer.
+.env
+.env.local
+**/.env
+
+# Docs, the marketing site, and the frontend test suite. None are
+# referenced by either Dockerfile - tsconfig builds only `src` and
+# `vite.config.ts`, so `tsc -b && vite build` never reads tests/.
+docs
+site
+frontend/tests
+frontend/scripts
+*.md
+LICENSE
+
+# Local compose overrides and editor/OS noise
+docker-compose.override.yml
+.vscode
+.idea
+.DS_Store
+*.log
