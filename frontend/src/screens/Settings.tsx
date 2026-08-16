@@ -371,6 +371,7 @@ function VoiceControlCard() {
   const [micDevice, setMicDevice] = useState('');
   const [playbackDevice, setPlaybackDevice] = useState('');
   const [speechThreshold, setSpeechThreshold] = useState('');
+  const [trailingSilence, setTrailingSilence] = useState('');
   const [micGain, setMicGain] = useState('');
   const [ttsProvider, setTtsProvider] = useState('google');
   const [ttsGender, setTtsGender] = useState('female');
@@ -405,6 +406,7 @@ function VoiceControlCard() {
       setMicDevice(String(cfg.data.voice_mic_device ?? ''));
       setPlaybackDevice(String(cfg.data.voice_playback_device ?? ''));
       setSpeechThreshold(cfg.data.voice_speech_rms_threshold != null ? String(cfg.data.voice_speech_rms_threshold) : '');
+      setTrailingSilence(cfg.data.voice_trailing_silence_seconds != null ? String(cfg.data.voice_trailing_silence_seconds) : '');
       setMicGain(cfg.data.voice_mic_gain != null ? String(cfg.data.voice_mic_gain) : '');
       setTtsProvider(cfg.data.voice_tts_provider === 'groq' ? 'groq' : 'google');
       setTtsGender(cfg.data.voice_tts_gender === 'male' ? 'male' : 'female');
@@ -421,6 +423,7 @@ function VoiceControlCard() {
       if (touched.has('micDevice')) value.voice_mic_device = micDevice.trim();
       if (touched.has('playbackDevice')) value.voice_playback_device = playbackDevice.trim();
       if (touched.has('speechThreshold')) value.voice_speech_rms_threshold = speechThreshold.trim() ? Number(speechThreshold.trim()) : '';
+      if (touched.has('trailingSilence')) value.voice_trailing_silence_seconds = trailingSilence.trim() ? Number(trailingSilence.trim()) : '';
       if (touched.has('micGain')) value.voice_mic_gain = micGain.trim() ? Number(micGain.trim()) : '';
       if (touched.has('ttsProvider')) value.voice_tts_provider = ttsProvider;
       if (touched.has('ttsGender')) value.voice_tts_gender = ttsGender;
@@ -573,6 +576,22 @@ function VoiceControlCard() {
         picking up background noise as speech; higher is more forgiving of noise but might cut off a quiet start.
         2500 is a reasonable starting point, not a verified number for your actual mic — worth adjusting from real
         testing if commands keep getting cut off early, or keep running to the full length even for short phrases.
+      </div>
+
+      <div>
+        <label className="text-[11px] uppercase tracking-widest text-ink-muted">Pause before it stops listening</label>
+        <input
+          value={trailingSilence}
+          onChange={(e) => { setTrailingSilence(e.target.value); touch('trailingSilence'); }}
+          placeholder="2 (default, seconds)"
+          inputMode="decimal"
+          className="mt-1.5 w-full max-w-[200px] rounded-xl bg-ink/[0.04] ring-1 ring-ink/10 focus:ring-aurora-teal/50 outline-none px-3 py-2 text-sm num"
+        />
+      </div>
+      <div className="text-[11px] text-ink-faint mt-1 mb-3">
+        How long a pause mid-sentence counts as "finished talking". Too low and a longer request gets cut off part-way
+        — "play Classic FM at the Movies" ends up as just "play Classic FM". Too high and there's a longer wait after a
+        short command before anything happens. 2 seconds is the default; raise it if you're still being cut off.
       </div>
 
       <div>

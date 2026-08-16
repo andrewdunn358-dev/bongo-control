@@ -145,7 +145,7 @@ COMMAND_RECORD_SECONDS = 4.0
 MAX_COMMAND_RECORD_SECONDS = 12.0  # hard safety cap regardless of speech - must never record forever
 MIN_COMMAND_RECORD_SECONDS = 1.0  # never stop earlier than this even if the silence logic misfires early
 INITIAL_SILENCE_GRACE_SECONDS = 3.0  # how long to wait for speech to START before giving up entirely
-TRAILING_SILENCE_SECONDS = 1.3  # how long a pause AFTER speech has started counts as "finished talking"
+TRAILING_SILENCE_SECONDS = 2.0  # default pause AFTER speech has started that counts as "finished talking"
 RECORD_CHUNK_SECONDS = 0.1  # how often the silence detector re-checks - small enough to feel responsive
 RADIO_PLAYING_CHECK_INTERVAL_SECONDS = 2.0  # how often _radio_is_playing_cached() re-queries mpv - see its own docstring for why this needs throttling at all
 # The go-ahead confirm beep (_generate_beep_wav's default, 0.25s) plays
@@ -434,6 +434,34 @@ class VoiceControlService:
             return float(raw) if raw not in (None, "") else float(DEFAULT_SPEECH_RMS_THRESHOLD)
         except (TypeError, ValueError):
             return float(DEFAULT_SPEECH_RMS_THRESHOLD)
+
+    def _trailing_silence_seconds(self) -> float:
+        """How long a pause AFTER speech has started is read as "they've
+        finished the sentence" and stops recording early.
+
+        Reported live: "play classic fm at the movies" kept getting cut
+        off part-way through. Station names and natural requests contain
+        real mid-sentence pauses - between the station name and its
+        qualifier here - and at the previous 1.3s default a pause that
+        long ends the recording, sending only the first fragment to
+        transcription. The person then gets a wrong station, or nothing.
+
+        Raised to a more forgiving default AND made configurable, for
+        the same reason the RMS threshold is: the right number depends
+        on how this specific person actually speaks and on the van's
+        real noise floor, so it must be tunable from Settings rather
+        than needing a redeploy each time. The trade-off is honest and
+        worth stating - a longer value means a longer wait after a
+        genuinely short command before it's acted on."""
+        raw = self._general().get("voice_trailing_silence_seconds")
+        try:
+            value = float(raw) if raw not in (None, "") else float(TRAILING_SILENCE_SECONDS)
+        except (TypeError, ValueError):
+            return float(TRAILING_SILENCE_SECONDS)
+        # Bounded: below ~0.4s ordinary between-word gaps end the
+        # recording, and anything past the hard cap could never be
+        # reached anyway, so a typo can't silently disable the feature.
+        return max(0.4, min(value, MAX_COMMAND_RECORD_SECONDS))
 
     def _mic_gain(self) -> float:
         """Digital gain multiplier applied to raw mic audio before it
@@ -941,6 +969,7 @@ class VoiceControlService:
         chunk_frames = max(1, int(sample_rate * RECORD_CHUNK_SECONDS))
         chunk_bytes = chunk_frames * 2  # 16-bit mono = 2 bytes/sample
         threshold = self._speech_rms_threshold()
+        trailing_silence = self._trailing_silence_seconds()
 
         proc = subprocess.Popen(
             ["arecord", "-D", device, "-f", "S16_LE", "-r", str(sample_rate), "-c", "1", "-t", "raw"],
@@ -1000,7 +1029,17 @@ class VoiceControlService:
                 elif speech_started:
                     if silence_run_start is None:
                         silence_run_start = now
-                    elif (now - silence_run_start) >= TRAILING_SILENCE_SECONDS and elapsed >= MIN_COMMAND_RECORD_SECONDS:
+                    elif (now - silence_run_start) >= trailing_silence and elapsed >= MIN_COMMAND_RECORD_SECONDS:
+                        # Logged because this is the decision that
+                        # truncates a command mid-sentence when it fires
+                        # too eagerly - the reported "it cut me off"
+                        # case. Knowing it stopped HERE, and after how
+                        # long, is what distinguishes a too-short pause
+                        # tolerance from a mic/threshold problem.
+                        logger.info(
+                            "Voice control: stopped recording after a %.1fs pause (tolerance=%.1fs), %.1fs of audio captured",
+                            now - silence_run_start, trailing_silence, elapsed,
+                        )
                         break  # said something, then paused for long enough - they're done
                 elif elapsed >= INITIAL_SILENCE_GRACE_SECONDS:
                     break  # never started talking at all - give up rather than record silence for 12s
