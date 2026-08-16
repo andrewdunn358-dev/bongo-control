@@ -303,6 +303,12 @@ class RelayService:
                         detail="no clean-shutdown record",
                     )
             self._available = True
+            # Re-persist immediately: _consume_clean_shutdown_state()
+            # cleared the record, so without this a second restart
+            # BEFORE any command would find nothing and default all-off.
+            # With write-through the consume-once protection matters
+            # less anyway (the record can't be stale), but keep both.
+            self._persist_commanded_state()
             logger.info("Relay control ready on %d channel(s)", len(self._devices))
         except Exception as e:  # noqa: BLE001 - no GPIO hardware is a normal dev-machine state
             self._unavailable_reason = str(e)
@@ -325,17 +331,23 @@ class RelayService:
             logger.warning("Could not read previous relay state, defaulting to off: %s", e)
         return {}, False
 
-    def stop(self) -> None:
-        """Persists the current commanded state (tagged as a CLEAN
-        shutdown, for start() to restore next time) before turning
-        everything off and releasing the pins. The relays themselves
-        always end up physically off HERE, at shutdown - restoring the
-        commanded state is entirely start()'s job, on the NEXT run, not
-        something this method does itself.
+    def _persist_commanded_state(self) -> None:
+        """Write-through persistence of the commanded state.
 
-        This only genuinely protects the restore if stop() actually
-        gets to run - see the reload-backend route's own fix (using a
-        real SIGTERM, not a hard kill) for why that matters."""
+        Called after EVERY successful relay command, not just at
+        shutdown. This exists because of a bug found live on 16 Aug
+        2026: `docker compose up -d --build` does not reliably run the
+        graceful shutdown path, so a shutdown-only save could be
+        skipped - and then the NEXT start would restore whatever an
+        OLDER graceful stop had saved. Observed exactly that: the
+        heater restored to a state from two restarts ago, dropping a
+        commanded-ON channel and looking like it "turned itself off".
+        With write-through, the record always matches the last command
+        issued and it no longer matters whether shutdown was graceful.
+
+        The `clean_shutdown` tag is kept (start() still requires it)
+        but its meaning is now "state is trustworthy" rather than
+        "stop() ran" - it is true from the first command onwards."""
         try:
             from app.services.configuration_service import configuration_service
 
@@ -347,8 +359,18 @@ class RelayService:
                     "saved_at": time.time(),
                 },
             )
-        except Exception as e:  # noqa: BLE001 - failing to persist must never block shutdown
+        except Exception as e:  # noqa: BLE001 - persistence must never block relay control
             logger.warning("Could not persist relay state for next startup: %s", e)
+
+    def stop(self) -> None:
+        """Persists the current commanded state one final time (now
+        redundant in the normal case - every command already
+        write-through persisted - but kept as a belt-and-braces final
+        snapshot) before turning everything off and releasing the pins.
+        The relays themselves always end up physically off HERE, at
+        shutdown - restoring the commanded state is entirely start()'s
+        job, on the NEXT run, not something this method does itself."""
+        self._persist_commanded_state()
 
         for channel_id, device in self._devices.items():
             try:
@@ -446,6 +468,9 @@ class RelayService:
         logger.info("Relay %s commanded %s (via %s)", channel_id, "ON" if on else "OFF", source)
         channel_name = next((c["name"] for c in self._channels if c["id"] == channel_id), f"Relay {channel_id}")
         record_relay_event(channel_id, channel_name, "on" if on else "off", source)
+        # Write-through: persist immediately so a hard kill / rebuild
+        # can never restore a stale state (see _persist_commanded_state).
+        self._persist_commanded_state()
         return self.status()
 
     def toggle(self, channel_id: int, source: str = "unspecified") -> dict[str, Any]:
