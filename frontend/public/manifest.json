@@ -1,6 +1,6 @@
 {
   "short_name": "VanOS",
-  "name": "VanOS — Van Cockpit",
+  "name": "VanOS \u2014 Van Cockpit",
   "description": "Tesla-style van cockpit for battery, solar, weather, camera and nearby places.",
   "icons": [
     {
@@ -26,12 +26,6 @@
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "maskable"
-    },
-    {
-      "src": "icon.svg",
-      "type": "image/svg+xml",
-      "sizes": "any",
-      "purpose": "any"
     }
   ],
   "start_url": ".",
@@ -39,5 +33,9 @@
   "orientation": "any",
   "theme_color": "#0a1628",
   "background_color": "#0a1628",
-  "categories": ["utilities", "productivity", "travel"]
+  "categories": [
+    "utilities",
+    "productivity",
+    "travel"
+  ]
 }

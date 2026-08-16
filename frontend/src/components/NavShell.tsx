@@ -28,7 +28,7 @@ import { useBattery, useEnvironment } from '@/lib/telemetry';
 import { fmtVolt, fmtTemp, DASH } from '@/lib/format';
 
 // `letter` used to live here too - the "V" placeholder shown before
-// there was a real logo. Removed with it; the badge is brand-mark.svg now.
+// there was a real logo. Removed with it; the badge is brand-mark.png now.
 const BRAND = { sub: isDemo ? 'campervan dashboard' : 'van cockpit' };
 function BrandName() {
   return (
@@ -113,20 +113,24 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
       >
         <div data-testid={NAV.brand} className="flex items-center gap-2.5 shrink-0">
           {/* Was a CSS gradient square with the letter "V" in it - a
-              placeholder from before there was a real logo. Now the
-              actual brand mark. Deliberately brand-mark.svg, not
-              icon.svg: the installed-app icon carries the wordmark,
-              which at 36px is unreadable AND redundant, since "VanOS"
-              is printed as text right beside it. Plain <img> rather
-              than an inlined component so it stays out of the JS
-              bundle and is cached by the service worker like any other
-              same-origin asset. */}
+              placeholder from before there was a real logo. Now
+              Frankie's own artwork, cropped to the gold van from the
+              crest at the top of it. The crop is the point: the full
+              artwork carries a wordmark and a whole photographic
+              scene, and at 36px that is an unreadable smudge (checked
+              by rendering it, not assumed). The van is the one element
+              that still reads at this size, and the wordmark would be
+              redundant anyway - "VanOS" is printed as text right
+              beside this. Plain <img> so it stays out of the JS bundle
+              and is cached by the service worker like any other
+              same-origin asset. Corners are rounded by CSS below, so
+              the file itself is a plain square. */}
           <img
-            src="/brand-mark.svg"
+            src="/brand-mark.png"
             alt=""
             width={36}
             height={36}
-            className="h-9 w-9 rounded-xl shadow-[0_0_14px_rgba(178,97,0,0.4)]"
+            className="h-9 w-9 rounded-xl object-cover shadow-[0_0_14px_rgba(178,97,0,0.4)]"
           />
           <div className="leading-tight hidden sm:block">
             <div className="font-semibold tracking-tight text-sm"><BrandName /></div>
