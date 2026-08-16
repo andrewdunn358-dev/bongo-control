@@ -203,12 +203,24 @@ class RelayService:
         the rest of the app must keep working, with the relay feature
         reporting itself unavailable rather than taking the backend down.
 
-        Restores each channel's PREVIOUS commanded state, but only if
-        the previous run shut down cleanly (see stop() - it tags the
-        saved state, and this consumes/clears that tag immediately so
-        it can never be reused by a later crash). No clean-shutdown
-        record at all - first-ever boot, or the previous run crashed -
-        and every channel defaults to off, same as always.
+        Every channel ALWAYS starts OFF, unconditionally, on every
+        single startup - no exceptions, no restoring a previous state.
+        This used to restore each channel's last commanded state after
+        a clean shutdown - removed entirely after a real, reported
+        incident: the reload-backend button (a genuinely graceful
+        SIGTERM-based restart, not a crash) brought a light back on
+        that had deliberately been turned off. The underlying save/
+        restore bookkeeping was working exactly as designed even then
+        - it was the DESIGN ITSELF, not a bug in it, that was unsafe:
+        restoring "whatever was last commanded" is a guess at best on
+        a two-way-wired circuit the app can't actually sense (see the
+        module docstring), and guessing wrong means a real 12V circuit
+        - potentially the heater - re-energising with nobody having
+        asked for that, right when a backend restart is already
+        underway. Every startup now leaves every channel in the one
+        state that's unconditionally safe regardless of what was
+        happening before: off, requiring an explicit new command
+        either way.
         """
         if not self._channels:
             self.configure()
@@ -220,12 +232,9 @@ class RelayService:
             logger.warning("Relay control unavailable - %s", self._unavailable_reason)
             return
 
-        restore_state, clean = self._consume_clean_shutdown_state()
-
         try:
             for channel in self._channels:
                 channel_id = channel["id"]
-                restored_on = bool(restore_state.get(str(channel_id), False)) if clean else False
 
                 # Board-wide active_high, XOR'd with a per-channel
                 # "inverted" flag for a circuit whose physical path
@@ -247,30 +256,16 @@ class RelayService:
                 device = OutputDevice(
                     channel["gpio"],
                     active_high=effective_active_high,
-                    initial_value=restored_on,
+                    initial_value=False,
                 )
                 self._devices[channel_id] = device
-                self._commanded[channel_id] = restored_on
+                self._commanded[channel_id] = False
 
-                if clean:
-                    logger.info(
-                        "Relay %s restored to %s (via system:startup-restore, last state before clean shutdown)",
-                        channel_id, "ON" if restored_on else "OFF",
-                    )
-                    record_relay_event(
-                        channel_id, channel["name"], "restored" if restored_on else "restored-off",
-                        "system:startup-restore", detail="last state before clean shutdown",
-                    )
-                else:
-                    # Same real consequence as always on a two-way-wired
-                    # circuit - see the module docstring - but this only
-                    # happens now after a genuine crash/power-loss, not
-                    # after an ordinary rebuild.
-                    logger.info("Relay %s reset to OFF (via system:startup, no clean-shutdown record)", channel_id)
-                    record_relay_event(
-                        channel_id, channel["name"], "reset-off", "system:startup",
-                        detail="no clean-shutdown record",
-                    )
+                logger.info("Relay %s starting OFF (via system:startup)", channel_id)
+                record_relay_event(
+                    channel_id, channel["name"], "reset-off", "system:startup",
+                    detail="every startup always begins with every relay off",
+                )
             self._available = True
             logger.info("Relay control ready on %d channel(s)", len(self._devices))
         except Exception as e:  # noqa: BLE001 - no GPIO hardware is a normal dev-machine state
@@ -278,45 +273,11 @@ class RelayService:
             logger.warning("Relay control unavailable - %s", e)
             self._release()
 
-    def _consume_clean_shutdown_state(self) -> tuple[dict[str, Any], bool]:
-        """Reads AND clears the clean-shutdown record in one step, so a
-        restore can only ever be applied once. Any read/parse failure
-        is treated as "no record" (safe default), never as a reason to
-        fail startup.
-        """
-        try:
-            from app.services.configuration_service import configuration_service
-
-            saved = configuration_service.get("relays_runtime_state", {}) or {}
-            configuration_service.set("relays_runtime_state", {})  # consume immediately
-            if saved.get("clean_shutdown") is True:
-                return dict(saved.get("channels", {})), True
-        except Exception as e:  # noqa: BLE001 - a bad persisted record must never block startup
-            logger.warning("Could not read previous relay state, defaulting to off: %s", e)
-        return {}, False
-
     def stop(self) -> None:
-        """Persists the current commanded state (tagged as a CLEAN
-        shutdown, for start() to restore next time) before turning
-        everything off and releasing the pins. The relays themselves
-        always end up physically off here, same as always - this only
-        changes what happens the NEXT time start() runs, not what
-        state stop() itself leaves the hardware in.
-        """
-        try:
-            from app.services.configuration_service import configuration_service
-
-            configuration_service.set(
-                "relays_runtime_state",
-                {
-                    "clean_shutdown": True,
-                    "channels": {str(k): v for k, v in self._commanded.items()},
-                    "saved_at": time.time(),
-                },
-            )
-        except Exception as e:  # noqa: BLE001 - failing to persist must never block shutdown
-            logger.warning("Could not persist relay state for next startup: %s", e)
-
+        """Turns everything off and releases the pins. No longer
+        persists anything for a future startup to restore - see
+        start()'s own docstring for why that was removed entirely,
+        not just fixed."""
         for channel_id, device in self._devices.items():
             try:
                 device.off()

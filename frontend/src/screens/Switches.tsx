@@ -1,13 +1,11 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Power, PowerOff } from 'lucide-react';
+import { Power } from 'lucide-react';
 import { GlassCard } from '@/components/primitives/GlassCard';
-import { StatusPill } from '@/components/primitives/StatusPill';
 import { api, ApiError } from '@/lib/api';
 import { SWITCH } from '@/constants/testIds';
 import { fmtUnixTime } from '@/lib/format';
-import { cn } from '@/lib/utils';
 
 export function Switches() {
   const qc = useQueryClient();
@@ -65,12 +63,6 @@ export function Switches() {
     },
   });
 
-  const allOff = useMutation({
-    mutationFn: () => api.relaysAllOff(),
-    onSuccess: () => { toast.success('All relays commanded off'); qc.invalidateQueries({ queryKey: ['relays'] }); },
-    onError: () => toast.error('All-off failed'),
-  });
-
   const relays = (data?.channels || []).filter((r) => !roofChannelIds.has(r.id));
 
   return (
@@ -80,21 +72,7 @@ export function Switches() {
           <div className="text-[11px] uppercase tracking-[0.24em] text-ink-muted">Switches</div>
           <h1 className="text-3xl md:text-5xl font-semibold tracking-tight mt-1">Switches</h1>
           <div className="text-sm text-ink-muted mt-2">Four GPIO relays wired in parallel with the van&apos;s manual switches.</div>
-          <div className="text-xs text-ink-faint mt-1 max-w-2xl">
-            The tags below show what we last told each relay to do, not what&apos;s actually happening at the bulb — the
-            physical wall switch affects real power too, and the app has no way to sense that. A light can be lit or
-            dark independent of what&apos;s shown here.
-          </div>
         </div>
-        <button
-          type="button"
-          data-testid={SWITCH.allOff}
-          onClick={() => allOff.mutate()}
-          disabled={allOff.isPending}
-          className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm bg-red-500/10 ring-1 ring-inset ring-red-400/40 text-status-red hover:bg-red-500/15 disabled:opacity-50"
-        >
-          <PowerOff size={14} /> {allOff.isPending ? 'Sending…' : 'All off'}
-        </button>
       </div>
 
       {roofChannelIds.size > 0 && (
@@ -126,7 +104,7 @@ export function Switches() {
         {relays.map((r) => (
           <GlassCard
             key={r.id}
-            className={cn('p-5 transition', r.commanded_on ? 'glow-teal' : '')}
+            className="p-5 transition"
             data-testid={SWITCH.relay(r.id)}
           >
             <div className="flex items-start justify-between gap-3">
@@ -161,9 +139,6 @@ export function Switches() {
                 )}
                 <div className="text-[11px] text-ink-faint mt-1 num">GPIO {r.gpio}</div>
               </div>
-              <StatusPill tone={r.commanded_on ? 'teal' : 'slate'}>
-                {r.commanded_on ? 'LAST: ON' : 'LAST: OFF'}
-              </StatusPill>
             </div>
             <div className="mt-4">
               <button
@@ -171,14 +146,9 @@ export function Switches() {
                 aria-label={`Toggle ${r.name}`}
                 onClick={() => setMut.mutate({ id: r.id, on: !r.commanded_on })}
                 disabled={setMut.isPending}
-                className={cn(
-                  'w-full inline-flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed',
-                  r.commanded_on
-                    ? 'bg-aurora-teal text-navy-900 ring-1 ring-inset ring-aurora-teal/60'
-                    : 'bg-ink/[0.06] ring-1 ring-inset ring-ink/15 hover:bg-ink/[0.1]',
-                )}
+                className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed bg-ink/[0.06] ring-1 ring-inset ring-ink/15 hover:bg-ink/[0.1]"
               >
-                {r.commanded_on ? <Power size={14} /> : <PowerOff size={14} />} Toggle
+                <Power size={14} /> Toggle
               </button>
             </div>
           </GlassCard>

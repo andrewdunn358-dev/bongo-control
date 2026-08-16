@@ -95,7 +95,6 @@ export const COVERAGE = {
 
 export const SWITCH = {
   root: 'switches-screen',
-  allOff: 'switches-all-off',
   relay: (id: number | string) => `switches-relay-${id}`,
 } as const;
 
