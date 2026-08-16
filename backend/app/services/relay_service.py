@@ -253,10 +253,40 @@ class RelayService:
                 # from test to test rather than perfectly opposite every
                 # single time.
                 effective_active_high = self._active_high != bool(channel.get("inverted", False))
+
+                # Reported live: Lights - and ONLY Lights, every other
+                # channel unaffected - turning ON during every reload,
+                # then off again once the app finished starting.
+                # Real bug, found by reading gpiozero's own behaviour
+                # for active_high=False (which is exactly what Lights
+                # gets, being the one inverted channel): initial_value
+                # is a LOGICAL value, translated through active_high -
+                # for an active_high=False device, initial_value=False
+                # actually drives the PHYSICAL pin HIGH, not low. On
+                # this high-trigger board, a high pin energises the
+                # relay - so "start it off" was accidentally telling
+                # the hardware to switch Lights ON, for exactly the one
+                # channel where active_high comes out False. Every
+                # other channel is active_high=True, where False
+                # correctly means physically low - which is why nothing
+                # else was ever affected.
+                #
+                # Fix: compute whichever initial_value actually produces
+                # a physically LOW pin (safe/de-energised on this
+                # high-trigger board) for THIS channel's own polarity,
+                # rather than assuming False always means "safe" -
+                # normal channels: not True = False (unchanged).
+                # Lights (active_high=False): not False = True - passing
+                # True is what correctly drives ITS physical pin low.
+                # self._commanded stays False either way - that's the
+                # app's own logical "is this on" bookkeeping, separate
+                # from whatever value gpiozero needed to reach a
+                # physically safe pin state.
+                physically_off_value = not effective_active_high
                 device = OutputDevice(
                     channel["gpio"],
                     active_high=effective_active_high,
-                    initial_value=False,
+                    initial_value=physically_off_value,
                 )
                 self._devices[channel_id] = device
                 self._commanded[channel_id] = False
