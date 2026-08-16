@@ -1,41 +1,73 @@
-<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  <!-- Rounded-square app-icon background, matching the app's own dark
-       base color rather than transparent/white, so it looks
-       intentional on a home screen or browser tab. -->
-  <rect width="512" height="512" rx="112" fill="#0b0e12"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="VanOS">
+  <!--
+    Vector companion to the VanOS artwork (icons/icon-512.png).
 
-  <!-- Campervan silhouette, deliberately reduced to the fewest shapes
-       that still read unambiguously as "campervan" at 16px: a body
-       with a distinctly raised roof over the back half (the single
-       strongest classic-camper visual cue), one big window, two bold
-       wheels. Earlier version had a headlight, bumper, split
-       windshield and a sun - all of it turned to mud below 32px and
-       was cut for exactly that reason. -->
+    The artwork is the identity, but it cannot BE this icon: at
+    favicon and adaptive-icon sizes its detail collapses into mush
+    (measured - the wordmark stops being readable well before 96px,
+    and by 32px nothing survives). This reduces the same crest to the
+    shapes that still read that small: pop-top van, ridgeline, sun.
 
-  <!-- Main body: low nose at front (left), tall roof over the back -->
-  <path
-    d="M 80 300
-       L 80 210
-       Q 80 190 100 190
-       L 300 190
-       L 300 150
-       Q 300 130 320 130
-       L 400 130
-       Q 420 130 420 150
-       L 420 300
-       Z"
-    fill="#00c2a8"
-  />
+    Also what makes Android maskable icons correct - they crop to a
+    circle or squircle, so the background must be full-bleed and every
+    meaningful shape must sit inside the centre 80% safe zone (roughly
+    51..461 here). A crop of the artwork cannot satisfy that; its
+    wordmark runs edge to edge and would be sliced.
 
-  <!-- Window, one bold rectangle -->
-  <rect x="320" y="160" width="80" height="80" rx="14" fill="#0b0e12"/>
+    Two things learned by rendering this rather than reasoning about
+    it: the van must be drawn LAST and at full strength or it merges
+    into the ridge behind it, and the raised roof must sit directly ON
+    the body - a separate floating slab reads as a random bar, not a
+    pop-top. The wordmark uses two anchored <text> elements rather
+    than a <tspan>, because tspan spacing is not rendered consistently
+    across engines (one renderer inserted a visible gap: "Van OS").
 
-  <!-- Wheels -->
-  <circle cx="160" cy="316" r="46" fill="#0b0e12"/>
-  <circle cx="160" cy="316" r="22" fill="#ffb000"/>
-  <circle cx="360" cy="316" r="46" fill="#0b0e12"/>
-  <circle cx="360" cy="316" r="22" fill="#ffb000"/>
+    Colours sampled from the artwork: deep navy field, gold crest.
+  -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0%" stop-color="#12315c"/>
+      <stop offset="55%" stop-color="#0d2244"/>
+      <stop offset="100%" stop-color="#08172a"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffdf85"/>
+      <stop offset="55%" stop-color="#f2b52e"/>
+      <stop offset="100%" stop-color="#d8971c"/>
+    </linearGradient>
+  </defs>
 
-  <!-- Ground line -->
-  <rect x="60" y="330" width="392" height="10" rx="5" fill="#0b0e12" opacity="0.5"/>
+  <rect width="512" height="512" fill="url(#sky)"/>
+
+  <!-- Sun sits behind the ridge, as in the artwork -->
+  <circle cx="376" cy="152" r="44" fill="url(#gold)" opacity="0.85"/>
+
+  <!-- Ridgeline, dimmed so the van in front stays the brightest shape -->
+  <path d="M 104 296 L 192 158 L 236 210 L 296 138 L 408 296 Z" fill="url(#gold)" opacity="0.6"/>
+
+  <!-- Pop-top van, drawn last and full strength -->
+  <g fill="url(#gold)">
+    <path d="M 158 300 L 352 300 L 352 266 L 212 266 Z"/>
+    <path d="M 130 300 h 234 a 14 14 0 0 1 13 9 l 13 33 a 10 10 0 0 1 -9 14 H 130 a 13 13 0 0 1 -13 -13 v -30 a 13 13 0 0 1 13 -13 z"/>
+  </g>
+
+  <!-- Windows and tyres punched back out in the field colour, so the
+       van reads as a van and not a gold brick -->
+  <g fill="#0d2244">
+    <rect x="144" y="314" width="80" height="28" rx="6"/>
+    <rect x="238" y="314" width="64" height="28" rx="6"/>
+    <circle cx="176" cy="356" r="18"/>
+    <circle cx="332" cy="356" r="18"/>
+  </g>
+  <g fill="url(#gold)">
+    <circle cx="176" cy="356" r="9"/>
+    <circle cx="332" cy="356" r="9"/>
+  </g>
+
+  <!-- Wordmark: gone below roughly 64px in practice, but at 192px and
+       up (app switcher, install prompt) it is what names the app -->
+  <g font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-weight="700" font-size="64" letter-spacing="-1">
+    <text x="254" y="438" text-anchor="end" fill="#eef4ff">Van</text>
+    <text x="254" y="438" text-anchor="start" fill="url(#gold)">OS</text>
+  </g>
 </svg>

@@ -36,7 +36,14 @@
 // deploy is detected, installed, and (via skipWaiting + claim +
 // controllerchange) picked up. See index.html for the update polling.
 const VERSION = 'bongo-shell-__BUILD_ID__';
-const CORE = ['/', '/index.html', '/manifest.json', '/icon.svg', '/apple-touch-icon.svg'];
+// Deliberately does NOT list every icon size. Precaching is
+// all-or-nothing: one 404 rejects addAll() and the whole install
+// fails, taking offline support with it. It previously listed
+// /apple-touch-icon.svg, which no longer exists after the icon
+// rework - exactly that failure. Only the shell files genuinely
+// needed to boot offline are listed; the rest of the icons are
+// same-origin and get cached on demand by the fetch handler below.
+const CORE = ['/', '/index.html', '/manifest.json', '/icon.svg'];
 
 // Map assets live in their OWN cache, with a name that is deliberately
 // NOT stamped with the build id.

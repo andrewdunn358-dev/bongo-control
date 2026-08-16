@@ -10,8 +10,15 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="VanOS" />
     <link rel="manifest" href="/manifest.json" />
+    <!-- SVG first: browsers that support it get the crisp vector mark at
+         any size. The PNG fallbacks are sized deliberately - only the
+         simplified vector mark survives 16/32px, so those are rendered
+         from it, while apple-touch-icon uses the full artwork because
+         iOS shows it large and does not mask it. -->
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
