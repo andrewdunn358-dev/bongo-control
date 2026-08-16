@@ -147,6 +147,7 @@ MIN_COMMAND_RECORD_SECONDS = 1.0  # never stop earlier than this even if the sil
 INITIAL_SILENCE_GRACE_SECONDS = 3.0  # how long to wait for speech to START before giving up entirely
 TRAILING_SILENCE_SECONDS = 1.3  # how long a pause AFTER speech has started counts as "finished talking"
 RECORD_CHUNK_SECONDS = 0.1  # how often the silence detector re-checks - small enough to feel responsive
+RADIO_PLAYING_CHECK_INTERVAL_SECONDS = 2.0  # how often _radio_is_playing_cached() re-queries mpv - see its own docstring for why this needs throttling at all
 # The go-ahead confirm beep (_generate_beep_wav's default, 0.25s) plays
 # CONCURRENTLY with the start of recording, deliberately - not one
 # after another - so recording is already live before the beep even
@@ -347,6 +348,11 @@ class VoiceControlService:
         # ..." shouldn't inherit context from an unrelated conversation
         # from an hour ago.
         self._conversation_history: list[ChatMessage] = []
+        # Cache for _radio_is_playing_cached() - see its own docstring
+        # for why this needs throttling. 0.0 guarantees the very first
+        # call always does a real check rather than trusting a default.
+        self._radio_playing_cache = False
+        self._radio_playing_cache_time = 0.0
 
     # ---------------------------------------------------------- config
 
@@ -450,12 +456,51 @@ class VoiceControlService:
         via Settings (voice_mic_gain) so it's a Settings change, not a
         redeploy, once the mic's actually mounted where it'll live and
         this can be tuned against reality.
+
+        Reported live: the wake word firing randomly while internet
+        radio is playing. A real, known interference source, unlike
+        general background chatter - the speaker's own output can
+        genuinely bleed acoustically into the mic even with separate
+        hardware, and this gain amplifies that bleed-through right
+        along with everything else. Since the app itself controls
+        radio playback, it can react to this specific, detectable
+        source in a way it can't for a TV or a conversation - see
+        _radio_is_playing_cached() below. Full configured gain is
+        applied normally; drops to 1.0 (no amplification at all)
+        whenever radio is confirmed playing, restoring automatically
+        the moment it stops.
         """
         raw = self._general().get("voice_mic_gain")
         try:
-            return float(raw) if raw not in (None, "") else 1.0
+            configured = float(raw) if raw not in (None, "") else 1.0
         except (TypeError, ValueError):
+            configured = 1.0
+        if self._radio_is_playing_cached():
             return 1.0
+        return configured
+
+    def _radio_is_playing_cached(self) -> bool:
+        """A cheap, throttled check for 'is internet radio actually
+        playing right now' - internet_radio_service.status() makes
+        THREE real IPC round-trips to mpv (confirmed by reading its
+        own code: separate queries for pause, idle-active, and volume)
+        - genuinely too expensive to call on every single audio chunk
+        in the always-on wake-word listener's hot path, which runs
+        continuously, many times a second. Re-checks at most once every
+        RADIO_PLAYING_CHECK_INTERVAL_SECONDS, reusing the cached answer
+        in between - reacts to radio starting/stopping within a couple
+        of seconds, not instantly, which is a reasonable trade for not
+        hammering mpv's IPC socket continuously."""
+        now = time.monotonic()
+        if now - self._radio_playing_cache_time >= RADIO_PLAYING_CHECK_INTERVAL_SECONDS:
+            self._radio_playing_cache_time = now
+            try:
+                from app.services.internet_radio_service import internet_radio_service
+
+                self._radio_playing_cache = bool(internet_radio_service.status().get("playing"))
+            except Exception:  # noqa: BLE001 - a failed check must never break mic gain - just assume radio isn't playing
+                self._radio_playing_cache = False
+        return self._radio_playing_cache
 
     def _apply_mic_gain(self, chunk: bytes) -> bytes:
         """Applies _mic_gain() to a raw 16-bit PCM chunk. audioop.mul()
