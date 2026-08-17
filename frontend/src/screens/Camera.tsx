@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Camera as CameraIcon, Lock, RefreshCw, ImageDown, MoreVertical, Trash2, Download } from 'lucide-react';
+import { Camera as CameraIcon, Lock, RefreshCw, ImageDown, MoreVertical, Trash2, Download, Video } from 'lucide-react';
 import { GlassCard, CardHeader } from '@/components/primitives/GlassCard';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { api, getToken, clearToken } from '@/lib/api';
@@ -41,6 +41,20 @@ export function CameraView() {
   // otherwise fall back to the polled image (real photos / drawn scene).
   const [videoFailed, setVideoFailed] = useState(false);
   const showDemoVideo = isDemo && !videoFailed;
+  // Opt-in continuous MJPEG stream, off by default.
+  //
+  // Snapshot polling stays the default for the reason documented at the
+  // top of this file: multipart/x-mixed-replace works on desktop but
+  // fails silently on mobile, and a live view that dies quietly is
+  // worse than a slow one. But polling at POLL_MS is unusable for the
+  // one job Frankie needed it for - adjusting the lens focus by hand,
+  // where a frame every ~1.5s means you have already moved past the
+  // sharp point before you can see it. So the stream is available as a
+  // toggle, labelled with the caveat, rather than replacing the
+  // default or being left out entirely.
+  const [streamMode, setStreamMode] = useState(false);
+  const [streamFailed, setStreamFailed] = useState(false);
+  const streaming = streamMode && !showDemoVideo;
   const imgRef = useRef<HTMLImageElement | null>(null);
 
   const authStatus = useQuery({ queryKey: ['auth-status'], queryFn: api.authStatus });
@@ -85,7 +99,10 @@ export function CameraView() {
   // nothing surfaced what the real failure was. fetch() gives a real
   // HTTP status + body to show instead of a guess.
   useEffect(() => {
-    if (!unlocked || showDemoVideo) return;
+    // Also skipped while streaming: ffmpeg holds /dev/video0 for the
+    // duration of the stream, so a concurrent snapshot poll would just
+    // fight it for the device and fail every tick.
+    if (!unlocked || showDemoVideo || streaming) return;
     let cancelled = false;
     let lastObjectUrl: string | null = null;
     let consecutiveFailures = 0;
@@ -120,7 +137,7 @@ export function CameraView() {
       clearInterval(iv);
       if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
     };
-  }, [unlocked, token, showDemoVideo]);
+  }, [unlocked, token, showDemoVideo, streaming]);
 
   const lock = () => {
     clearToken();
@@ -177,10 +194,32 @@ export function CameraView() {
         <div>
           <div className="text-[11px] uppercase tracking-[0.24em] text-ink-muted">Camera</div>
           <h1 className="text-3xl md:text-5xl font-semibold tracking-tight mt-1">USB <span className="text-aurora-teal">webcam</span></h1>
-          <div className="text-sm text-ink-muted mt-2">Snapshot polling every {POLL_MS} ms — reliable on both tablet and phone.</div>
+          <div className="text-sm text-ink-muted mt-2">
+            {streaming
+              ? 'Continuous stream — for focusing the lens. Desktop only; if the frame stays black, switch back.'
+              : `Snapshot polling every ${POLL_MS} ms — reliable on both tablet and phone.`}
+          </div>
+          {streamFailed && streaming && (
+            <div className="text-sm text-status-amber mt-1">
+              The stream did not load. This browser likely doesn&apos;t support it — switch back to snapshots.
+            </div>
+          )}
         </div>
         {unlocked && (
           <div className="flex items-center gap-2">
+            {!isDemo && (
+              <button
+                type="button"
+                onClick={() => { setStreamMode((v) => !v); setStreamFailed(false); }}
+                className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm ring-1 transition-colors ${
+                  streaming
+                    ? 'bg-aurora-teal/15 ring-aurora-teal/40 text-aurora-teal'
+                    : 'bg-ink/[0.04] ring-ink/10 text-ink-soft hover:bg-ink/[0.08]'
+                }`}
+              >
+                <Video size={14} /> {streaming ? 'Stop stream' : 'Live stream'}
+              </button>
+            )}
             <StatusPill tone={isDemo ? 'purple' : 'red'} data-testid={CAM.liveBadge}>{isDemo ? 'DEMO' : 'LIVE'}</StatusPill>
             {authStatus.data?.required && (
               <button
@@ -208,6 +247,18 @@ export function CameraView() {
                 playsInline
                 className="w-full h-full object-cover"
                 onError={() => setVideoFailed(true)}
+              />
+            ) : streaming ? (
+              /* Plain <img> pointed at the multipart endpoint - that IS
+                 how MJPEG is consumed in a browser; the img element
+                 keeps swapping frames as parts arrive. onError only
+                 fires if the connection is refused outright, which is
+                 exactly the silent-failure caveat surfaced below. */
+              <img
+                src={api.cameraStreamUrl()}
+                alt="Live camera stream"
+                className="w-full h-full object-cover"
+                onError={() => setStreamFailed(true)}
               />
             ) : currentUrl ? (
               <>

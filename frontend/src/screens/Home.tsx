@@ -96,15 +96,20 @@ export function Home() {
           </GlassCard>
         </div>
 
-        {/* Centre column - the hero + insight card.
-            The camera is the hero here and GPS is the small card on the
-            right; they were the other way round until Frankie swapped
-            them. The camera earns the space: it is the one panel whose
-            value scales with size (a thumbnail of the van's interior is
-            hard to read), whereas GPS is a satellite count and a
-            coordinate pair, which are just as legible small. */}
-        <div className="col-span-12 lg:col-span-6 flex flex-col gap-4">
-          <div className="relative rounded-2xl overflow-hidden aspect-[16/10] ring-1 ring-white/10 shadow-2xl bg-black/50">
+        {/* Camera, the right column and the mission brief share a nested
+            grid. This exists purely so the right column's height is set
+            by the CAMERA and nothing else - Frankie asked for the GPS
+            card to line up with the bottom of the camera. In the outer
+            12-col grid every column stretches to the tallest of them, so
+            a flex-1 GPS card there would run down to whichever column
+            happened to be longest (the mission brief, or the battery
+            stack) rather than to the camera. Nesting makes row 1 exactly
+            camera-height; the brief then wraps to row 2 under the camera.
+            8/12 and 4/12 of a 9-col parent are 6 and 3 of the outer grid,
+            so the proportions are unchanged. */}
+        <div className="col-span-12 lg:col-span-9 grid grid-cols-12 gap-4 lg:gap-5 content-start">
+          <div className="col-span-12 lg:col-span-8 flex flex-col gap-4">
+            <div className="relative rounded-2xl overflow-hidden aspect-[16/10] ring-1 ring-white/10 shadow-2xl bg-black/50">
             <img
               src={api.cameraSnapshotUrl(Math.floor(Date.now() / 15000))}
               alt=""
@@ -127,29 +132,14 @@ export function Home() {
               </div>
             </div>
           </div>
-
-          <Link to="/overview" className="block">
-            <GlassCard
-              glow={meta.tone === 'red' ? undefined : 'teal'}
-              className="p-5 hover:ring-aurora-teal/40 transition-colors"
-              data-testid={HOME.sitrepBadge}
-            >
-              <div className="flex items-start gap-3">
-                <GaugeRing tone={meta.tone} size={44} progress={meta.tone === 'green' ? 1 : meta.tone === 'amber' ? 0.6 : 0.3}>
-                  <Icon size={16} className={meta.tone === 'green' ? 'text-status-green' : meta.tone === 'amber' ? 'text-status-amber' : 'text-status-red'} />
-                </GaugeRing>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-ink-muted">Mission brief · tap for the full picture</div>
-                  <div className="text-sm md:text-base font-medium mt-0.5">{brief?.summary || 'Assembling mission brief…'}</div>
-                </div>
-              </div>
-            </GlassCard>
-          </Link>
         </div>
 
-        {/* Right column - weather/internet/camera, all real */}
-        <div className="col-span-12 lg:col-span-3 flex flex-col gap-4">
-          <GlassCard className="p-5">
+        {/* Right column. Sits in ROW 1 alongside the camera, which is
+            the whole point of the nesting above: the row is exactly
+            camera-height, so flex-1 on the GPS card lands its bottom
+            edge level with the bottom of the camera. */}
+        <div className="col-span-12 lg:col-span-4 flex flex-col gap-4">
+          <GlassCard className="p-5 shrink-0">
             <CardHeader label="Weather" />
             <div className="num text-3xl font-bold">{fmtTemp(env.payload?.external_temp_c)}</div>
             <div className="text-xs text-ink-soft mt-1">{DASH}</div>
@@ -159,8 +149,10 @@ export function Home() {
               animation is kept as the card's backdrop rather than
               dropped - it is what makes this read as the sky view at a
               glance - but the coordinates now sit inline instead of
-              floating over the middle of a large panel. */}
-          <GlassCard className="p-0 overflow-hidden relative min-h-[190px]">
+              floating over the middle of a large panel. min-h keeps it
+              sensible when the column is short (narrow screens, where
+              it stacks and there is no camera to match). */}
+          <GlassCard className="p-0 overflow-hidden relative flex-1 min-h-[190px]">
             <SatelliteSky className="absolute inset-0 z-0 opacity-70" />
             <div className="relative z-10 p-5">
               <div className="text-[10px] tracking-[0.25em] text-status-green uppercase font-semibold">GPS Locked</div>
@@ -180,6 +172,29 @@ export function Home() {
             </div>
           </GlassCard>
         </div>
+
+        {/* Mission brief - wraps to row 2, under the camera only, which
+            is where it sat before this row was nested. */}
+        <div className="col-span-12 lg:col-span-8">
+          <Link to="/overview" className="block">
+            <GlassCard
+              glow={meta.tone === 'red' ? undefined : 'teal'}
+              className="p-5 hover:ring-aurora-teal/40 transition-colors"
+              data-testid={HOME.sitrepBadge}
+            >
+              <div className="flex items-start gap-3">
+                <GaugeRing tone={meta.tone} size={44} progress={meta.tone === 'green' ? 1 : meta.tone === 'amber' ? 0.6 : 0.3}>
+                  <Icon size={16} className={meta.tone === 'green' ? 'text-status-green' : meta.tone === 'amber' ? 'text-status-amber' : 'text-status-red'} />
+                </GaugeRing>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-ink-muted">Mission brief · tap for the full picture</div>
+                  <div className="text-sm md:text-base font-medium mt-0.5">{brief?.summary || 'Assembling mission brief…'}</div>
+                </div>
+              </div>
+            </GlassCard>
+          </Link>
+        </div>
+      </div>
       </div>
 
       {/* Secondary detail - solar verdict, temps, charging power */}
