@@ -12,9 +12,20 @@ import type { CameraSnapshot } from '@/lib/types';
 /**
  * Camera view.
  *
- * Uses SNAPSHOT POLLING (~1.5s), not the MJPEG stream. multipart/x-mixed-replace
- * works on desktop but fails silently on mobile; snapshot polling is a plain
- * HTTP GET repeated and has no such issues.
+ * Uses SNAPSHOT POLLING (~1.5s) BY DEFAULT, with the MJPEG stream
+ * available behind an opt-in toggle.
+ *
+ * The original note here said multipart/x-mixed-replace "works on desktop but
+ * fails silently on mobile". That is now known to be too strong: Frankie ran
+ * the stream successfully on his phone (17 Aug). Treat it as
+ * browser-dependent rather than broken on mobile.
+ *
+ * Polling stays the DEFAULT anyway, for a reason that stands either way: a
+ * repeated plain HTTP GET surfaces a real status code per frame, whereas a
+ * stream that dies mid-connection can leave a frozen frame with no error at
+ * all. Polling is the safe baseline; the stream is opted into for the one job
+ * it is genuinely better at - focusing the lens, where a frame every 1.5s is
+ * useless because you have moved past the sharp point before you see it.
  *
  * Each frame is preloaded in a background Image() so the visible <img> only
  * swaps once the new bytes are decoded — otherwise it flashes blank.
@@ -31,6 +42,25 @@ const POLL_MS = 1500;
 // anyone over. A run of them in a row is the "stuck on Waiting for
 // first frame with zero explanation" failure mode this is fixing.
 const CONSECUTIVE_FAILURES_BEFORE_SHOWING_ERROR = 3;
+/**
+ * How long to wait after stopping the stream before snapshot polling
+ * resumes. Reported: hitting "Stop stream" returned a 503.
+ *
+ * Not a real failure - a race. Stopping the stream unmounts the <img>,
+ * which aborts the HTTP connection, and the backend only kills ffmpeg
+ * once that abort propagates into the generator's finally block. Until
+ * it does, ffmpeg still holds /dev/video0. Polling resumed on the same
+ * tick as the toggle, so the very first snapshot hit a busy device and
+ * the route turned that into a 503.
+ *
+ * Note the backend's device lock does NOT cover this: capture_snapshot()
+ * takes it, but the stream's open() never does, so a snapshot can
+ * acquire the lock happily and still find the device in use. Making the
+ * stream hold the lock for its whole duration would fix it more deeply,
+ * but would also block the Home screen's camera card for as long as a
+ * stream is open - a worse trade than waiting a moment here.
+ */
+const STREAM_STOP_SETTLE_MS = 1500;
 
 export function CameraView() {
   const qc = useQueryClient();
@@ -54,6 +84,9 @@ export function CameraView() {
   // default or being left out entirely.
   const [streamMode, setStreamMode] = useState(false);
   const [streamFailed, setStreamFailed] = useState(false);
+  // Timestamp before which snapshot polling must not fire - set when a
+  // stream is stopped, so ffmpeg has time to release the device.
+  const [pollGateAt, setPollGateAt] = useState(0);
   const streaming = streamMode && !showDemoVideo;
   const imgRef = useRef<HTMLImageElement | null>(null);
 
@@ -106,6 +139,10 @@ export function CameraView() {
     let cancelled = false;
     let lastObjectUrl: string | null = null;
     let consecutiveFailures = 0;
+    // Wait out any settle window left over from a just-stopped stream
+    // before the first request, rather than firing one immediately and
+    // relying on it failing quietly.
+    const waitMs = Math.max(0, pollGateAt - Date.now());
 
     const tick = async () => {
       try {
@@ -130,14 +167,19 @@ export function CameraView() {
         }
       }
     };
-    tick();
-    const iv = setInterval(tick, POLL_MS);
+    let iv: ReturnType<typeof setInterval> | undefined;
+    const startTimer = setTimeout(() => {
+      if (cancelled) return;
+      tick();
+      iv = setInterval(tick, POLL_MS);
+    }, waitMs);
     return () => {
       cancelled = true;
-      clearInterval(iv);
+      clearTimeout(startTimer);
+      if (iv) clearInterval(iv);
       if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
     };
-  }, [unlocked, token, showDemoVideo, streaming]);
+  }, [unlocked, token, showDemoVideo, streaming, pollGateAt]);
 
   const lock = () => {
     clearToken();
@@ -196,7 +238,7 @@ export function CameraView() {
           <h1 className="text-3xl md:text-5xl font-semibold tracking-tight mt-1">USB <span className="text-aurora-teal">webcam</span></h1>
           <div className="text-sm text-ink-muted mt-2">
             {streaming
-              ? 'Continuous stream — for focusing the lens. Desktop only; if the frame stays black, switch back.'
+              ? 'Continuous stream — for focusing the lens. Uses more data and holds the camera open; some browsers may not support it.'
               : `Snapshot polling every ${POLL_MS} ms — reliable on both tablet and phone.`}
           </div>
           {streamFailed && streaming && (
@@ -210,7 +252,16 @@ export function CameraView() {
             {!isDemo && (
               <button
                 type="button"
-                onClick={() => { setStreamMode((v) => !v); setStreamFailed(false); }}
+                onClick={() => {
+                  setStreamMode((v) => {
+                    // Only gate when STOPPING - starting a stream has no
+                    // device to wait for.
+                    if (v) setPollGateAt(Date.now() + STREAM_STOP_SETTLE_MS);
+                    return !v;
+                  });
+                  setStreamFailed(false);
+                  setFrameError(null);
+                }}
                 className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm ring-1 transition-colors ${
                   streaming
                     ? 'bg-aurora-teal/15 ring-aurora-teal/40 text-aurora-teal'
