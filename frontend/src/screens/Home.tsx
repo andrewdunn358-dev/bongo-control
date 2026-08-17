@@ -96,32 +96,36 @@ export function Home() {
           </GlassCard>
         </div>
 
-        {/* Centre column - the hero + insight card */}
+        {/* Centre column - the hero + insight card.
+            The camera is the hero here and GPS is the small card on the
+            right; they were the other way round until Frankie swapped
+            them. The camera earns the space: it is the one panel whose
+            value scales with size (a thumbnail of the van's interior is
+            hard to read), whereas GPS is a satellite count and a
+            coordinate pair, which are just as legible small. */}
         <div className="col-span-12 lg:col-span-6 flex flex-col gap-4">
-          <div className="relative rounded-2xl overflow-hidden aspect-[16/10] ring-1 ring-white/10 shadow-2xl">
-            <SatelliteSky className="z-10" />
-            <div className="absolute top-4 left-4 z-20">
-              <div className="text-[10px] tracking-[0.25em] text-status-green uppercase font-semibold">GPS Locked</div>
-              <div className="text-2xl font-bold mt-0.5">{satCount ?? DASH} Satellites</div>
-              {loc.data?.hdop != null && <div className="text-xs text-ink-soft mt-0.5">HDOP {loc.data.hdop.toFixed(1)}</div>}
+          <div className="relative rounded-2xl overflow-hidden aspect-[16/10] ring-1 ring-white/10 shadow-2xl bg-black/50">
+            <img
+              src={api.cameraSnapshotUrl(Math.floor(Date.now() / 15000))}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+            {/* Gradient scrims: the snapshot is arbitrary brightness, so
+                the overlaid labels need their own contrast rather than
+                relying on the image being dark. */}
+            <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/65 to-transparent z-10" />
+            <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/65 to-transparent z-10" />
+            <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
+              <CameraIcon size={15} className="text-ink-soft" />
+              <span className="text-[10px] tracking-[0.25em] uppercase font-semibold text-ink-soft">Camera</span>
             </div>
             <StatusPill tone={connected ? 'teal' : 'red'} className="absolute top-4 right-4 z-20">{connected ? 'LIVE' : 'OFFLINE'}</StatusPill>
-            {loc.data?.latitude != null && loc.data?.longitude != null && (
-              <div className="absolute inset-x-0 bottom-16 text-center z-20">
-                <div className="num text-4xl font-bold text-white" style={{ textShadow: '0 2px 20px rgba(0,0,0,.6)' }}>
-                  {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </div>
-                <div className="text-xs text-ink-soft mt-1 num">
-                  {loc.data.latitude.toFixed(4)}°, {loc.data.longitude.toFixed(4)}°
-                </div>
+            <div className="absolute inset-x-0 bottom-4 text-center z-20">
+              <div className="num text-4xl font-bold text-white" style={{ textShadow: '0 2px 20px rgba(0,0,0,.6)' }}>
+                {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </div>
-            )}
-            <Link
-              to="/nearby"
-              className="absolute bottom-4 right-4 z-20 flex items-center gap-1.5 rounded-full pl-4 pr-3 py-2 text-sm font-medium bg-black/50 backdrop-blur-md ring-1 ring-white/15 hover:bg-black/65"
-            >
-              Navigate <Navigation size={14} />
-            </Link>
+            </div>
           </div>
 
           <Link to="/overview" className="block">
@@ -151,13 +155,28 @@ export function Home() {
             <div className="text-xs text-ink-soft mt-1">{DASH}</div>
           </GlassCard>
 
-          <GlassCard className="p-3 overflow-hidden">
-            <div className="flex items-center justify-between px-2 pt-1 pb-2">
-              <span className="text-[10px] uppercase tracking-[0.18em] text-ink-muted">Camera</span>
-              <CameraIcon size={14} className="text-ink-muted" />
-            </div>
-            <div className="rounded-xl overflow-hidden aspect-video bg-black/40">
-              <img src={api.cameraSnapshotUrl(Math.floor(Date.now() / 15000))} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+          {/* GPS, moved here from the centre hero. The SatelliteSky
+              animation is kept as the card's backdrop rather than
+              dropped - it is what makes this read as the sky view at a
+              glance - but the coordinates now sit inline instead of
+              floating over the middle of a large panel. */}
+          <GlassCard className="p-0 overflow-hidden relative min-h-[190px]">
+            <SatelliteSky className="absolute inset-0 z-0 opacity-70" />
+            <div className="relative z-10 p-5">
+              <div className="text-[10px] tracking-[0.25em] text-status-green uppercase font-semibold">GPS Locked</div>
+              <div className="text-2xl font-bold mt-0.5">{satCount ?? DASH} Satellites</div>
+              {loc.data?.hdop != null && <div className="text-xs text-ink-soft mt-0.5">HDOP {loc.data.hdop.toFixed(1)}</div>}
+              {loc.data?.latitude != null && loc.data?.longitude != null && (
+                <div className="text-xs text-ink-soft mt-3 num" style={{ textShadow: '0 2px 12px rgba(0,0,0,.6)' }}>
+                  {loc.data.latitude.toFixed(4)}°, {loc.data.longitude.toFixed(4)}°
+                </div>
+              )}
+              <Link
+                to="/nearby"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-full pl-3.5 pr-2.5 py-1.5 text-xs font-medium bg-black/50 backdrop-blur-md ring-1 ring-white/15 hover:bg-black/65"
+              >
+                Navigate <Navigation size={12} />
+              </Link>
             </div>
           </GlassCard>
         </div>
