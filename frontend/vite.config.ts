@@ -20,7 +20,7 @@ function swVersion() {
       const distDir = path.resolve(__dirname, 'dist');
       const buildId = `${Date.now().toString(36)}`;
 
-      for (const rel of ['service-worker.js', 'index.html']) {
+      for (const rel of ['service-worker.js', 'index.html', 'manifest.json']) {
         const file = path.join(distDir, rel);
         if (!fs.existsSync(file)) continue;
         fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/__BUILD_ID__/g, buildId));
@@ -29,7 +29,7 @@ function swVersion() {
       fs.writeFileSync(path.join(distDir, 'version.json'), JSON.stringify({ build: buildId }));
 
       // eslint-disable-next-line no-console
-      console.log(`[sw-version] stamped build id ${buildId} into SW, index.html and version.json`);
+      console.log(`[sw-version] stamped build id ${buildId} into SW, index.html, manifest.json and version.json`);
     },
   };
 }
