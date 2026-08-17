@@ -77,7 +77,11 @@ export function Home() {
             <div className="num text-3xl font-bold">{fmtVolt(battery.payload?.voltage)}</div>
             <div className="text-[11px] text-ink-faint mt-1">{battery.payload?.charging ? 'Charging' : 'Resting reading'}</div>
             <div className="mt-3"><Sparkline data={voltSeries} width={260} height={44} stroke="#22d3ee" fill="rgba(34,211,238,0.25)" minRange={0.4} /></div>
-            <div className="text-[10px] text-ink-faint mt-2">Last hour · no shunt · voltage only</div>
+            {/* useSparkBuffer holds only what has arrived over the
+                WebSocket since this page loaded, so the caption can only
+                honestly claim that window - not a fixed period. Seeding
+                the buffer from /api/history is a separate change. */}
+            <div className="text-[10px] text-ink-faint mt-2">Since page load · no shunt · voltage only</div>
           </GlassCard>
 
           <GlassCard glow="orange" className="p-5" data-testid={HOME.solarWatts}>

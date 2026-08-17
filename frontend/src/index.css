@@ -228,22 +228,22 @@
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 }
 
-/* Touch nav override — NavShell.tsx's mobile/desktop split is driven by
-   Tailwind's md: width breakpoint, which can't tell a wide *window* from
-   a wide *touchscreen*. A tablet held in landscape (e.g. 11") is wider
-   than md but is still tapped with a finger, not driven with a mouse -
-   without this it gets shoved into the desktop top-nav layout, which is
-   what was happening. `pointer: coarse` is true for touchscreens (and
-   stays true on iPad even with a mouse attached, by design) and false
-   for anything mouse/trackpad-driven, so this forces the touch-friendly
-   bottom-nav layout back on for any touch device, at any width or
-   orientation - portrait and landscape both get the same layout. */
+/* Touch nav override — a width breakpoint can't tell a wide *window*
+   from a wide *touchscreen*. A tablet held in landscape (e.g. 11") is
+   wider than md but is still tapped with a finger, not driven with a
+   mouse, so a width-only split shoves it into the desktop layout.
+   `pointer: coarse` is true for touchscreens (and stays true on iPad
+   even with a mouse attached, by design) and false for anything mouse/
+   trackpad-driven, so it can force the touch-friendly layout back on for
+   any touch device, at any width or orientation.
+
+   The rules that used to live here targeted .nav-desktop-header,
+   .nav-mobile-header, .nav-mobile-bottom, .nav-main-padding and
+   .nav-touch-stack - none of which NavShell.tsx renders any more, so
+   they had no effect. Removed; the query is kept because the reasoning
+   above still holds and the layout split will hang off it again. */
 @media (pointer: coarse) {
-  .nav-desktop-header { display: none !important; }
-  .nav-mobile-header { display: flex !important; }
-  .nav-mobile-bottom { display: block !important; }
-  .nav-main-padding { padding-bottom: 6rem !important; } /* matches pb-24 */
-  .nav-touch-stack { display: block !important; } /* forces the sidebar+main row back to a stacked mobile layout on any touch device, same reasoning as above */
+  /* intentionally empty - see above */
 }
 
 /* MapLibre attribution */
@@ -265,5 +265,7 @@ html.light .maplibregl-ctrl-attrib a {
 @keyframes auroraDrift2 { from { transform: translateY(12px) rotate(6deg); } to { transform: translateY(-24px) rotate(9deg); } }
 @keyframes auroraDrift3 { from { transform: translateY(0) rotate(-14deg); } to { transform: translateY(32px) rotate(-11deg); } }
 @media (prefers-reduced-motion: reduce) {
-  .aurora-ribbon { animation: none !important; }
+  .aurora-ribbon,
+  .animate-aurora-pulse,
+  .animate-live-pulse { animation: none !important; }
 }

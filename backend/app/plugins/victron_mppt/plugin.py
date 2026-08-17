@@ -40,7 +40,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from bleak import BleakScanner
@@ -50,6 +50,7 @@ from victron_ble.devices.base import OperationMode
 from victron_ble.devices.solar_charger import SolarCharger, SolarChargerData
 
 from app.plugins.base import Plugin, PluginStatus
+from app.services import history_service
 from app.telemetry.bus import TelemetryBus
 from app.telemetry.models import TelemetryDomain, TelemetryMessage, TelemetrySource
 
@@ -145,6 +146,46 @@ class VictronMPPTPlugin(Plugin):
 
         return list(found.values())
 
+    async def _seed_peak_from_history(self) -> None:
+        """Restore today's peak from stored telemetry.
+
+        _peak_watts_today is otherwise in-memory only, so it survived a
+        day rollover (handled below) but NOT a backend restart - and a
+        restart is far more frequent than midnight, because every deploy
+        is one. Caught in real data: the stored solar readings for
+        16 Aug show peak_today_watts dropping from 102 W to 29 W at
+        14:51, mid-afternoon, with the sun still up. Nothing about the
+        day had changed; the backend had restarted.
+
+        That made the Home card's "Peak today" label untrue - it was
+        really "peak since the backend last started" - which is the same
+        class of problem as the sparkline caption claiming an hour of
+        history it did not have. This app's rule is that a label states
+        what the number actually is.
+
+        Seeded from telemetry_readings rather than persisted separately:
+        the samples are already being written, already pruned, and are
+        the same source the History screen reads, so there is no second
+        copy to drift. Deliberately non-fatal - a failure here costs an
+        understated peak until the next sample beats it, which must
+        never be a reason for the plugin not to start."""
+        try:
+            # datetime.min.time() rather than `from datetime import time`:
+            # the stdlib `time` module is already imported in this file,
+            # and shadowing it would break the timestamps below it.
+            midnight = datetime.combine(date.today(), datetime.min.time()).timestamp()
+            rows = await asyncio.to_thread(history_service.query, "solar", midnight)
+            peak = 0.0
+            for row in rows:
+                watts = (row.get("payload") or {}).get("watts")
+                if isinstance(watts, (int, float)) and watts > peak:
+                    peak = float(watts)
+            if peak > 0:
+                self._peak_watts_today = peak
+                logger.info("Victron: restored today's peak of %.0f W from stored history", peak)
+        except Exception as e:  # noqa: BLE001 - must never block startup
+            logger.warning("Victron: could not restore today's peak from history: %s", e)
+
     async def start(self) -> None:
         if not self._decoder:
             self.status = PluginStatus.ERROR
@@ -152,6 +193,7 @@ class VictronMPPTPlugin(Plugin):
             return
 
         self.status = PluginStatus.STARTING
+        await self._seed_peak_from_history()
         self._supervisor_task = asyncio.create_task(self._run_supervisor())
 
     async def stop(self) -> None:
