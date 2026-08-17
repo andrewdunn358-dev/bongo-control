@@ -115,10 +115,16 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
           Both now fully opaque, matching the page's own dark theme
           base colour (--aurora-base's top stop, #0a1628) rather than a
           flat black, so it still blends in as intentional rather than
-          switching to a jarring plain dark box. */}
+          switching to a jarring plain dark box.
+
+          Light mode gets its own opaque surface rather than inheriting
+          the dark one - it was hardcoded #0a1628, so light mode showed
+          a near-black bar and dock against a pale page. The opacity
+          requirement above is unchanged and applies to both: solid, no
+          blur. */}
       <header
         data-testid={NAV.root}
-        className="sticky top-0 z-40 flex items-center justify-between gap-3 px-4 md:px-6 py-3 bg-[#0a1628] border-b border-white/8 flex-wrap"
+        className="sticky top-0 z-40 flex items-center justify-between gap-3 px-4 md:px-6 py-3 bg-white dark:bg-[#0a1628] border-b border-slate-300 dark:border-white/8 flex-wrap"
       >
         <div data-testid={NAV.brand} className="flex items-center gap-2.5 shrink-0">
           {/* Was a CSS gradient square with the letter "V" in it - a
@@ -183,7 +189,7 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
           mobile) - matches the reference's actual nav placement, a
           floating dock rather than a sidebar. */}
       <nav className="fixed bottom-4 inset-x-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 z-40 md:w-auto">
-        <ul className="flex overflow-x-auto scrollbar-hide gap-1 rounded-2xl bg-[#0a1628] ring-1 ring-white/10 px-2 py-2 shadow-2xl md:justify-center">
+        <ul className="flex overflow-x-auto scrollbar-hide gap-1 rounded-2xl bg-white dark:bg-[#0a1628] ring-1 ring-slate-300 dark:ring-white/10 px-2 py-2 shadow-xl dark:shadow-2xl md:justify-center">
           {LINKS.map(({ to, short, icon: Icon, testId, end }) => (
             <li key={to} className="shrink-0">
               <NavLink

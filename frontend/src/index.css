@@ -165,9 +165,40 @@
     border-radius: 1rem;
   }
   html.light .glass {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(255, 255, 255, 0.72) 100%);
-    border: 1px solid rgba(34, 211, 238, 0.28);
-    box-shadow: 0 0 18px rgba(34, 211, 238, 0.08), 0 8px 30px rgba(15, 41, 66, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+    /* OPAQUE, not translucent. This was rgba white at 0.88 -> 0.72 over
+       a backdrop that had no light variant, so the photo composited
+       straight through the card face and dark body text sat on moving
+       scenery. Screenshots, 17 Aug: unreadable, not merely low-contrast.
+       Dark mode gets away with translucency because its scrim is
+       near-black and the content on top is light; the same trick
+       inverted does not work.
+
+       Border is a neutral slate, not the teal that was here before. A
+       teal at 0.28 alpha on near-white measures 1.21:1 against the card
+       - close to invisible, so cards read as having no edge at all.
+
+       slate-400 (2.56:1) rather than the usual slate-200/300 (1.23:1 /
+       1.48:1) because of where this is used: a screen in a van, in
+       daylight, often at an angle. A border that reads fine on a desk
+       monitor disappears in glare, and the card edge is the only thing
+       separating one reading from the next. Deliberately heavier than a
+       web default.
+
+       No outer glow. The 18px teal halo that was here reads as depth on
+       dark and as a printing artefact on light. Depth in light mode
+       comes from a plain shadow, which is what shadows are for. */
+    background: #ffffff;
+    border: 1px solid rgb(148 163 184);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.06);
+  }
+
+  /* The accent glows are a dark-mode device - on a white card they wash
+     the surface without reading as light. Neutralised to the same plain
+     shadow so a `glow` prop does not silently make a light card worse. */
+  html.light .glow-teal,
+  html.light .glow-orange,
+  html.light .glow-purple {
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.06);
   }
 
   .glow-teal {
