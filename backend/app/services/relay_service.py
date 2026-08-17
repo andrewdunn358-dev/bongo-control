@@ -197,6 +197,45 @@ class RelayService:
                 if key not in channel:
                     channel[key] = value
 
+    @staticmethod
+    def _roof_channel_ids() -> set[int] | None:
+        """Relay channels that drive the roof, read STRAIGHT FROM CONFIG
+        rather than from roof_service.managed_channel_ids.
+
+        That indirection is deliberate and load-bearing. relay_service
+        .start() is the FIRST thing main.py's lifespan does (166e743,
+        so the pins are claimed before anything else can float them),
+        while roof_service.configure() runs much later in the same
+        lifespan. Asking roof_service at restore time therefore returns
+        an EMPTY set - it has not been configured yet - and every roof
+        guard built on it would silently pass while looking correct.
+        Reading the same `roof` config section directly is the only
+        source available this early.
+
+        Returns None if the config cannot be read, which callers must
+        treat as "assume EVERY channel is a roof channel". Fail closed:
+        wrongly skipping a restore costs a lamp that needs switching
+        back on by hand, wrongly restoring costs a roof motor running
+        with no watchdog."""
+        try:
+            from app.services.configuration_service import configuration_service
+
+            roof = configuration_service.get("roof", {}) or {}
+            isolate = roof.get("isolate_channels") or []
+            ids = {roof.get("up_channel"), roof.get("down_channel"), *isolate}
+            return {int(i) for i in ids if i is not None}
+        except Exception as e:  # noqa: BLE001
+            logger.error(
+                "Could not read roof channels from config (%s) - treating ALL channels as roof "
+                "and restoring none, rather than risk energising a roof motor at startup",
+                e,
+            )
+            return None
+
+    def _is_roof_channel(self, channel_id: int, roof_ids: set[int] | None) -> bool:
+        """None means the roof config was unreadable - see above."""
+        return roof_ids is None or channel_id in roof_ids
+
     def start(self) -> None:
         """Claims the GPIO pins. Failure here is non-fatal and expected
         on any machine without GPIO (a dev laptop, this project's CI) -
@@ -237,6 +276,7 @@ class RelayService:
             return
 
         restore_state, clean = self._consume_clean_shutdown_state()
+        roof_ids = self._roof_channel_ids()
 
         try:
             for channel in self._channels:
@@ -246,6 +286,36 @@ class RelayService:
                 # exists, defaulting to off otherwise (first boot, or
                 # the previous run crashed without ever reaching stop()).
                 logical_on = bool(restore_state.get(str(channel_id), False)) if clean else False
+
+                # ROOF CHANNELS ARE NEVER RESTORED ON. Hard override,
+                # applied after the record is read and regardless of
+                # what it says.
+                #
+                # Restoring the last commanded state is correct for a
+                # lamp or an amp: the load simply resumes, and the user
+                # asked for it. It is NOT correct for a roof motor. The
+                # whole roof design is hold-to-run - a watchdog that
+                # drops the relay within 1.5s of requests stopping, a
+                # 30s max-run ceiling, a direction interlock - and none
+                # of that exists at startup. A restored roof-ON is a
+                # motor running with nobody holding anything.
+                #
+                # This became reachable when relay state moved to
+                # write-through persistence (every command saved
+                # immediately, not just at a graceful shutdown). Before
+                # that, capturing a roof-ON needed a clean shutdown to
+                # land inside a hold - vanishingly unlikely. After it,
+                # any power cut or crash during a hold persists roof-ON,
+                # and a van losing power mid-hold is an ordinary event,
+                # not an exotic one. The write-through fix was right;
+                # this is the guard it needed alongside it.
+                if logical_on and self._is_roof_channel(channel_id, roof_ids):
+                    logger.warning(
+                        "Relay %s (%s) was commanded ON at shutdown but is a roof channel - "
+                        "forcing OFF. The roof only moves through the hold-to-run path.",
+                        channel_id, channel.get("name", "?"),
+                    )
+                    logical_on = False
 
                 # Board-wide active_high, XOR'd with a per-channel
                 # "inverted" flag for a circuit whose physical path
@@ -355,11 +425,25 @@ class RelayService:
         try:
             from app.services.configuration_service import configuration_service
 
+            # Roof channels are persisted as OFF whatever they are doing
+            # right now. Belt and braces with the startup guard in
+            # start(): that one stops a roof-ON being ACTED on, this one
+            # stops it being RECORDED at all, so the hazardous value
+            # never reaches disk even if the startup guard is later
+            # changed or bypassed. A roof hold is transient by
+            # definition - there is no state there worth carrying across
+            # a restart, so nothing is lost by never saving it.
+            roof_ids = self._roof_channel_ids()
+            channels = {
+                str(k): (False if self._is_roof_channel(k, roof_ids) else v)
+                for k, v in self._commanded.items()
+            }
+
             configuration_service.set(
                 "relays_runtime_state",
                 {
                     "clean_shutdown": True,
-                    "channels": {str(k): v for k, v in self._commanded.items()},
+                    "channels": channels,
                     "saved_at": time.time(),
                 },
             )
