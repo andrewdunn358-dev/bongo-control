@@ -23,7 +23,7 @@ import logging
 import time
 
 from app.db.database import SessionLocal
-from app.db.models import TelemetryReading
+from app.db.models import RelayEvent, TelemetryReading
 from app.services.telemetry_service import TelemetryService
 from app.telemetry.models import TelemetryDomain
 
@@ -69,6 +69,11 @@ DOMAIN_SAMPLE_INTERVALS: dict[str, float] = {
 }
 DEFAULT_RETENTION_DAYS = 30
 PRUNE_INTERVAL_SECONDS = 6 * 3600  # every 6 hours is plenty for a daily-scale retention window
+# relay_events is an audit trail rather than a cache - longer than the
+# telemetry window because it answers "when did that circuit last
+# change, and what commanded it", which is worth keeping across a
+# season, not a month.
+RELAY_EVENT_RETENTION_DAYS = 90
 
 
 class HistoryService:
@@ -150,6 +155,34 @@ class HistoryService:
             db.rollback()
         finally:
             db.close()
+
+        # relay_events is an audit trail, not a cache - it cannot be
+        # re-fetched, so it gets its own longer retention rather than
+        # riding on the telemetry window. It is kept because it is
+        # genuinely load-bearing for diagnosis: the 16 Aug relay-restore
+        # bug was solved by reading this table and seeing that a restart
+        # had replayed a stale record, which no amount of reasoning about
+        # the code had settled.
+        #
+        # But it grew unbounded, which on an SD card eventually matters,
+        # and it grows fastest from restarts rather than use - eight rows
+        # per boot, one per channel, whether or not anything was touched.
+        # 90 days keeps every plausible "when did that circuit last
+        # change" question answerable while bounding the table.
+        try:
+            cutoff = time.time() - (RELAY_EVENT_RETENTION_DAYS * 86400)
+            db = SessionLocal()
+            try:
+                deleted = db.query(RelayEvent).filter(RelayEvent.timestamp < cutoff).delete()
+                db.commit()
+                if deleted:
+                    logger.info(
+                        "Pruned %d relay events older than %d days", deleted, RELAY_EVENT_RETENTION_DAYS
+                    )
+            finally:
+                db.close()
+        except Exception as e:  # noqa: BLE001 - maintenance must never crash the loop
+            logger.warning("Failed to prune relay events: %s", e)
 
         # Same maintenance window also evicts the other TTL'd, re-fetchable
         # caches so they don't grow unbounded on the SD card. Imported
