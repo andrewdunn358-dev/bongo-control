@@ -56,6 +56,14 @@ FRAME_STALL_TIMEOUT_SECONDS = 10.0
 # this was meant to smooth over).
 LOCK_WAIT_TIMEOUT_SECONDS = 4.0
 
+# A capture can transiently fail with "device or resource busy" while a
+# just-stopped stream's ffmpeg is still being reaped. That window is
+# short and self-clearing, so retry rather than surfacing a 503 for
+# something that resolves in under a second. Bounded so a genuinely
+# stuck device still fails fast rather than hanging the request.
+SNAPSHOT_BUSY_RETRIES = 3
+SNAPSHOT_BUSY_RETRY_DELAY_SECONDS = 0.4
+
 
 class CameraUnavailableError(RuntimeError):
     pass
@@ -73,6 +81,13 @@ class CameraService:
         # port it's plugged into) surfaced the gap immediately.
         self.device = device or os.environ.get("WEBCAM_DEVICE", "/dev/video0")
         self.input_format = input_format
+        # Stream framerate, configurable so it can be tuned on the real
+        # Pi without a rebuild. Applies to the MJPEG stream only -
+        # snapshots grab a single frame and are unaffected.
+        try:
+            self.stream_fps = int(os.environ.get("CAMERA_STREAM_FPS", "") or 5)
+        except (TypeError, ValueError):
+            self.stream_fps = 5
         self.size = size
         # Rotation in degrees, for a camera that's physically mounted
         # upside down or on its side. Applied server-side rather than
@@ -171,6 +186,12 @@ class CameraService:
                 f"Camera busy with another request for over {LOCK_WAIT_TIMEOUT_SECONDS}s - try again shortly"
             ) from e
         try:
+          # Retries stay INSIDE the lock deliberately: releasing and
+          # re-acquiring between attempts would put us at the back of a
+          # FIFO queue of pollers and could starve this request
+          # entirely. Holding it means the retries are the only thing
+          # touching the device.
+          for attempt in range(SNAPSHOT_BUSY_RETRIES + 1):
             try:
                 process = await asyncio.create_subprocess_exec(
                     "ffmpeg",
@@ -211,7 +232,29 @@ class CameraService:
                     f"ffmpeg snapshot timed out after {SNAPSHOT_TIMEOUT_SECONDS}s — device busy or not responding"
                 ) from e
             if process.returncode != 0 or not stdout:
-                raise CameraUnavailableError(f"ffmpeg snapshot failed: {stderr.decode(errors='replace')[-500:]}")
+                message = stderr.decode(errors="replace")[-500:]
+                # A capture landing while a just-stopped stream's ffmpeg
+                # is still being reaped fails with a device-busy error.
+                # That window is short and self-clearing, so retry it
+                # briefly rather than surfacing a 503 for something that
+                # resolves in well under a second.
+                #
+                # This is the fix that should have been made first. The
+                # earlier attempt was a fixed delay on the CLIENT before
+                # resuming polling, which is a guess about how long a
+                # browser takes to abort and ffmpeg takes to die - both
+                # unbounded. Retrying HERE tests the real condition (can
+                # I open the device?) instead of guessing at a duration,
+                # and it covers every contention case, not just the Stop
+                # button.
+                busy = "resource busy" in message.lower() or "device or resource busy" in message.lower()
+                if busy and attempt < SNAPSHOT_BUSY_RETRIES:
+                    logger.info(
+                        "Camera busy, retrying snapshot (attempt %d of %d)", attempt + 1, SNAPSHOT_BUSY_RETRIES
+                    )
+                    await asyncio.sleep(SNAPSHOT_BUSY_RETRY_DELAY_SECONDS)
+                    continue
+                raise CameraUnavailableError(f"ffmpeg snapshot failed: {message}")
             return stdout
         finally:
             self._device_lock.release()
@@ -246,6 +289,21 @@ class CameraService:
                 "-i",
                 self.device,
                 *self._rotation_args(),
+                # Output framerate cap. The camera runs at 30fps and each
+                # frame measured ~18KB on this hardware, which is roughly
+                # 1.9 GB per HOUR of viewing and a continuous ffmpeg load
+                # on a Pi 2 that already has a voice pipeline competing
+                # for CPU and a 0.2s roof watchdog on the same event
+                # loop.
+                #
+                # 5fps is ~320 MB/hour instead, and is still comfortably
+                # smooth for what this stream is actually for: focusing
+                # the lens by hand, and looking in on the van. The thing
+                # that made 1.5s snapshot polling useless for focusing
+                # was the wait between frames, and 200ms is far below
+                # the point where that matters.
+                "-r",
+                str(self.stream_fps),
                 "-f",
                 "mjpeg",
                 "-q:v",
