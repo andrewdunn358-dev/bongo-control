@@ -146,6 +146,15 @@ class CameraService:
         # collide - a second viewer's request queues for a fraction of
         # a second rather than failing outright.
         self._device_lock = asyncio.Lock()
+        # Set while a Live stream is trying to START. asyncio.Lock is
+        # FIFO, so without this the producer joins the back of a queue of
+        # snapshot captures that never empties - the Camera page polls
+        # every 1.5s and each capture holds the device for most of that,
+        # so the producer times out waiting every single time. Observed
+        # exactly that on the Pi: "could not get the device lock within
+        # 4.0s". New captures stand aside instead of queueing ahead of a
+        # stream that is trying to take over.
+        self._producer_starting = False
 
     @staticmethod
     def _parse_rotation(value: str) -> int:
@@ -215,6 +224,13 @@ class CameraService:
         added) sees a real, quick 503 to report, not Cloudflare's
         opaque 504 after minutes of silence.
         """
+        if self._producer_starting:
+            # Fail fast rather than queueing. The caller is a 1.5s poll
+            # that is about to be replaced by the stream anyway, and the
+            # frontend already tolerates an occasional failed frame
+            # (CONSECUTIVE_FAILURES_BEFORE_SHOWING_ERROR) - whereas the
+            # stream failing to start is user-visible and permanent.
+            raise CameraUnavailableError("Live stream is starting - the camera is being handed over")
         try:
             await asyncio.wait_for(self._device_lock.acquire(), timeout=LOCK_WAIT_TIMEOUT_SECONDS)
         except asyncio.TimeoutError as e:
@@ -536,11 +552,13 @@ class LiveProducer:
         self._latest_frame = None
         self._latest_frame_at = 0.0
         self._last_error = None
+        self._service._producer_starting = True
         try:
             await asyncio.wait_for(
                 self._service._device_lock.acquire(), timeout=LOCK_WAIT_TIMEOUT_SECONDS
             )
         except asyncio.TimeoutError as e:
+            self._service._producer_starting = False
             self.state = ProducerState.STOPPED
             logger.warning(
                 "Camera producer: could not get the device lock within %.1fs - a snapshot capture is "
@@ -549,6 +567,7 @@ class LiveProducer:
             raise CameraUnavailableError(
                 f"Camera busy with another request for over {LOCK_WAIT_TIMEOUT_SECONDS}s - try again shortly"
             ) from e
+        self._service._producer_starting = False
         self._holds_device_lock = True
         try:
             self._process = await self._service._spawn_stream_process()

@@ -342,3 +342,42 @@ async def test_no_first_frame_raises_rather_than_opening_an_empty_stream(svc, mo
     with pytest.raises(CameraUnavailableError):
         await p.subscribe()
     assert not svc._device_lock.locked(), "a failed start must not leak the device lock"
+
+
+# --- 12. snapshot polling must not starve the producer ----------------
+@pytest.mark.asyncio
+async def test_12_producer_is_not_starved_by_snapshot_polling(producer, svc):
+    """The failure seen on the real Pi: the Camera page polls snapshots
+    every 1.5s, asyncio.Lock is FIFO, so the producer joined the back of
+    a queue that never emptied and timed out every time.
+
+    While the producer is starting, new captures must stand aside.
+    """
+    svc._producer_starting = True
+    with pytest.raises(CameraUnavailableError, match="handed over"):
+        await svc.capture_snapshot()
+    svc._producer_starting = False
+
+
+@pytest.mark.asyncio
+async def test_12b_flag_is_always_cleared(producer, svc):
+    """A stuck flag would permanently break snapshots, so it must be
+    cleared on the success path AND on the acquire-timeout path."""
+    sub = await producer.subscribe()
+    assert svc._producer_starting is False, "flag left set after a successful start"
+    await producer.unsubscribe(sub)
+
+    # Now force the timeout path with the device already held.
+    await svc._device_lock.acquire()
+    try:
+        import app.services.camera_service as m
+        original = m.LOCK_WAIT_TIMEOUT_SECONDS
+        m.LOCK_WAIT_TIMEOUT_SECONDS = 0.05
+        try:
+            with pytest.raises(CameraUnavailableError):
+                await producer.subscribe()
+        finally:
+            m.LOCK_WAIT_TIMEOUT_SECONDS = original
+    finally:
+        svc._device_lock.release()
+    assert svc._producer_starting is False, "flag left set after a failed start"
