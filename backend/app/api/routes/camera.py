@@ -9,12 +9,16 @@ dependent experience.
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 
 from app.api.routes.auth import require_app_token
 from app.services.camera_service import CameraUnavailableError, camera_service, live_producer
 from app.services.snapshot_store import SnapshotError, snapshot_store
+
+logger = logging.getLogger("vanos.camera")
 
 router = APIRouter(prefix="/api/camera", tags=["camera"], dependencies=[Depends(require_app_token)])
 
@@ -63,6 +67,11 @@ async def camera_stream() -> StreamingResponse:
     try:
         sub_id = await live_producer.subscribe()
     except CameraUnavailableError as e:
+        # Logged, not just returned. An <img> reports only "failed to
+        # load" with no status or body, so without this line a 503 here
+        # is completely silent server-side - which is exactly what
+        # happened on the first real deployment of this.
+        logger.warning("Camera stream refused: %s", e)
         raise HTTPException(status_code=503, detail=str(e))
     return StreamingResponse(
         live_producer.frames(sub_id), media_type="multipart/x-mixed-replace; boundary=frame"

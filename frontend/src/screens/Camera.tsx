@@ -84,6 +84,7 @@ export function CameraView() {
   // default or being left out entirely.
   const [streamMode, setStreamMode] = useState(false);
   const [streamFailed, setStreamFailed] = useState(false);
+  const [streamError, setStreamError] = useState<string | null>(null);
   // Timestamp before which snapshot polling must not fire - set when a
   // stream is stopped, so ffmpeg has time to release the device.
   const [pollGateAt, setPollGateAt] = useState(0);
@@ -243,7 +244,9 @@ export function CameraView() {
           </div>
           {streamFailed && streaming && (
             <div className="text-sm text-status-amber mt-1">
-              The stream did not load. This browser likely doesn&apos;t support it — switch back to snapshots.
+              {streamError
+                ? `The stream did not load — ${streamError}`
+                : 'The stream did not load. Checking why…'}
             </div>
           )}
         </div>
@@ -260,6 +263,7 @@ export function CameraView() {
                     return !v;
                   });
                   setStreamFailed(false);
+                  setStreamError(null);
                   setFrameError(null);
                 }}
                 className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm ring-1 transition-colors ${
@@ -309,7 +313,29 @@ export function CameraView() {
                 src={api.cameraStreamUrl()}
                 alt="Live camera stream"
                 className="w-full h-full object-cover"
-                onError={() => setStreamFailed(true)}
+                onError={() => {
+                  // An <img> onerror carries NO status and NO body, so
+                  // the old handler could only guess - and it guessed
+                  // "your browser doesn't support this", which was
+                  // wrong and misleading the first time it fired for a
+                  // real server-side 503. Re-request the same URL with
+                  // fetch() purely to read the actual status and detail,
+                  // so the UI reports what really happened.
+                  setStreamFailed(true);
+                  fetch(api.cameraStreamUrl())
+                    .then(async (res) => {
+                      if (res.ok) return; // transient - the img may recover
+                      const body = await res.text().catch(() => '');
+                      let detail = body.slice(0, 200);
+                      try {
+                        detail = JSON.parse(body).detail ?? detail;
+                      } catch {
+                        /* not JSON - use the raw text */
+                      }
+                      setStreamError(`${res.status} — ${detail}`);
+                    })
+                    .catch((e) => setStreamError(e instanceof Error ? e.message : 'Could not reach the camera'));
+                }}
               />
             ) : currentUrl ? (
               <>

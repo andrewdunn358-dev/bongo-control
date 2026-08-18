@@ -100,7 +100,7 @@ PRODUCER_MAX_RESTARTS = _env_int("CAMERA_PRODUCER_MAX_RESTARTS", 3)
 PRODUCER_RESTART_WINDOW_SECONDS = _env_float("CAMERA_PRODUCER_RESTART_WINDOW", 60.0)
 # How long to wait for the FIRST frame before declaring the camera
 # unavailable, rather than opening a stream that contains nothing.
-PRODUCER_FIRST_FRAME_TIMEOUT_SECONDS = _env_float("CAMERA_PRODUCER_FIRST_FRAME_TIMEOUT", 8.0)
+PRODUCER_FIRST_FRAME_TIMEOUT_SECONDS = _env_float("CAMERA_PRODUCER_FIRST_FRAME_TIMEOUT", 20.0)
 # A snapshot served from the producer must be genuinely current. Matched
 # to the frontend's 1.5s poll interval with headroom, so a Home tile poll
 # during Live gets a frame no older than its own polling period. Beyond
@@ -542,13 +542,19 @@ class LiveProducer:
             )
         except asyncio.TimeoutError as e:
             self.state = ProducerState.STOPPED
+            logger.warning(
+                "Camera producer: could not get the device lock within %.1fs - a snapshot capture is "
+                "probably still in flight", LOCK_WAIT_TIMEOUT_SECONDS,
+            )
             raise CameraUnavailableError(
                 f"Camera busy with another request for over {LOCK_WAIT_TIMEOUT_SECONDS}s - try again shortly"
             ) from e
         self._holds_device_lock = True
         try:
             self._process = await self._service._spawn_stream_process()
-        except Exception:
+            logger.info("Camera producer: ffmpeg started on %s", self._service.device)
+        except Exception as e:  # noqa: BLE001
+            logger.error("Camera producer: could not start ffmpeg: %s", e)
             await self._release_device()
             self.state = ProducerState.STOPPED
             raise
@@ -607,6 +613,10 @@ class LiveProducer:
         deadline = time.monotonic() + PRODUCER_FIRST_FRAME_TIMEOUT_SECONDS
         while self._latest_frame is None:
             if self.state == ProducerState.FAILED or self.state == ProducerState.STOPPED:
+                logger.error(
+                    "Camera producer: stopped before the first frame arrived (%s)",
+                    self._last_error or "no reason recorded",
+                )
                 raise CameraUnavailableError(self._last_error or "Camera producer stopped before first frame")
             remaining = deadline - time.monotonic()
             if remaining <= 0:
@@ -616,6 +626,11 @@ class LiveProducer:
             try:
                 await asyncio.wait_for(self._frame_event.wait(), timeout=remaining)
             except asyncio.TimeoutError:
+                logger.error(
+                    "Camera producer: no first frame within %.1fs (raise "
+                    "CAMERA_PRODUCER_FIRST_FRAME_TIMEOUT if this camera is just slow to start)",
+                    PRODUCER_FIRST_FRAME_TIMEOUT_SECONDS,
+                )
                 raise CameraUnavailableError(
                     f"No frame from the camera within {PRODUCER_FIRST_FRAME_TIMEOUT_SECONDS}s"
                 ) from None
@@ -647,7 +662,17 @@ class LiveProducer:
                     )
                     return
                 if not chunk:
-                    await self._handle_failure("ffmpeg exited unexpectedly")
+                    # Read ffmpeg's own complaint rather than discarding
+                    # it - "exited unexpectedly" on its own is useless
+                    # when the real message is "device or resource busy".
+                    detail = ""
+                    try:
+                        if proc.stderr is not None:
+                            err = await asyncio.wait_for(proc.stderr.read(2000), timeout=1.0)
+                            detail = err.decode(errors="replace").strip()[-400:]
+                    except Exception:  # noqa: BLE001
+                        pass
+                    await self._handle_failure(f"ffmpeg exited unexpectedly: {detail}")
                     return
                 buffer += chunk
                 while True:
