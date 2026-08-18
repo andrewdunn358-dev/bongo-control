@@ -29,6 +29,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
+from enum import Enum
 
 logger = logging.getLogger("vanos.camera_service")
 
@@ -55,6 +57,55 @@ FRAME_STALL_TIMEOUT_SECONDS = 10.0
 # minutes / a Cloudflare 504 away, not the fast local "device busy"
 # this was meant to smooth over).
 LOCK_WAIT_TIMEOUT_SECONDS = 4.0
+
+# ---------------------------------------------------------------------
+# Live producer configuration.
+#
+# The producer exists ONLY while a Live (MJPEG) stream is active - see
+# LiveProducer below for why it is deliberately not a permanently
+# resident camera daemon on this hardware.
+#
+# INVARIANT, and the reason the whole contention fix works:
+# LOCK_WAIT_TIMEOUT_SECONDS must comfortably exceed the worst-case
+# producer teardown budget (TERMINATE_TIMEOUT + kill + reap, ~1-2s).
+# A snapshot arriving mid-teardown blocks on the device lock and must
+# still be waiting when the producer releases it. If teardown could ever
+# outlast the lock wait, that snapshot would fail with the exact 503
+# this design exists to remove.
+# ---------------------------------------------------------------------
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, "") or default)
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, "") or default)
+    except (TypeError, ValueError):
+        return default
+
+
+# Shorter than FRAME_STALL_TIMEOUT_SECONDS: the producer owns the device
+# for every consumer, so a stall costs more here than it does on a single
+# stream and is worth catching sooner.
+PRODUCER_STALL_TIMEOUT_SECONDS = _env_float("CAMERA_PRODUCER_STALL_TIMEOUT", 5.0)
+# How long to wait for a polite terminate() before escalating to kill().
+PRODUCER_TERMINATE_TIMEOUT_SECONDS = _env_float("CAMERA_PRODUCER_TERMINATE_TIMEOUT", 1.0)
+# Restart budget. A camera that keeps stalling must stop being restarted
+# in a tight loop and instead report itself failed, so the frontend's
+# existing error path can surface it.
+PRODUCER_MAX_RESTARTS = _env_int("CAMERA_PRODUCER_MAX_RESTARTS", 3)
+PRODUCER_RESTART_WINDOW_SECONDS = _env_float("CAMERA_PRODUCER_RESTART_WINDOW", 60.0)
+# How long to wait for the FIRST frame before declaring the camera
+# unavailable, rather than opening a stream that contains nothing.
+PRODUCER_FIRST_FRAME_TIMEOUT_SECONDS = _env_float("CAMERA_PRODUCER_FIRST_FRAME_TIMEOUT", 8.0)
+# A snapshot served from the producer must be genuinely current. Matched
+# to the frontend's 1.5s poll interval with headroom, so a Home tile poll
+# during Live gets a frame no older than its own polling period. Beyond
+# this it is an error, never a stale frame presented as live.
+PRODUCER_FRAME_MAX_AGE_SECONDS = _env_float("CAMERA_PRODUCER_FRAME_MAX_AGE", 2.0)
 
 
 class CameraUnavailableError(RuntimeError):
@@ -257,6 +308,14 @@ class CameraService:
         except FileNotFoundError as e:
             raise CameraUnavailableError("ffmpeg not found in this container") from e
 
+    # LiveProducer spawns through this same method rather than
+    # duplicating the ffmpeg arguments - one definition of how this
+    # camera is opened, so a change to rotation, size or input format
+    # cannot apply to one path and not the other. Named separately only
+    # to make the producer's call site read honestly: it is not "opening
+    # a stream for a request", it is starting the shared process.
+    _spawn_stream_process = open
+
     async def mjpeg_frames(self, process: asyncio.subprocess.Process):
         """Yields already-multipart-wrapped JPEG frame chunks, ready to
         write directly to an HTTP response body, from an already-started
@@ -328,4 +387,326 @@ class CameraService:
                 pass
 
 
+class ProducerState(str, Enum):
+    STOPPED = "stopped"
+    STARTING = "starting"
+    RUNNING = "running"
+    FAILED = "failed"
+
+
+class LiveProducer:
+    """One ffmpeg owning /dev/video0 for the duration of Live mode, with
+    every consumer reading its latest frame instead of opening the
+    device themselves.
+
+    DELIBERATELY NOT a permanently resident camera daemon. This webcam
+    has a documented USB stability problem - a continuously-held
+    connection is what caused it, which is why capture_snapshot() does a
+    brief open-grab-close and why that is not being changed. The
+    producer exists only while a Live stream is active and is destroyed
+    when the last subscriber leaves, so normal snapshot polling keeps
+    the known-good behaviour and the device is held for the shortest
+    time that still solves contention.
+
+    DEVICE OWNERSHIP is the whole point. The producer acquires
+    CameraService._device_lock for its entire lifetime and releases it
+    only after its ffmpeg has been definitively reaped. That is what
+    makes the teardown race impossible rather than merely unlikely: a
+    snapshot arriving while the producer is stopping blocks on the same
+    lock capture_snapshot() already uses, and proceeds once the device
+    is genuinely free. No new endpoint, no "stopping" flag, no
+    frontend-side delay - the synchronisation is the lock.
+
+    This only works because the producer is Live-scoped. Holding the
+    lock across a whole stream would starve the Home screen's camera
+    tile - except that while the producer runs, snapshots are served
+    from its latest frame and never touch the device at all. The only
+    thing that ever blocks is a snapshot during teardown, which is
+    exactly the thing that should wait.
+    """
+
+    def __init__(self, service: CameraService) -> None:
+        self._service = service
+        self.state = ProducerState.STOPPED
+        self._process: asyncio.subprocess.Process | None = None
+        self._pump_task: asyncio.Task | None = None
+        self._subscribers: set[int] = set()
+        self._next_subscriber_id = 0
+        self._latest_frame: bytes | None = None
+        self._latest_frame_at: float = 0.0
+        self._frame_event = asyncio.Event()
+        # Serialises start/stop so concurrent Live requests converge on
+        # ONE producer. Without it, two requests arriving together both
+        # see state == STOPPED and both spawn ffmpeg against a device
+        # only one can have.
+        self._lifecycle_lock = asyncio.Lock()
+        self._holds_device_lock = False
+        self._restart_times: list[float] = []
+        self._last_error: str | None = None
+
+    # ---- consumer-facing API -------------------------------------
+
+    @property
+    def active(self) -> bool:
+        return self.state in (ProducerState.STARTING, ProducerState.RUNNING)
+
+    def latest_frame(self) -> tuple[bytes, float] | None:
+        """The most recent frame and its age, or None if there isn't a
+        fresh one. Never returns a stale frame - a caller cannot
+        accidentally present old footage as live."""
+        if self._latest_frame is None:
+            return None
+        age = time.monotonic() - self._latest_frame_at
+        if age > PRODUCER_FRAME_MAX_AGE_SECONDS:
+            return None
+        return self._latest_frame, age
+
+    async def subscribe(self) -> int:
+        """Registers a consumer, starting the producer if needed, and
+        waits for a real first frame before returning. Raises rather
+        than handing back a stream that contains nothing."""
+        async with self._lifecycle_lock:
+            if self.state == ProducerState.FAILED:
+                # An explicit new Live request is allowed to reset the
+                # budget and try again - the failure was recorded to
+                # stop a tight restart loop, not to disable the camera
+                # until the backend restarts.
+                self._restart_times.clear()
+                self.state = ProducerState.STOPPED
+            sub_id = self._next_subscriber_id
+            self._next_subscriber_id += 1
+            self._subscribers.add(sub_id)
+            if self.state == ProducerState.STOPPED:
+                await self._start_locked()
+
+        try:
+            await self._await_first_frame()
+        except Exception:
+            await self.unsubscribe(sub_id)
+            raise
+        return sub_id
+
+    async def unsubscribe(self, sub_id: int) -> None:
+        """Removes a consumer and stops the producer if it was the last
+        one. No meaningful idle linger, deliberately: given this
+        camera's USB history the device should be held for as little
+        time as possible, so churn is the cheaper risk."""
+        async with self._lifecycle_lock:
+            self._subscribers.discard(sub_id)
+            if not self._subscribers and self.state != ProducerState.STOPPED:
+                await self._stop_locked()
+
+    async def frames(self, sub_id: int):
+        """Yields multipart-wrapped JPEG chunks for one subscriber.
+
+        LATEST-FRAME semantics, never a per-subscriber queue: this is a
+        live camera, so a slow client should skip ahead rather than
+        accumulate a backlog that costs memory and shows old footage.
+        """
+        last_sent_at = 0.0
+        try:
+            while sub_id in self._subscribers and self.active:
+                if self._latest_frame is not None and self._latest_frame_at > last_sent_at:
+                    frame = self._latest_frame
+                    last_sent_at = self._latest_frame_at
+                    yield (
+                        b"--" + BOUNDARY + b"\r\n"
+                        b"Content-Type: image/jpeg\r\n"
+                        b"Content-Length: " + str(len(frame)).encode() + b"\r\n\r\n" + frame + b"\r\n"
+                    )
+                    continue
+                try:
+                    await asyncio.wait_for(self._frame_event.wait(), timeout=PRODUCER_STALL_TIMEOUT_SECONDS)
+                except asyncio.TimeoutError:
+                    # The pump's own watchdog handles restart/failure;
+                    # this just ends the response so the browser's
+                    # error path fires instead of freezing on a frame.
+                    break
+                self._frame_event.clear()
+        finally:
+            # Always runs, including on an unexpected browser disconnect
+            # or a revoked token mid-stream - that is what guarantees the
+            # producer eventually stops and the device is released.
+            await self.unsubscribe(sub_id)
+
+    # ---- lifecycle (callers must hold _lifecycle_lock) ------------
+
+    async def _start_locked(self) -> None:
+        self.state = ProducerState.STARTING
+        self._latest_frame = None
+        self._latest_frame_at = 0.0
+        self._last_error = None
+        try:
+            await asyncio.wait_for(
+                self._service._device_lock.acquire(), timeout=LOCK_WAIT_TIMEOUT_SECONDS
+            )
+        except asyncio.TimeoutError as e:
+            self.state = ProducerState.STOPPED
+            raise CameraUnavailableError(
+                f"Camera busy with another request for over {LOCK_WAIT_TIMEOUT_SECONDS}s - try again shortly"
+            ) from e
+        self._holds_device_lock = True
+        try:
+            self._process = await self._service._spawn_stream_process()
+        except Exception:
+            await self._release_device()
+            self.state = ProducerState.STOPPED
+            raise
+        self._pump_task = asyncio.create_task(self._pump())
+        self.state = ProducerState.RUNNING
+
+    async def _stop_locked(self, failed: bool = False) -> None:
+        if self._pump_task:
+            self._pump_task.cancel()
+            try:
+                await self._pump_task
+            except (asyncio.CancelledError, Exception):  # noqa: BLE001
+                pass
+            self._pump_task = None
+        await self._reap_process()
+        await self._release_device()
+        self.state = ProducerState.FAILED if failed else ProducerState.STOPPED
+        self._latest_frame = None
+        self._latest_frame_at = 0.0
+        # Wake anything still waiting so it sees the state change rather
+        # than sitting until its own timeout.
+        self._frame_event.set()
+
+    async def _reap_process(self) -> None:
+        """terminate -> bounded wait -> kill -> wait. The device is NOT
+        free until this returns, which is why the lock is released only
+        afterwards."""
+        proc = self._process
+        self._process = None
+        if proc is None:
+            return
+        try:
+            proc.terminate()
+        except ProcessLookupError:
+            return
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=PRODUCER_TERMINATE_TIMEOUT_SECONDS)
+            return
+        except asyncio.TimeoutError:
+            pass
+        try:
+            proc.kill()
+            await proc.wait()
+        except ProcessLookupError:
+            pass
+
+    async def _release_device(self) -> None:
+        if self._holds_device_lock:
+            self._holds_device_lock = False
+            try:
+                self._service._device_lock.release()
+            except RuntimeError:
+                pass
+
+    async def _await_first_frame(self) -> None:
+        deadline = time.monotonic() + PRODUCER_FIRST_FRAME_TIMEOUT_SECONDS
+        while self._latest_frame is None:
+            if self.state == ProducerState.FAILED or self.state == ProducerState.STOPPED:
+                raise CameraUnavailableError(self._last_error or "Camera producer stopped before first frame")
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise CameraUnavailableError(
+                    f"No frame from the camera within {PRODUCER_FIRST_FRAME_TIMEOUT_SECONDS}s"
+                )
+            try:
+                await asyncio.wait_for(self._frame_event.wait(), timeout=remaining)
+            except asyncio.TimeoutError:
+                raise CameraUnavailableError(
+                    f"No frame from the camera within {PRODUCER_FIRST_FRAME_TIMEOUT_SECONDS}s"
+                ) from None
+            self._frame_event.clear()
+
+    # ---- the pump ------------------------------------------------
+
+    async def _pump(self) -> None:
+        """Reads ffmpeg's MJPEG byte stream, splits it on JPEG markers
+        and publishes the latest frame.
+
+        Health is judged on FRAMES ARRIVING, not on ffmpeg still being
+        alive - this camera's characteristic failure is a process that
+        stays up and quietly stops producing, so process liveness says
+        nothing useful."""
+        buffer = b""
+        try:
+            while True:
+                proc = self._process
+                if proc is None or proc.stdout is None:
+                    return
+                try:
+                    chunk = await asyncio.wait_for(
+                        proc.stdout.read(4096), timeout=PRODUCER_STALL_TIMEOUT_SECONDS
+                    )
+                except asyncio.TimeoutError:
+                    await self._handle_failure(
+                        f"No frame data for {PRODUCER_STALL_TIMEOUT_SECONDS}s - camera stalled"
+                    )
+                    return
+                if not chunk:
+                    await self._handle_failure("ffmpeg exited unexpectedly")
+                    return
+                buffer += chunk
+                while True:
+                    start = buffer.find(JPEG_SOI)
+                    if start == -1:
+                        buffer = b""
+                        break
+                    end = buffer.find(JPEG_EOI, start)
+                    if end == -1:
+                        buffer = buffer[start:]
+                        break
+                    self._latest_frame = buffer[start : end + 2]
+                    self._latest_frame_at = time.monotonic()
+                    buffer = buffer[end + 2 :]
+                    self._frame_event.set()
+        except asyncio.CancelledError:
+            raise
+
+    async def _handle_failure(self, reason: str) -> None:
+        """Restart on stall, but only while someone is still watching and
+        only within the restart budget."""
+        logger.warning("Camera producer: %s", reason)
+        self._last_error = reason
+        now = time.monotonic()
+        self._restart_times = [t for t in self._restart_times if now - t < PRODUCER_RESTART_WINDOW_SECONDS]
+
+        async with self._lifecycle_lock:
+            if not self._subscribers:
+                # Nobody watching - do not restart just to hold the
+                # device open for no one.
+                await self._stop_locked()
+                return
+            if len(self._restart_times) >= PRODUCER_MAX_RESTARTS:
+                logger.error(
+                    "Camera producer: %d restarts within %.0fs - marking FAILED rather than looping",
+                    len(self._restart_times), PRODUCER_RESTART_WINDOW_SECONDS,
+                )
+                await self._stop_locked(failed=True)
+                return
+            self._restart_times.append(now)
+            self._pump_task = None  # we ARE the pump task; don't cancel ourselves
+            await self._reap_process()
+            await self._release_device()
+            self.state = ProducerState.STOPPED
+            try:
+                await self._start_locked()
+            except Exception as e:  # noqa: BLE001
+                self._last_error = str(e)
+                self.state = ProducerState.FAILED
+                self._frame_event.set()
+
+    async def shutdown(self) -> None:
+        """Called from the app's shutdown hook. Must leave no ffmpeg
+        holding the device behind."""
+        async with self._lifecycle_lock:
+            self._subscribers.clear()
+            if self.state != ProducerState.STOPPED:
+                await self._stop_locked()
+
+
 camera_service = CameraService()
+live_producer = LiveProducer(camera_service)

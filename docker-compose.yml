@@ -91,6 +91,15 @@ services:
       VANOS_DATABASE_URL: sqlite:///./data/vanos.db
       WEBCAM_DEVICE: ${WEBCAM_DEVICE:-/dev/video0}
       CAMERA_ROTATION: ${CAMERA_ROTATION:-0}
+      # Live camera producer. Declared here as well as in .env.example
+      # because a var present in only one of the two silently never
+      # reaches the container - that has caught this project before.
+      CAMERA_PRODUCER_STALL_TIMEOUT: ${CAMERA_PRODUCER_STALL_TIMEOUT:-5}
+      CAMERA_PRODUCER_TERMINATE_TIMEOUT: ${CAMERA_PRODUCER_TERMINATE_TIMEOUT:-1}
+      CAMERA_PRODUCER_MAX_RESTARTS: ${CAMERA_PRODUCER_MAX_RESTARTS:-3}
+      CAMERA_PRODUCER_RESTART_WINDOW: ${CAMERA_PRODUCER_RESTART_WINDOW:-60}
+      CAMERA_PRODUCER_FIRST_FRAME_TIMEOUT: ${CAMERA_PRODUCER_FIRST_FRAME_TIMEOUT:-8}
+      CAMERA_PRODUCER_FRAME_MAX_AGE: ${CAMERA_PRODUCER_FRAME_MAX_AGE:-2}
       GPS_DEVICE: ${GPS_DEVICE:-/dev/ttyUSB0}
       APP_ACCESS_PASSWORD: ${APP_ACCESS_PASSWORD:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}

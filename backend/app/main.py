@@ -39,6 +39,7 @@ from app.services.roof_service import roof_service
 from app.services.voice_control_service import voice_control_service
 from app.services.internet_radio_service import internet_radio_service
 from app.services.arrival_notification_service import arrival_notification_service
+from app.services.camera_service import live_producer
 from app.services import battery_service, configuration_service, history_service, location_service, notification_service, power_budget_service, telemetry_service
 from app.services.relay_service import relay_service
 from app.telemetry.bus import bus
@@ -154,6 +155,15 @@ async def lifespan(app: FastAPI):
     await intelligence_runner.stop()
     await power_budget_service.stop()
     await history_service.stop()
+
+    # Stop the Live camera producer explicitly. If it is running when the
+    # container goes down, its ffmpeg would otherwise be left holding
+    # /dev/video0 - and this project has already been bitten once by
+    # assuming graceful shutdown always runs (`docker compose up -d
+    # --build` does not reliably run it). This hook is necessary but is
+    # deliberately not the only line of defence: the producer also reaps
+    # its process from `finally` on every teardown path.
+    await live_producer.shutdown()
     await battery_service.stop_monitoring()
     await plugin_manager.stop_all()
 
