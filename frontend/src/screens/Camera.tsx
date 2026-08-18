@@ -250,26 +250,33 @@ export function CameraView() {
         {unlocked && (
           <div className="flex items-center gap-2">
             {!isDemo && (
+              <>
+              {/* LIVE STREAM TOGGLE REMOVED, deliberately, not deleted.
+                  Holding the camera open for a stream and polling it for
+                  snapshots are two consumers of a device that allows
+                  exactly one, and every attempt to arbitrate that in
+                  Python made it worse - a client-side settle delay
+                  (guessed at a duration nothing bounds), a shared
+                  producer (starved by FIFO poll queueing), and a retry
+                  inside the device lock (which amplified the queueing it
+                  was meant to absorb). The camera itself was proven
+                  healthy throughout: a bare ffmpeg capture returns a
+                  correctly exposed frame on the FIRST try, YAVG 133.
+
+                  Snapshot polling alone has always worked. The button is
+                  hidden rather than the code removed because the real
+                  fix is an external single-owner (uStreamer), at which
+                  point this comes back pointed at that instead. */}
+              {false && (
               <button
                 type="button"
-                onClick={() => {
-                  setStreamMode((v) => {
-                    // Only gate when STOPPING - starting a stream has no
-                    // device to wait for.
-                    if (v) setPollGateAt(Date.now() + STREAM_STOP_SETTLE_MS);
-                    return !v;
-                  });
-                  setStreamFailed(false);
-                  setFrameError(null);
-                }}
-                className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm ring-1 transition-colors ${
-                  streaming
-                    ? 'bg-aurora-teal/15 ring-aurora-teal/40 text-aurora-teal'
-                    : 'bg-ink/[0.04] ring-ink/10 text-ink-soft hover:bg-ink/[0.08]'
-                }`}
+                onClick={() => { setStreamMode((v) => !v); setStreamFailed(false); }}
+                className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm ring-1"
               >
-                <Video size={14} /> {streaming ? 'Stop stream' : 'Live stream'}
+                <Video size={14} /> Live stream
               </button>
+              )}
+            </>
             )}
             <StatusPill tone={isDemo ? 'purple' : 'red'} data-testid={CAM.liveBadge}>{isDemo ? 'DEMO' : 'LIVE'}</StatusPill>
             {authStatus.data?.required && (
