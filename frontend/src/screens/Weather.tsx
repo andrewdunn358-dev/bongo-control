@@ -123,7 +123,7 @@ export function Weather() {
 
       <div className="grid grid-cols-12 gap-4 lg:gap-6">
         {/* Current conditions + 7-day strip */}
-        <GlassCard glow="teal" className="col-span-12 lg:col-span-6 p-6" data-testid={WEATHER.currentTemp}>
+        <GlassCard level="hero" glow="teal" className="col-span-12 lg:col-span-6" data-testid={WEATHER.currentTemp}>
           <CardHeader
             label="Current conditions"
             right={<StatusPill tone="teal">{w.source ? String(w.source).toUpperCase() : 'LIVE'}</StatusPill>}
@@ -168,7 +168,7 @@ export function Weather() {
         </GlassCard>
 
         {/* Solar outlook — today vs tomorrow bars */}
-        <GlassCard glow="purple" className="col-span-12 lg:col-span-6 p-6" data-testid={WEATHER.irradianceRatio}>
+        <GlassCard className="col-span-12 lg:col-span-6" data-testid={WEATHER.irradianceRatio}>
           <CardHeader label="Solar outlook" hint="tomorrow vs today, by shortwave radiation" right={<StatusPill tone="purple">MJ/m²</StatusPill>} />
 
           <div className="flex items-end justify-center gap-8 h-[170px] mt-2">

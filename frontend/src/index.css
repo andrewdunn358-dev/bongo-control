@@ -139,6 +139,51 @@
      text reads cleanly against the busier aurora background, with a
      faint teal edge + outer glow that matches the design mockups.
      glow-teal / glow-purple below layer a stronger accent on top. */
+  /* ------------------------------------------------------------------
+     CARD LEVELS.
+
+     Every card used to be the same .glass with p-5/p-6 chosen ad hoc,
+     so a battery voltage on Home carried exactly the same visual weight
+     as a settings toggle. Nothing read as primary because everything
+     was primary.
+
+     Three levels, and the constraint that makes them mean anything:
+     ONE hero per screen. If a screen has two heroes it has none.
+
+       hero     - the single thing the screen exists to show
+       standard - the default; ordinary content cards
+       quiet    - supporting detail that should recede
+
+     Deliberately NOT done with more glow or heavier borders, which is
+     the obvious move and the wrong one here: the accent glows are
+     already the loudest thing on a page, and adding more would fight
+     the aurora backdrop rather than sit on it. The hierarchy is carried
+     by surface brightness and shadow depth, which reads at a glance and
+     costs nothing on the Pi's GPU.
+     ------------------------------------------------------------------ */
+  .glass-hero {
+    background: linear-gradient(180deg, rgba(24, 56, 90, 0.92) 0%, rgba(16, 38, 64, 0.94) 100%);
+    box-shadow: 0 8px 40px -12px rgba(0, 0, 0, 0.55), inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .glass-quiet {
+    background: linear-gradient(180deg, rgba(14, 34, 56, 0.72) 0%, rgba(10, 26, 45, 0.76) 100%);
+    box-shadow: 0 2px 12px -6px rgba(0, 0, 0, 0.4);
+  }
+
+  html.light .glass-hero {
+    background: #ffffff;
+    box-shadow: 0 2px 4px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.1);
+  }
+
+  html.light .glass-quiet {
+    /* Light mode inverts the logic: on a pale page a QUIETER card is a
+       slightly greyer one, not a more transparent one - translucency
+       here is what made light mode unreadable in the first place. */
+    background: #f8fafc;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  }
+
   .glass {
     /* More opaque (was 0.55/0.58): at ~55% the bright aurora bled through
        and washed out the muted label text, worst where a bright ribbon

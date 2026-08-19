@@ -99,7 +99,7 @@ function HistoryPanel({
   const gradId = `hist-${domainKey}`;
 
   return (
-    <GlassCard glow={glow} className="col-span-12 lg:col-span-6 p-6" data-testid={HIST.chart(domainKey)}>
+    <GlassCard className="col-span-12 lg:col-span-6" data-testid={HIST.chart(domainKey)}>
       <CardHeader
         label={label}
         hint={unit}

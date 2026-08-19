@@ -45,7 +45,7 @@ export function Power() {
 
       <div className="grid grid-cols-12 gap-4 lg:gap-6">
         {/* Battery hero */}
-        <GlassCard glow="teal" className="col-span-12 lg:col-span-6 p-6 lg:p-8" data-testid={POWER.batteryVoltage}>
+        <GlassCard level="hero" glow="teal" className="col-span-12 lg:col-span-6" data-testid={POWER.batteryVoltage}>
           <CardHeader
             label="Battery"
             hint="MPPT / BMS"
@@ -62,7 +62,7 @@ export function Power() {
         </GlassCard>
 
         {/* Solar hero */}
-        <GlassCard glow="purple" className="col-span-12 lg:col-span-6 p-6 lg:p-8" data-testid={POWER.solarWatts}>
+        <GlassCard className="col-span-12 lg:col-span-6" data-testid={POWER.solarWatts}>
           <CardHeader
             label="Solar"
             hint={`peak today ${fmtWatt(sp?.peak_today_watts)}`}

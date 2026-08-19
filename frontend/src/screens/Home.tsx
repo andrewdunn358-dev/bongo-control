@@ -72,7 +72,7 @@ export function Home() {
       <div className="grid grid-cols-12 gap-4 lg:gap-5">
         {/* Left column - battery/solar, each with real sparkline history */}
         <div className="col-span-12 lg:col-span-3 flex flex-col gap-4">
-          <GlassCard glow="teal" className="p-5" data-testid={HOME.batteryVoltage}>
+          <GlassCard level="hero" glow="teal" data-testid={HOME.batteryVoltage}>
             <CardHeader label="Battery voltage" right={<BatteryIcon size={15} className="text-aurora-teal" />} />
             <div className="num text-3xl font-bold">{fmtVolt(battery.payload?.voltage)}</div>
             <div className="text-[11px] text-ink-faint mt-1">{battery.payload?.charging ? 'Charging' : 'Resting reading'}</div>
@@ -84,7 +84,7 @@ export function Home() {
             <div className="text-[10px] text-ink-faint mt-2">Since page load · no shunt · voltage only</div>
           </GlassCard>
 
-          <GlassCard glow="orange" className="p-5" data-testid={HOME.solarWatts}>
+          <GlassCard data-testid={HOME.solarWatts}>
             <CardHeader label="Solar" right={<Sun size={15} className="text-brand-orange" />} />
             <div className="num text-3xl font-bold">{fmtWatt(solar.payload?.watts)}</div>
             <div className="text-[11px] text-ink-faint mt-1">
@@ -93,7 +93,7 @@ export function Home() {
             <div className="mt-3"><Sparkline data={solarSeries} width={260} height={44} stroke="#FF8A00" fill="rgba(255,138,0,0.22)" minRange={25} /></div>
           </GlassCard>
 
-          <GlassCard className="p-5">
+          <GlassCard>
             <CardHeader label="Net energy" hint="solar − load" right={<Zap size={15} className="text-aurora-teal" />} />
             <div className="num text-2xl font-semibold">{fmtWatt(energy.payload?.net_watts)}</div>
             <div className="text-[11px] text-ink-faint mt-1">in {fmtWatt(energy.payload?.solar_watts)} · out {fmtWatt(energy.payload?.load_watts)}</div>
@@ -143,7 +143,7 @@ export function Home() {
             camera-height, so flex-1 on the GPS card lands its bottom
             edge level with the bottom of the camera. */}
         <div className="col-span-12 lg:col-span-4 flex flex-col gap-4">
-          <GlassCard className="p-5 shrink-0">
+          <GlassCard className="shrink-0">
             <CardHeader label="Weather" />
             <div className="num text-3xl font-bold">{fmtTemp(env.payload?.external_temp_c)}</div>
             <div className="text-xs text-ink-soft mt-1">{DASH}</div>
@@ -181,9 +181,13 @@ export function Home() {
             is where it sat before this row was nested. */}
         <div className="col-span-12 lg:col-span-8">
           <Link to="/overview" className="block">
+            {/* No glow. The battery card is this screen's hero and holds
+                the only glow on the page - two glowing cards is the
+                "everything is primary" problem in miniature. This one is
+                still clearly interactive: it is a Link with a hover ring
+                and a coloured GaugeRing carrying the status. */}
             <GlassCard
-              glow={meta.tone === 'red' ? undefined : 'teal'}
-              className="p-5 hover:ring-aurora-teal/40 transition-colors"
+              className="hover:ring-aurora-teal/40 transition-colors"
               data-testid={HOME.sitrepBadge}
             >
               <div className="flex items-start gap-3">
@@ -204,7 +208,7 @@ export function Home() {
       {/* Secondary detail - solar verdict, temps, charging power */}
       <div className="grid grid-cols-12 gap-4 lg:gap-5 mt-4 lg:mt-5">
         {solarSig && (
-          <GlassCard className="col-span-12 p-6" data-testid={HOME.solarVerdict}>
+          <GlassCard className="col-span-12" data-testid={HOME.solarVerdict}>
             <div className="flex items-start gap-4">
               <div
                 className={`h-12 w-12 rounded-2xl grid place-items-center ring-1 ring-inset shrink-0 ${
@@ -243,17 +247,17 @@ export function Home() {
           </GlassCard>
         )}
 
-        <GlassCard className="col-span-6 md:col-span-3 p-6" data-testid={HOME.interiorTemp}>
+        <GlassCard level="quiet" className="col-span-6 md:col-span-3" data-testid={HOME.interiorTemp}>
           <CardHeader label="Interior" hint="1-Wire probe" right={<Thermometer size={16} className="text-aurora-teal" />} />
           <div className="num text-3xl font-semibold">{fmtTemp(env.payload?.internal_temp_c)}</div>
         </GlassCard>
 
-        <GlassCard className="col-span-6 md:col-span-3 p-6" data-testid={HOME.externalTemp}>
+        <GlassCard level="quiet" className="col-span-6 md:col-span-3" data-testid={HOME.externalTemp}>
           <CardHeader label="Outside" hint="1-Wire probe" right={<Sun size={16} className="text-brand-orange" />} />
           <div className="num text-3xl font-semibold">{fmtTemp(env.payload?.external_temp_c)}</div>
         </GlassCard>
 
-        <GlassCard className="col-span-12 md:col-span-6 p-6">
+        <GlassCard level="quiet" className="col-span-12 md:col-span-6">
           <div className="flex flex-wrap items-center gap-6">
             <div className="flex items-center gap-2">
               <BatteryIcon size={14} className="text-ink-muted" />
