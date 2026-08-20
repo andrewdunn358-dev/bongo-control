@@ -114,8 +114,16 @@ export function Home() {
         <div className="col-span-12 lg:col-span-9 grid grid-cols-12 gap-4 lg:gap-5 content-start">
           <div className="col-span-12 lg:col-span-8 flex flex-col gap-4">
             <div className="relative rounded-2xl overflow-hidden aspect-[16/10] ring-1 ring-white/10 shadow-2xl bg-black/50">
+            {/* 30s, raised from 15s. This is the SECOND consumer of a
+                camera that takes ~4.1s to produce a single frame (the
+                Camera page is the other), and both open the same device
+                through the same lock. Two pollers on a 15s clock is
+                already most of a duty cycle on this hardware, and it
+                stacks with whatever the Camera page is doing. The Home
+                tile is a glance, not a monitor - it does not need to be
+                fresher than the walk to the van. */}
             <img
-              src={api.cameraSnapshotUrl(Math.floor(Date.now() / 15000))}
+              src={api.cameraSnapshotUrl(Math.floor(Date.now() / 30000))}
               alt=""
               className="absolute inset-0 w-full h-full object-cover"
               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}

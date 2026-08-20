@@ -37,7 +37,11 @@ import type { CameraSnapshot } from '@/lib/types';
  * snapshot_store on the backend). Saved snapshots survive a reload and are
  * listed alongside, each with a kebab menu to delete it.
  */
-const POLL_MS = 1500;
+// GAP BETWEEN requests, not a fixed cycle time - the loop below waits
+// for each one to finish first. A capture costs ~4.1s on this Pi, so the
+// real refresh is ~6s; this is the pause on top, kept short so the view
+// speeds up automatically if the capture path ever gets quicker.
+const POLL_MS = 2000;
 // One failed poll can just be a transient blip - not worth alarming
 // anyone over. A run of them in a row is the "stuck on Waiting for
 // first frame with zero explanation" failure mode this is fixing.
@@ -167,16 +171,33 @@ export function CameraView() {
         }
       }
     };
-    let iv: ReturnType<typeof setInterval> | undefined;
-    const startTimer = setTimeout(() => {
+    // SELF-SCHEDULING, not setInterval. setInterval fires on a fixed
+    // clock whether or not the previous request has finished - and a
+    // snapshot on this hardware takes ~4.1s (measured: same with ffmpeg
+    // AND fswebcam, ~0.5s of it CPU, the rest USB open + format
+    // negotiation + auto-exposure settling). Against a 1500ms interval
+    // that queued three requests per cycle, the queue never drained,
+    // and callers timed out on the 4s device-lock wait. That is the
+    // "Camera busy with another request for over 4.0s" error, and it
+    // was never a race - just polling several times faster than the
+    // camera can answer.
+    //
+    // Waiting for each request to COMPLETE before scheduling the next
+    // makes the loop self-tuning: it cannot queue no matter how slow
+    // the device is, and it speeds up on its own if the capture path
+    // ever gets faster (uStreamer would take it to milliseconds).
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const loop = async () => {
       if (cancelled) return;
-      tick();
-      iv = setInterval(tick, POLL_MS);
-    }, waitMs);
+      await tick();
+      if (cancelled) return;
+      timer = setTimeout(loop, POLL_MS);
+    };
+    const startTimer = setTimeout(loop, waitMs);
     return () => {
       cancelled = true;
       clearTimeout(startTimer);
-      if (iv) clearInterval(iv);
+      if (timer) clearTimeout(timer);
       if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
     };
   }, [unlocked, token, showDemoVideo, streaming, pollGateAt]);
