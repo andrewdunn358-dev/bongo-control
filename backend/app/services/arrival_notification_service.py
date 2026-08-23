@@ -225,11 +225,31 @@ class ArrivalNotificationService:
             return {"announced": False, "reason": "no_recommendations_found", "place_name": result.get("place_name")}
 
         place_name = result.get("place_name") or "your new spot"
-        top = recommendations[0]
         title = f"Looks like you've settled in near {place_name}"
-        message = top.get("description") or top.get("name") or "Check the Nearby page for what's around."
-        if top.get("name") and top.get("description"):
-            message = f"{top['name']} - {top['description']}"
+
+        # ALL of them, not just recommendations[0]. This used to take
+        # the top item only - a deliberate choice, but the wrong one:
+        # the Nearby page shows the whole list, so hearing a single
+        # item read out sounds like the announcement has been cut off
+        # part-way. Reported as exactly that: "it only reads the first
+        # part".
+        #
+        # Numbered when there is more than one, because a spoken list
+        # with no structure runs together and you lose track of where
+        # one place ends and the next starts. A single recommendation
+        # stays unnumbered - "one, Mote of Mark" would just sound odd.
+        def _one(rec: dict) -> str:
+            name, desc = rec.get("name"), rec.get("description")
+            if name and desc:
+                return f"{name} - {desc}"
+            return desc or name or ""
+
+        parts = [p for p in (_one(r) for r in recommendations) if p]
+        if not parts:
+            parts = ["Check the Nearby page for what's around."]
+        message = parts[0] if len(parts) == 1 else " ".join(
+            f"{i}. {p}" for i, p in enumerate(parts, 1)
+        )
 
         self._notified_this_stay = True
         self._save_last_notified_location(latitude, longitude)

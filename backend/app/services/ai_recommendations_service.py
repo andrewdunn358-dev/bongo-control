@@ -67,7 +67,16 @@ ANTHROPIC_VERSION = "2023-06-01"
 # right fit, not the most capable one. See docs/ai_features.md for the
 # actual per-request cost this works out to.
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
-MAX_TOKENS = 1500
+# Raised from 1500 after a real failure: an arrival announcement at
+# Rockcliffe died with "Expecting property name enclosed in double
+# quotes: line 1 column 1737" - the response hit the ceiling and was
+# cut off MID-JSON, so the whole stay was skipped rather than degrading
+# to fewer recommendations. The van happened to re-check six minutes
+# later and succeed, which is why this looked intermittent rather than
+# broken. Several recommendations with real descriptions genuinely need
+# the room; 1500 was set before the descriptions got as detailed as
+# they now are.
+MAX_TOKENS = 3000
 # Web search adds real latency (the model may run several searches
 # before answering, each a live round trip) - the old 20s timeout was
 # sized for a single plain text generation and would cut this off
