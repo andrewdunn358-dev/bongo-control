@@ -254,12 +254,12 @@ class ArrivalNotificationService:
         self._notified_this_stay = True
         self._save_last_notified_location(latitude, longitude)
         await notification_service.notify(NotificationLevel.INFO, title, message)
-        await self._speak(title, message)
+        await self._speak(title, parts)
         logger.info("Arrival notification sent for %s (%.4f, %.4f)", place_name, latitude, longitude)
         return {"announced": True, "place_name": place_name, "title": title, "message": message}
 
     @staticmethod
-    async def _speak(title: str, message: str) -> None:
+    async def _speak(title: str, parts: list[str]) -> None:
         """Reported gap: this only ever sent a silent visual
         notification - reused here is the exact same TTS pipeline
         every other spoken reply in this app already goes through
@@ -290,14 +290,35 @@ class ArrivalNotificationService:
         get reopened even if speaking itself fails partway through,
         or it would be left paused indefinitely.
         """
+        # SPOKEN IN CHUNKS, one TTS request per recommendation, rather
+        # than one request for the whole announcement. Not cosmetic:
+        # Groq's Orpheus voice has a 1200 tokens-per-minute ceiling and
+        # a full three-recommendation message asked for 1694, so the
+        # whole thing failed with a 413 and NOTHING was spoken at all.
+        # Chunking keeps each request well under the limit while the
+        # listener still hears the complete announcement.
+        #
+        # Sequential on purpose - these play through one speaker, so
+        # they must not overlap.
+        chunks = [title] + list(parts)
         had_listener = await voice_control_service._pause_listener()
         try:
-            try:
-                spoken_text = voice_control_service._clean_text_for_speech(f"{title}. {message}")
-                audio = await asyncio.to_thread(voice_control_service._synthesize, spoken_text)
-                await asyncio.to_thread(voice_control_service._play_clip, audio)
-            except Exception as e:  # noqa: BLE001 - speaking is a bonus on top of the real notification, not something that should undo it
-                logger.warning("Arrival notification: speaking it aloud failed (notification was still sent): %s", e)
+            for i, chunk in enumerate(chunks):
+                try:
+                    spoken_text = voice_control_service._clean_text_for_speech(chunk)
+                    if not spoken_text:
+                        continue
+                    audio = await asyncio.to_thread(voice_control_service._synthesize, spoken_text)
+                    await asyncio.to_thread(voice_control_service._play_clip, audio)
+                except Exception as e:  # noqa: BLE001 - speaking is a bonus on top of the real notification, not something that should undo it
+                    # Per-chunk, deliberately: one recommendation
+                    # failing (rate limit, a quota, a bad character)
+                    # should not silence the ones after it. Hearing
+                    # two of three beats hearing none.
+                    logger.warning(
+                        "Arrival notification: speaking chunk %d of %d failed (notification was still sent): %s",
+                        i + 1, len(chunks), e,
+                    )
         finally:
             await voice_control_service._resume_listener(had_listener)
 
