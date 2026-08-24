@@ -180,6 +180,35 @@ export const api = {
     request<{ satellites: GpsSatellite[]; count: number }>('/location/satellites'),
   locationHistory: () =>
     request<{ points: { timestamp: number; latitude: number; longitude: number; source: string }[]; count: number }>('/location/history'),
+  // Distance is computed on the BACKEND, from the full-resolution
+  // trail. /location/history strides its points down before sending,
+  // and the distance filters reason about gaps between consecutive
+  // points - measured against the real 12k-point table, the decimated
+  // trail rejected only 160 bad segments where full resolution caught
+  // 3711, because striding merges bad points into longer segments that
+  // then look plausible. Same journey, 403.94mi on the phone vs
+  // 366.59mi on the full trail.
+  tripStats: (opts?: { allTime?: boolean }) => {
+    const qs = new URLSearchParams();
+    if (opts?.allTime) qs.set('all_time', 'true');
+    const q = qs.toString();
+    return request<{
+      distance_metres: number; points: number; rejected: number; days: number;
+      first_timestamp: number | null; last_timestamp: number | null;
+      by_day: { day: string; metres: number }[];
+      trip_started_at: number | null; measured_from: number | null;
+    }>(`/location/trip-stats${q ? `?${q}` : ''}`);
+  },
+  // Mark where "this trip" starts. Backdatable on purpose: the point
+  // of a marker over a delete is that you can set it AFTER the fact -
+  // when you realise mid-trip that you'd like to measure it, or when
+  // you got home and forgot entirely. Pass null to clear it.
+  setTripStart: (startedAt: number | null) =>
+    request<{ trip_started_at: number | null }>('/location/trip-start', {
+      method: 'PUT',
+      body: JSON.stringify({ started_at: startedAt }),
+    }),
+
   // Purge a stretch of breadcrumb history - e.g. erratic fixes in the
   // first days after fitting a new GPS antenna. At least one bound
   // required - the backend refuses an empty call rather than wipe

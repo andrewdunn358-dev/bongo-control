@@ -533,11 +533,128 @@ function CleanupTrailControl({ onDeleted }: { onDeleted: () => void }) {
   );
 }
 
+/** Marks where "this trip" begins.
+ *
+ * A MARKER, deliberately, not a delete. The original ask was to purge
+ * points before a date - but that is irreversible, throws away the
+ * travel history this screen exists to accumulate, and only works if
+ * you think of it BEFORE setting off. The request came mid-trip, when
+ * deleting "before today" would have lost the drive that started it.
+ *
+ * So: freely backdatable, and changeable afterwards. The data is
+ * already recorded; this only chooses where to measure from. Forget to
+ * set it before you leave and you can fix it when you get home.
+ */
+function TripStartControl({ startedAt, onChanged }: { startedAt: number | null; onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // datetime-local wants a local-time string, not an ISO/UTC one.
+  const toLocalInput = (epoch: number) => {
+    const d = new Date(epoch * 1000);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const openPanel = () => {
+    setValue(toLocalInput(startedAt ?? Date.now() / 1000));
+    setError(null);
+    setOpen(true);
+  };
+
+  const save = async (epoch: number | null) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.setTripStart(epoch);
+      onChanged();
+      setOpen(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button type="button" onClick={openPanel} className="text-xs text-aurora-teal hover:underline">
+        {startedAt
+          ? `Trip started ${new Date(startedAt * 1000).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} — change`
+          : 'Start a new trip from a date…'}
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-2 space-y-2">
+      <div className="text-xs text-ink-muted">
+        Measure distance from this moment onwards. Nothing is deleted — set it to when you actually left,
+        even if that was days ago.
+      </div>
+      <input
+        type="datetime-local"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        className="w-full rounded-lg bg-black/30 ring-1 ring-white/15 px-3 py-2 text-sm"
+      />
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={busy || !value}
+          onClick={() => save(new Date(value).getTime() / 1000)}
+          className="rounded-full px-3 py-1.5 text-xs ring-1 ring-aurora-teal/40 text-aurora-teal disabled:opacity-40"
+        >
+          {busy ? 'Saving…' : 'Set trip start'}
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => save(Date.now() / 1000)}
+          className="rounded-full px-3 py-1.5 text-xs ring-1 ring-white/15 text-ink-muted disabled:opacity-40"
+        >
+          Start now
+        </button>
+        {startedAt && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => save(null)}
+            className="rounded-full px-3 py-1.5 text-xs ring-1 ring-white/15 text-ink-muted disabled:opacity-40"
+          >
+            Clear (all time)
+          </button>
+        )}
+        <button type="button" onClick={() => setOpen(false)} className="text-xs text-ink-faint px-2">
+          Cancel
+        </button>
+      </div>
+      {error && <div className="text-xs text-status-amber">{error}</div>}
+    </div>
+  );
+}
+
 export function Trips() {
   const qc = useQueryClient();
 
   const { data } = useQuery({ queryKey: ['location-history'], queryFn: api.locationHistory });
   const points = useMemo<Point[]>(() => data?.points ?? [], [data]);
+
+  // Distance comes from the BACKEND now, not from summing the points
+  // above. Those are strided down to 2000 before being sent, and the
+  // distance filters reason about gaps between consecutive points -
+  // on the real 12k-point table the decimated trail caught only 160
+  // bad segments where full resolution caught 3711, reading 403.94mi
+  // against 366.59mi. The trail here is still what gets DRAWN; it just
+  // no longer decides the number.
+  const [allTime, setAllTime] = useState(false);
+  const statsQuery = useQuery({
+    queryKey: ['trip-stats', allTime],
+    queryFn: () => api.tripStats({ allTime }),
+  });
+  const remote = statsQuery.data;
 
   const placesQuery = useQuery({ queryKey: ['places'], queryFn: api.places });
   const places = useMemo<Place[]>(() => placesQuery.data?.places ?? [], [placesQuery.data]);
@@ -742,36 +859,56 @@ export function Trips() {
             Where the van has <span className="text-aurora-teal">been</span>
           </h1>
           <div className="text-sm text-ink-muted mt-2">Your trail, recorded from GPS as you go. The start of your trips &amp; memories log.</div>
-          <div className="mt-3">
-            <CleanupTrailControl onDeleted={() => qc.invalidateQueries({ queryKey: ['location-history'] })} />
+          <div className="mt-3 space-y-2">
+            <TripStartControl
+              startedAt={remote?.trip_started_at ?? null}
+              onChanged={() => qc.invalidateQueries({ queryKey: ['trip-stats'] })}
+            />
+            <CleanupTrailControl onDeleted={() => {
+              qc.invalidateQueries({ queryKey: ['location-history'] });
+              qc.invalidateQueries({ queryKey: ['trip-stats'] });
+            }} />
           </div>
         </div>
-        <StatusPill tone={empty ? 'slate' : 'teal'}>{empty ? 'NO TRAIL YET' : `${stats.points} POINTS`}</StatusPill>
+        <div className="flex items-center gap-2">
+          {/* Only offered when a marker exists - a toggle between two
+              identical numbers would be noise. */}
+          {remote?.trip_started_at != null && (
+            <button
+              type="button"
+              onClick={() => setAllTime((v) => !v)}
+              className="rounded-full px-3 py-1 text-[11px] uppercase tracking-wider ring-1 ring-white/15 text-ink-muted"
+            >
+              {allTime ? 'All time' : 'This trip'}
+            </button>
+          )}
+          <StatusPill tone={empty ? 'slate' : 'teal'}>{empty ? 'NO TRAIL YET' : `${remote?.points ?? stats.points} POINTS`}</StatusPill>
+        </div>
       </div>
 
       <div className="grid grid-cols-12 gap-4 lg:gap-6">
         <GlassCard className="col-span-6 md:col-span-4 p-6">
           <CardHeader label="Distance travelled" hint="along the trail" right={<Route size={16} className="text-aurora-teal" />} />
-          <div className="num text-4xl font-semibold">{empty ? DASH : fmtDistance(stats.distance)}</div>
-          {stats.rejected > 0 && (
+          <div className="num text-4xl font-semibold">{empty ? DASH : fmtDistance(remote?.distance_metres ?? stats.distance)}</div>
+          {(remote?.rejected ?? stats.rejected) > 0 && (
             <div className="text-[11px] text-ink-faint mt-1">
-              {stats.rejected} implausible GPS jump{stats.rejected === 1 ? '' : 's'} excluded
+              {remote?.rejected ?? stats.rejected} implausible GPS jump{(remote?.rejected ?? stats.rejected) === 1 ? '' : 's'} excluded
             </div>
           )}
-          {stats.byDay.length > 0 && (
+          {(remote?.by_day ?? stats.byDay).length > 0 && (
             <details className="mt-2 text-[11px]">
               <summary className="cursor-pointer text-ink-muted hover:text-ink-soft select-none">
                 Distance by day — check this against what you actually remember driving
               </summary>
               <div className="mt-2 space-y-1 max-h-48 overflow-y-auto pr-1">
-                {stats.byDay.slice(0, 15).map(({ day, metres }) => (
+                {(remote?.by_day ?? stats.byDay).slice(0, 15).map(({ day, metres }) => (
                   <div key={day} className="flex items-center justify-between text-ink-faint">
                     <span>{day}</span>
                     <span className="num text-ink-soft">{fmtDistance(metres)}</span>
                   </div>
                 ))}
-                {stats.byDay.length > 15 && (
-                  <div className="text-ink-faint italic">+ {stats.byDay.length - 15} more day(s)</div>
+                {(remote?.by_day ?? stats.byDay).length > 15 && (
+                  <div className="text-ink-faint italic">+ {(remote?.by_day ?? stats.byDay).length - 15} more day(s)</div>
                 )}
               </div>
             </details>
@@ -779,7 +916,7 @@ export function Trips() {
         </GlassCard>
         <GlassCard className="col-span-6 md:col-span-4 p-6">
           <CardHeader label="Days logged" hint="first fix to now" right={<CalendarDays size={16} className="text-aurora-teal" />} />
-          <div className="num text-4xl font-semibold">{empty ? DASH : stats.days}</div>
+          <div className="num text-4xl font-semibold">{empty ? DASH : (remote?.days ?? stats.days)}</div>
         </GlassCard>
         <GlassCard className="col-span-12 md:col-span-4 p-6">
           <CardHeader label="Breadcrumbs" hint="GPS points saved" right={<MapPin size={16} className="text-aurora-teal" />} />
