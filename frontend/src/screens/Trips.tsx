@@ -859,15 +859,18 @@ export function Trips() {
             Where the van has <span className="text-aurora-teal">been</span>
           </h1>
           <div className="text-sm text-ink-muted mt-2">Your trail, recorded from GPS as you go. The start of your trips &amp; memories log.</div>
-          <div className="mt-3 space-y-2">
+          {/* ONLY the trip control here. The delete control used to sit
+              directly beneath it, which put a red "Delete everything,
+              start fresh" button immediately below a link reading
+              "Start a new trip from a date" - two adjacent controls
+              with opposite consequences, one recoverable and one not.
+              Moved to the bottom of the page, away from anything
+              routine. */}
+          <div className="mt-3">
             <TripStartControl
               startedAt={remote?.trip_started_at ?? null}
               onChanged={() => qc.invalidateQueries({ queryKey: ['trip-stats'] })}
             />
-            <CleanupTrailControl onDeleted={() => {
-              qc.invalidateQueries({ queryKey: ['location-history'] });
-              qc.invalidateQueries({ queryKey: ['trip-stats'] });
-            }} />
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -889,31 +892,12 @@ export function Trips() {
       <div className="grid grid-cols-12 gap-4 lg:gap-6">
         <GlassCard className="col-span-6 md:col-span-4 p-6">
           <CardHeader label="Distance travelled" hint="along the trail" right={<Route size={16} className="text-aurora-teal" />} />
-          <div className="num text-4xl font-semibold">{empty ? DASH : fmtDistance(remote?.distance_metres ?? stats.distance)}</div>
-          {(remote?.rejected ?? stats.rejected) > 0 && (
-            <div className="text-[11px] text-ink-faint mt-1">
-              {remote?.rejected ?? stats.rejected} implausible GPS jump{(remote?.rejected ?? stats.rejected) === 1 ? '' : 's'} excluded
-            </div>
-          )}
-          {(remote?.by_day ?? stats.byDay).length > 0 && (
-            <details className="mt-2 text-[11px]">
-              <summary className="cursor-pointer text-ink-muted hover:text-ink-soft select-none">
-                Distance by day — check this against what you actually remember driving
-              </summary>
-              <div className="mt-2 space-y-1 max-h-48 overflow-y-auto pr-1">
-                {(remote?.by_day ?? stats.byDay).slice(0, 15).map(({ day, metres }) => (
-                  <div key={day} className="flex items-center justify-between text-ink-faint">
-                    <span>{day}</span>
-                    <span className="num text-ink-soft">{fmtDistance(metres)}</span>
-                  </div>
-                ))}
-                {(remote?.by_day ?? stats.byDay).length > 15 && (
-                  <div className="text-ink-faint italic">+ {(remote?.by_day ?? stats.byDay).length - 15} more day(s)</div>
-                )}
-              </div>
-            </details>
-          )}
-        </GlassCard>
+          {/* Was wrapping mid-number on a phone - "366.59" on one line and
+              a clipped "mi" on the next - because a 4xl number in a
+              6-of-12 column has nowhere to go. Scales with the
+              breakpoint and refuses to wrap. */}
+          <div className="num text-2xl sm:text-3xl lg:text-4xl font-semibold whitespace-nowrap">{empty ? DASH : fmtDistance(remote?.distance_metres ?? stats.distance)}</div>
+          </GlassCard>
         <GlassCard className="col-span-6 md:col-span-4 p-6">
           <CardHeader label="Days logged" hint="first fix to now" right={<CalendarDays size={16} className="text-aurora-teal" />} />
           <div className="num text-4xl font-semibold">{empty ? DASH : (remote?.days ?? stats.days)}</div>
@@ -970,6 +954,17 @@ export function Trips() {
             ) : null}
           </div>
         </GlassCard>
+      </div>
+
+      {/* Destructive, so it lives at the very bottom, visually quiet,
+          and nowhere near the trip controls at the top. Deleting
+          breadcrumbs is for clearing genuinely bad data - it is NOT
+          how you start a new trip, and it must not look like it is. */}
+      <div className="pt-2 opacity-70">
+        <CleanupTrailControl onDeleted={() => {
+          qc.invalidateQueries({ queryKey: ['location-history'] });
+          qc.invalidateQueries({ queryKey: ['trip-stats'] });
+        }} />
       </div>
     </div>
   );
