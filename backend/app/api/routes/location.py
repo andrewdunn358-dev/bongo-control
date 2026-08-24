@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from app.api.routes.auth import require_app_token
 from app.plugins.manager import PluginManager
 from app.services import location_service
+from app.services.configuration_service import configuration_service
 
 # Gated: the breadcrumb history reveals where the van parks and sleeps —
 # a physical-safety leak — and the GPS setter lets a caller move the van's
@@ -81,6 +82,61 @@ def delete_location_history(
         raise HTTPException(status_code=400, detail="Provide 'after' and/or 'before' - refusing to delete everything")
     deleted = location_service.delete_history_range(after=after, before=before)
     return {"deleted": deleted}
+
+
+@router.get("/trip-stats")
+def get_trip_stats(
+    since: float | None = Query(default=None, description="Unix seconds - measure from here instead of the trip marker"),
+    all_time: bool = Query(default=False, description="Ignore the trip marker and measure the whole trail"),
+) -> dict:
+    """Distance travelled, computed from the FULL trail on the backend.
+
+    Deliberately not computed on the phone: /history strides its points
+    down to max_points, and the distance filters reason about gaps
+    between consecutive points, so a decimated trail rejects real
+    driving as drift and the total drifts as the table grows. See
+    location_service.trip_stats().
+    """
+    marker = None if all_time else _trip_started_at()
+    start = since if since is not None else (marker or 0.0)
+    stats = location_service.trip_stats(since_timestamp=start)
+    stats["trip_started_at"] = marker
+    stats["measured_from"] = start or None
+    return stats
+
+
+class TripStart(BaseModel):
+    started_at: float | None = None
+
+
+def _trip_started_at() -> float | None:
+    raw = (configuration_service.get("general", {}) or {}).get("trip_started_at")
+    try:
+        return float(raw) if raw else None
+    except (TypeError, ValueError):
+        return None
+
+
+@router.put("/trip-start")
+def set_trip_start(body: TripStart) -> dict:
+    """Mark where 'this trip' begins.
+
+    A MARKER, deliberately, not a delete. The ask was "I want to know
+    how far I travel on this trip", and the obvious implementation is
+    to purge everything older - but that is irreversible, throws away
+    the travel history the Trips screen exists to accumulate, and has
+    to be done BEFORE the trip to be any use. A marker can be set
+    afterwards and moved freely: the data is already recorded, this
+    only chooses where to measure from. Send null to clear it and go
+    back to all-time.
+    """
+    general = dict(configuration_service.get("general", {}) or {})
+    if body.started_at is None:
+        general.pop("trip_started_at", None)
+    else:
+        general["trip_started_at"] = float(body.started_at)
+    configuration_service.set("general", general)
+    return {"trip_started_at": _trip_started_at()}
 
 
 @router.get("/satellites")

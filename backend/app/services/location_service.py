@@ -20,6 +20,7 @@ connection, not whichever device happens to be viewing the dashboard
 
 from __future__ import annotations
 
+import datetime
 import logging
 import math
 import time
@@ -137,6 +138,105 @@ class LocationService:
         sampled = [points[min(int(i * step), len(points) - 1)] for i in range(max_points)]
         sampled[-1] = points[-1]
         return sampled
+
+    def trip_stats(self, since_timestamp: float = 0.0) -> dict[str, Any]:
+        """Distance travelled, computed on the FULL-RESOLUTION trail.
+
+        This lives on the backend, not the frontend, because of a bug
+        the numbers made obvious: /history strides its result down to
+        max_points (2000) before sending, and the frontend then summed
+        distance over whatever it received. Two of the three filters
+        below reason about the GAP BETWEEN CONSECUTIVE POINTS, and
+        striding stretches every gap by the stride factor - with 12k
+        points in the table that is ~6x. Rule 3 in particular then
+        rejects real driving as drift, because segments routinely
+        exceed the keepalive interval for the sole reason that the
+        points in between were thrown away.
+
+        Worse, it drifted over time: as the table grows the stride
+        grows, so the same journey reported a different distance every
+        few days. Reported as "the miles is showing strange again".
+
+        The three rules are ported verbatim from Trips.tsx (each one
+        added in response to a real reported failure, so none is
+        theoretical):
+
+        1. 20m noise floor - a parked van still logs keepalive points
+           every 600s, and their jitter summed over weeks read 15,201km
+           on a van that had not moved. A genuine movement-triggered
+           point is >=50m by construction, so a 20m floor can only drop
+           jitter.
+        2. 60 m/s (~134mph) ceiling - the receiver occasionally emits
+           one badly wrong fix, creating a jump out and straight back.
+           Confirmed in this van's own data: 2.2km covered in 13s, then
+           back within 2m one second later.
+        3. Keepalive-interval rule - a segment spanning >=90% of
+           HISTORY_MIN_INTERVAL_SECONDS only exists because the van did
+           NOT move 50m in that time (or a movement-triggered point
+           would have fired sooner), so any distance it reports is
+           drift however plausible its implied speed.
+        Plus the returned-nearby check for slow drift that circles back
+        on itself within 15 minutes.
+        """
+        points = self.history(since_timestamp=since_timestamp)
+        if len(points) < 2:
+            return {
+                "distance_metres": 0.0, "points": len(points), "rejected": 0,
+                "days": 0, "first_timestamp": None, "last_timestamp": None, "by_day": [],
+            }
+
+        RECENT_WINDOW_SECONDS = 15 * 60
+        MIN_LOOKBACK_SECONDS = 120
+        RETURN_THRESHOLD_METRES = 150
+        NOISE_FLOOR_METRES = 20
+        MAX_SPEED_MPS = 60
+        KEEPALIVE_S = HISTORY_MIN_INTERVAL_SECONDS
+
+        distance = 0.0
+        rejected = 0
+        recent: list[tuple[dict, float]] = []
+        by_day: dict[str, float] = {}
+
+        for i in range(1, len(points)):
+            prev, cur = points[i - 1], points[i]
+            segment = _haversine_metres(prev["latitude"], prev["longitude"], cur["latitude"], cur["longitude"])
+            if segment < NOISE_FLOOR_METRES:
+                continue
+            elapsed = cur["timestamp"] - prev["timestamp"]
+            if elapsed <= 0 or segment / elapsed > MAX_SPEED_MPS:
+                rejected += 1
+                continue
+            if elapsed >= KEEPALIVE_S * 0.9:
+                rejected += 1
+                continue
+            while recent and cur["timestamp"] - recent[0][1] > RECENT_WINDOW_SECONDS:
+                recent.pop(0)
+            returned_nearby = any(
+                cur["timestamp"] - ts >= MIN_LOOKBACK_SECONDS
+                and _haversine_metres(pt["latitude"], pt["longitude"], cur["latitude"], cur["longitude"]) < RETURN_THRESHOLD_METRES
+                for pt, ts in recent
+            )
+            recent.append((cur, cur["timestamp"]))
+            if returned_nearby:
+                rejected += 1
+                continue
+            distance += segment
+            day = datetime.datetime.fromtimestamp(cur["timestamp"]).strftime("%a %-d %b")
+            by_day[day] = by_day.get(day, 0.0) + segment
+
+        span_days = (points[-1]["timestamp"] - points[0]["timestamp"]) / 86400
+        return {
+            "distance_metres": distance,
+            "points": len(points),
+            "rejected": rejected,
+            "days": max(1, math.ceil(span_days or 0)),
+            "first_timestamp": points[0]["timestamp"],
+            "last_timestamp": points[-1]["timestamp"],
+            "by_day": sorted(
+                [{"day": d, "metres": m} for d, m in by_day.items()],
+                key=lambda x: x["metres"], reverse=True,
+            ),
+        }
 
     def delete_history_range(self, after: float | None = None, before: float | None = None) -> int:
         """Delete breadcrumb rows in [after, before] (either bound
