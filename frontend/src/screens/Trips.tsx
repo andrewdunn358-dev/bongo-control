@@ -640,7 +640,7 @@ export function Trips() {
   const qc = useQueryClient();
 
   const { data } = useQuery({ queryKey: ['location-history'], queryFn: api.locationHistory });
-  const points = useMemo<Point[]>(() => data?.points ?? [], [data]);
+  const allPoints = useMemo<Point[]>(() => data?.points ?? [], [data]);
 
   // Distance comes from the BACKEND now, not from summing the points
   // above. Those are strided down to 2000 before being sent, and the
@@ -655,6 +655,21 @@ export function Trips() {
     queryFn: () => api.tripStats({ allTime }),
   });
   const remote = statsQuery.data;
+
+  // The MAP has to respect the trip marker too. Reported: distance
+  // switched to "this trip" but the map still drew the whole trail, so
+  // the two disagreed on screen - the number said one trip, the picture
+  // said every trip since the GPS was fitted.
+  //
+  // Filtered here rather than re-fetching: the trail is already in
+  // memory and a marker change should redraw instantly, not wait on a
+  // round trip. Distance still comes from the backend - this only
+  // decides what gets drawn.
+  const points = useMemo<Point[]>(() => {
+    const from = allTime ? null : remote?.trip_started_at ?? null;
+    if (from == null) return allPoints;
+    return allPoints.filter((p) => p.timestamp >= from);
+  }, [allPoints, allTime, remote?.trip_started_at]);
 
   const placesQuery = useQuery({ queryKey: ['places'], queryFn: api.places });
   const places = useMemo<Place[]>(() => placesQuery.data?.places ?? [], [placesQuery.data]);
@@ -904,7 +919,7 @@ export function Trips() {
         </GlassCard>
         <GlassCard className="col-span-12 md:col-span-4 p-6">
           <CardHeader label="Breadcrumbs" hint="GPS points saved" right={<MapPin size={16} className="text-aurora-teal" />} />
-          <div className="num text-4xl font-semibold">{stats.points}</div>
+          <div className="num text-4xl font-semibold">{remote?.points ?? stats.points}</div>
         </GlassCard>
 
         <GlassCard className="col-span-12 p-0 overflow-hidden">
