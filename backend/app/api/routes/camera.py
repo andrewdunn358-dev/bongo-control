@@ -9,12 +9,16 @@ dependent experience.
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 
 from app.api.routes.auth import require_app_token
 from app.services.camera_service import CameraUnavailableError, camera_service
 from app.services.snapshot_store import SnapshotError, snapshot_store
+
+logger = logging.getLogger("vanos.camera")
 
 router = APIRouter(prefix="/api/camera", tags=["camera"], dependencies=[Depends(require_app_token)])
 
@@ -49,9 +53,29 @@ async def camera_snapshot() -> Response:
 
 @router.get("/stream")
 async def camera_stream() -> StreamingResponse:
+    """Live MJPEG.
+
+    Proxied from uStreamer when it is configured, which is the only
+    reason this is usable again: the old path spawned its own ffmpeg,
+    so streaming and snapshot polling fought over one device and the
+    stream had to be hidden entirely. Nothing here opens /dev/video0.
+
+    Without uStreamer it still falls back to the ffmpeg path, but that
+    reintroduces the contention, so the UI only offers the toggle when
+    uStreamer is actually serving.
+    """
+    if camera_service.ustreamer_enabled:
+        try:
+            iterator, content_type = await camera_service.stream_via_ustreamer()
+        except CameraUnavailableError as e:
+            logger.warning("Camera stream refused: %s", e)
+            raise HTTPException(status_code=503, detail=str(e))
+        return StreamingResponse(iterator, media_type=content_type)
+
     try:
         process = await camera_service.open()
     except CameraUnavailableError as e:
+        logger.warning("Camera stream refused: %s", e)
         raise HTTPException(status_code=503, detail=str(e))
     return StreamingResponse(camera_service.mjpeg_frames(process), media_type="multipart/x-mixed-replace; boundary=frame")
 

@@ -188,6 +188,12 @@ export const api = {
   // 3711, because striding merges bad points into longer segments that
   // then look plausible. Same journey, 403.94mi on the phone vs
   // 366.59mi on the full trail.
+  // Which capture path is live. The Live toggle is gated on this:
+  // without uStreamer, streaming spawns its own ffmpeg and fights
+  // snapshot polling for the device, which is exactly why the button
+  // was hidden in the first place.
+  cameraStatus: () => request<{ ustreamer: { configured: boolean; reachable: boolean; url: string | null; detail?: string | null } }>('/camera/status'),
+
   tripStats: (opts?: { allTime?: boolean }) => {
     const qs = new URLSearchParams();
     if (opts?.allTime) qs.set('all_time', 'true');

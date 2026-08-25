@@ -88,6 +88,20 @@ export function CameraView() {
   // default or being left out entirely.
   const [streamMode, setStreamMode] = useState(false);
   const [streamFailed, setStreamFailed] = useState(false);
+
+  // The Live toggle is back, but ONLY when uStreamer is actually
+  // serving. Without it, streaming spawns its own ffmpeg alongside
+  // snapshot polling and the two fight over a device that takes 4.1s
+  // to open - which is why this button was hidden. Gating on real
+  // reachability rather than a build flag means it disappears again by
+  // itself if uStreamer is stopped, instead of offering something
+  // that will fail.
+  const { data: camStatus } = useQuery({
+    queryKey: ['camera-status'],
+    queryFn: api.cameraStatus,
+    staleTime: 60_000,
+  });
+  const liveAvailable = camStatus?.ustreamer?.reachable === true;
   // Timestamp before which snapshot polling must not fire - set when a
   // stream is stopped, so ffmpeg has time to release the device.
   const [pollGateAt, setPollGateAt] = useState(0);
@@ -288,13 +302,15 @@ export function CameraView() {
                   hidden rather than the code removed because the real
                   fix is an external single-owner (uStreamer), at which
                   point this comes back pointed at that instead. */}
-              {false && (
+              {liveAvailable && (
               <button
                 type="button"
                 onClick={() => { setStreamMode((v) => !v); setStreamFailed(false); }}
-                className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm ring-1"
+                className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm ring-1 transition-colors ${
+                  streaming ? 'ring-aurora-teal/50 text-aurora-teal bg-aurora-teal/10' : 'ring-white/15 text-ink-muted'
+                }`}
               >
-                <Video size={14} /> Live stream
+                <Video size={14} /> {streaming ? 'Stop stream' : 'Live stream'}
               </button>
               )}
             </>

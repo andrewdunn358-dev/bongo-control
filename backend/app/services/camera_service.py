@@ -161,6 +161,57 @@ class CameraService:
         }
         return ["-vf", filters[self.rotation]]
 
+    async def stream_via_ustreamer(self):
+        """Proxy uStreamer's MJPEG stream.
+
+        Streaming used to spawn its own ffmpeg, which meant two things
+        wanted one device and every attempt to arbitrate that in
+        application code failed - a client settle delay, a shared
+        producer, a priority handover, a retry inside the device lock.
+        None could work, because the real cost was a 4.1s device open
+        that nothing reopening per frame can avoid.
+
+        With uStreamer owning the camera the whole problem class is
+        gone: this is an HTTP proxy, snapshots are a separate HTTP
+        request to the same process, and serving several consumers at
+        once is what uStreamer is built for. Nothing here touches
+        /dev/video0.
+
+        Streamed chunk by chunk rather than buffered - an MJPEG stream
+        never ends, so reading it into memory first would simply grow
+        until the Pi ran out.
+        """
+        if not USTREAMER_URL:
+            raise CameraUnavailableError("Live stream needs uStreamer - set CAMERA_USTREAMER_URL")
+        client = httpx.AsyncClient(timeout=None)
+        try:
+            request = client.build_request("GET", f"{USTREAMER_URL}/stream")
+            response = await client.send(request, stream=True)
+            if response.status_code != 200:
+                await response.aclose()
+                raise CameraUnavailableError(f"uStreamer returned {response.status_code}")
+        except CameraUnavailableError:
+            await client.aclose()
+            raise
+        except Exception as e:  # noqa: BLE001
+            await client.aclose()
+            raise CameraUnavailableError(f"Could not reach uStreamer: {e}") from e
+
+        async def iterator():
+            # The client is closed in finally, so a viewer navigating
+            # away or losing signal cannot leak a connection to
+            # uStreamer - the failure that would slowly starve it of
+            # workers.
+            try:
+                async for chunk in response.aiter_bytes():
+                    yield chunk
+            finally:
+                await response.aclose()
+                await client.aclose()
+
+        content_type = response.headers.get("content-type", "multipart/x-mixed-replace; boundary=boundarydonotcross")
+        return iterator(), content_type
+
     @property
     def ustreamer_enabled(self) -> bool:
         return bool(USTREAMER_URL)
