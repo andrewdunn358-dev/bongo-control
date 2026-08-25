@@ -19,6 +19,19 @@ from app.services.snapshot_store import SnapshotError, snapshot_store
 router = APIRouter(prefix="/api/camera", tags=["camera"], dependencies=[Depends(require_app_token)])
 
 
+@router.get("/status")
+async def camera_status() -> dict:
+    """Which capture path is actually in use.
+
+    Worth exposing because the difference is invisible otherwise: with
+    uStreamer running, snapshots are milliseconds and correctly exposed;
+    without it they are ~4.1s and show the camera's first frame before
+    auto-exposure has settled. The fallback is silent by design, so this
+    is how you tell whether it has kicked in.
+    """
+    return {"ustreamer": await camera_service.ustreamer_status()}
+
+
 @router.get("/snapshot")
 async def camera_snapshot() -> Response:
     try:

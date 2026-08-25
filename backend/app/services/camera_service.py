@@ -30,6 +30,8 @@ import asyncio
 import logging
 import os
 
+import httpx
+
 logger = logging.getLogger("vanos.camera_service")
 
 JPEG_SOI = b"\xff\xd8"  # Start Of Image marker
@@ -55,6 +57,32 @@ FRAME_STALL_TIMEOUT_SECONDS = 10.0
 # minutes / a Cloudflare 504 away, not the fast local "device busy"
 # this was meant to smooth over).
 LOCK_WAIT_TIMEOUT_SECONDS = 4.0
+
+# ---------------------------------------------------------------------
+# Optional external streamer (uStreamer).
+#
+# The problem this solves, measured on this Pi: a fresh open of
+# /dev/video0 costs ~4.1s - identical with ffmpeg and fswebcam, and
+# only ~0.5s of it CPU. The rest is USB open, format negotiation and
+# auto-exposure settling. Two consequences we chased for days:
+#
+#   - polling could never be faster than the device could answer, so
+#     requests queued and timed out
+#   - every frame is the camera's FIRST frame, taken before
+#     auto-exposure has settled, which is why snapshots come out dark
+#     while a bare capture that runs for a moment looks correct
+#
+# Neither is fixable while the device is reopened per frame, and no
+# capture tool avoids it. uStreamer holds the device open, so exposure
+# settles once and a snapshot becomes "hand me the current frame".
+#
+# Set CAMERA_USTREAMER_URL to enable. Left unset, everything below
+# behaves exactly as before - this is additive, and the ffmpeg path
+# stays as the fallback rather than being deleted, because it is what
+# works today and uStreamer is unproven on this hardware.
+# ---------------------------------------------------------------------
+USTREAMER_URL = (os.environ.get("CAMERA_USTREAMER_URL") or "").rstrip("/")
+USTREAMER_TIMEOUT_SECONDS = 5.0
 
 
 class CameraUnavailableError(RuntimeError):
@@ -133,6 +161,50 @@ class CameraService:
         }
         return ["-vf", filters[self.rotation]]
 
+    @property
+    def ustreamer_enabled(self) -> bool:
+        return bool(USTREAMER_URL)
+
+    async def ustreamer_status(self) -> dict:
+        """Is uStreamer actually answering? Used by /api/camera/status so
+        the source in use is visible rather than guessed at."""
+        if not USTREAMER_URL:
+            return {"configured": False, "reachable": False, "url": None}
+        try:
+            async with httpx.AsyncClient(timeout=USTREAMER_TIMEOUT_SECONDS) as client:
+                response = await client.get(f"{USTREAMER_URL}/snapshot")
+            ok = response.status_code == 200 and response.content.startswith(JPEG_SOI)
+            return {
+                "configured": True,
+                "reachable": ok,
+                "url": USTREAMER_URL,
+                "detail": None if ok else f"HTTP {response.status_code}",
+            }
+        except Exception as e:  # noqa: BLE001
+            return {"configured": True, "reachable": False, "url": USTREAMER_URL, "detail": str(e)}
+
+    async def _snapshot_via_ustreamer(self) -> bytes:
+        """Fetch the current frame from uStreamer over HTTP.
+
+        Deliberately strict about what counts as success: a non-200, an
+        empty body, or something that is not a JPEG all raise, so the
+        caller falls back to ffmpeg rather than handing a broken image
+        to the UI. Checking the JPEG magic bytes matters because a
+        misconfigured uStreamer will happily return an HTML error page
+        with a 200.
+        """
+        url = f"{USTREAMER_URL}/snapshot"
+        async with httpx.AsyncClient(timeout=USTREAMER_TIMEOUT_SECONDS) as client:
+            response = await client.get(url)
+        if response.status_code != 200:
+            raise CameraUnavailableError(f"uStreamer returned {response.status_code}")
+        data = response.content
+        if not data:
+            raise CameraUnavailableError("uStreamer returned an empty body")
+        if not data.startswith(JPEG_SOI):
+            raise CameraUnavailableError("uStreamer returned something that is not a JPEG")
+        return data
+
     async def capture_snapshot(self) -> bytes:
         """Captures exactly one JPEG frame and returns its raw bytes -
         the basis for an auto-refreshing snapshot approach (a plain
@@ -171,6 +243,18 @@ class CameraService:
         added) sees a real, quick 503 to report, not Cloudflare's
         opaque 504 after minutes of silence.
         """
+        # uStreamer path: it already holds the device and has a current,
+        # correctly-exposed frame, so there is nothing to open, no lock
+        # to take and no queue to join. Falls through to ffmpeg on any
+        # failure rather than erroring - if uStreamer is stopped or
+        # wedged, the camera should degrade to the slow-but-proven path,
+        # not go dark.
+        if USTREAMER_URL:
+            try:
+                return await self._snapshot_via_ustreamer()
+            except Exception as e:  # noqa: BLE001
+                logger.warning("uStreamer snapshot failed, falling back to ffmpeg: %s", e)
+
         try:
             await asyncio.wait_for(self._device_lock.acquire(), timeout=LOCK_WAIT_TIMEOUT_SECONDS)
         except asyncio.TimeoutError as e:

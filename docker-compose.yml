@@ -92,6 +92,10 @@ services:
       WEBCAM_DEVICE: ${WEBCAM_DEVICE:-/dev/video0}
       CAMERA_ROTATION: ${CAMERA_ROTATION:-0}
       CAMERA_STREAM_FPS: ${CAMERA_STREAM_FPS:-5}
+      # Optional external streamer. Unset = the existing ffmpeg path.
+      # Set to http://127.0.0.1:8080 once uStreamer is running on the
+      # host (host networking means the container reaches it directly).
+      CAMERA_USTREAMER_URL: ${CAMERA_USTREAMER_URL:-}
       GPS_DEVICE: ${GPS_DEVICE:-/dev/ttyUSB0}
       APP_ACCESS_PASSWORD: ${APP_ACCESS_PASSWORD:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
