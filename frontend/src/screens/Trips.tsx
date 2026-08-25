@@ -906,7 +906,7 @@ export function Trips() {
 
       <div className="grid grid-cols-12 gap-4 lg:gap-6">
         <GlassCard className="col-span-6 md:col-span-6 p-6">
-          <CardHeader label="Distance travelled" hint="along the trail" right={<Route size={16} className="text-aurora-teal" />} />
+          <CardHeader label="Distance travelled" hint={remote?.trip_started_at && !allTime ? "this trip" : "along the trail"} right={<Route size={16} className="text-aurora-teal" />} />
           {/* Was wrapping mid-number on a phone - "366.59" on one line and
               a clipped "mi" on the next - because a 4xl number in a
               6-of-12 column has nowhere to go. Scales with the
@@ -914,7 +914,7 @@ export function Trips() {
           <div className="num text-2xl sm:text-3xl lg:text-4xl font-semibold whitespace-nowrap">{empty ? DASH : fmtDistance(remote?.distance_metres ?? stats.distance)}</div>
           </GlassCard>
         <GlassCard className="col-span-6 md:col-span-6 p-6">
-          <CardHeader label="Days logged" hint="first fix to now" right={<CalendarDays size={16} className="text-aurora-teal" />} />
+          <CardHeader label="Days logged" hint={remote?.trip_started_at && !allTime ? "since trip start" : "first fix to now"} right={<CalendarDays size={16} className="text-aurora-teal" />} />
           <div className="num text-4xl font-semibold">{empty ? DASH : (remote?.days ?? stats.days)}</div>
         </GlassCard>
         {/* Breadcrumb count removed. It looks like a measure of the

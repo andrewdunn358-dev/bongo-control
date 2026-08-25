@@ -199,39 +199,49 @@ class LocationService:
                 "days": 0, "first_timestamp": None, "last_timestamp": None, "by_day": [],
             }
 
-        RECENT_WINDOW_SECONDS = 15 * 60
-        MIN_LOOKBACK_SECONDS = 120
-        RETURN_THRESHOLD_METRES = 150
-        NOISE_FLOOR_METRES = 20
+        # ---------------------------------------------------------------
+        # ONE RULE: reject impossible speeds. Nothing else.
+        #
+        # This replaces four rules (a 20m noise floor, a keepalive-
+        # interval test, a returned-nearby lookback, and the speed
+        # ceiling) that were written when points were >=50m apart by
+        # construction. They are not any more - the van now logs every
+        # ~2 seconds while moving, so those rules fire constantly on
+        # real driving.
+        #
+        # Measured against Google Timeline, which is the ground truth
+        # this investigation lacked for days:
+        #
+        #   actual (Timeline)      92.0 mi
+        #   raw sum, no filters    96.6 mi   (+5%, corner-cutting)
+        #   old four-rule filter   76.2 mi   (-17%, eating real miles)
+        #
+        # The raw trail was already close to correct. Every rule beyond
+        # the teleport check was removing driving, not noise. The one
+        # genuinely bad data this receiver produces is a single wild fix
+        # - confirmed in this van's own history as 2.2km in 13s and back
+        # within 2m one second later - and a speed ceiling catches
+        # exactly that while touching nothing else.
+        #
+        # 60 m/s (~134mph) is deliberately generous: it is well above
+        # anything this van will do, so it can only ever catch the
+        # physically impossible. Being conservative here matters more
+        # than trimming the last 5% - undercounting is what people
+        # notice and complain about, and a slight overcount from
+        # corner-cutting is honest GPS behaviour rather than invented
+        # distance.
+        # ---------------------------------------------------------------
         MAX_SPEED_MPS = 60
-        KEEPALIVE_S = HISTORY_MIN_INTERVAL_SECONDS
 
         distance = 0.0
         rejected = 0
-        recent: list[tuple[dict, float]] = []
         by_day: dict[str, float] = {}
 
         for i in range(1, len(points)):
             prev, cur = points[i - 1], points[i]
             segment = _haversine_metres(prev["latitude"], prev["longitude"], cur["latitude"], cur["longitude"])
-            if segment < NOISE_FLOOR_METRES:
-                continue
             elapsed = cur["timestamp"] - prev["timestamp"]
             if elapsed <= 0 or segment / elapsed > MAX_SPEED_MPS:
-                rejected += 1
-                continue
-            if elapsed >= KEEPALIVE_S * 0.9:
-                rejected += 1
-                continue
-            while recent and cur["timestamp"] - recent[0][1] > RECENT_WINDOW_SECONDS:
-                recent.pop(0)
-            returned_nearby = any(
-                cur["timestamp"] - ts >= MIN_LOOKBACK_SECONDS
-                and _haversine_metres(pt["latitude"], pt["longitude"], cur["latitude"], cur["longitude"]) < RETURN_THRESHOLD_METRES
-                for pt, ts in recent
-            )
-            recent.append((cur, cur["timestamp"]))
-            if returned_nearby:
                 rejected += 1
                 continue
             distance += segment
