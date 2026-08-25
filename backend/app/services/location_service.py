@@ -139,7 +139,7 @@ class LocationService:
         sampled[-1] = points[-1]
         return sampled
 
-    _stats_cache: tuple | None = None
+    _accum: dict = {}
 
     def trip_stats(self, since_timestamp: float = 0.0) -> dict[str, Any]:
         """Distance travelled, computed on the FULL-RESOLUTION trail.
@@ -180,89 +180,107 @@ class LocationService:
         Plus the returned-nearby check for slow drift that circles back
         on itself within 15 minutes.
         """
-        # Cached on (window, newest point). Reported: the Trips page
-        # "takes an age to load" - this walks every point in the table
-        # (15,080 and growing) with a lookback scan on each one, and it
-        # ran in full on every page load and every poll. The trail only
-        # changes when a new point is logged, so the result is stable
-        # between those - keying on the newest timestamp means a new
-        # point invalidates it automatically and nothing goes stale.
+        # INCREMENTAL. The previous version cached the whole result on
+        # the newest point timestamp, which sounds right but barely
+        # helped: the van logs a GPS point every ~2 seconds while
+        # moving, so the key changed constantly and every page load
+        # rewalked all 15,000 points. Reported as the Trips page taking
+        # 14 seconds.
+        #
+        # Distance is additive, so there is no need to rewalk anything.
+        # Keep the running totals plus the last point processed, and on
+        # each call only look at points newer than that - typically one
+        # or two. Whole-table walks now happen once per process rather
+        # than once per request.
+        #
+        # The accumulator is per window, keyed by since_timestamp, so
+        # switching between "this trip" and "all time" keeps both.
+        state = self._accum.get(since_timestamp)
         newest = self._newest_timestamp()
-        cache_key = (since_timestamp, newest)
-        if self._stats_cache and self._stats_cache[0] == cache_key:
-            return self._stats_cache[1]
+        if state and state["last_timestamp"] >= newest and state["result"] is not None:
+            return state["result"]
 
-        points = self.history(since_timestamp=since_timestamp)
-        if len(points) < 2:
+        if state is None:
+            fresh = self.history(since_timestamp=since_timestamp)
+            prev_point = None
+        else:
+            # Fetch only what is new, and carry the previous point over
+            # so the segment spanning the boundary is not silently lost.
+            fresh = self.history(since_timestamp=state["last_timestamp"])
+            fresh = [p for p in fresh if p["timestamp"] > state["last_timestamp"]]
+            prev_point = state["prev_point"]
+            # Rows deleted (the cleanup control) or the clock moved
+            # backwards - the accumulator can no longer be trusted, so
+            # start again rather than report a total built on points
+            # that are no longer there.
+            if self._count_points(since_timestamp) < state["counted"]:
+                state = None
+                fresh = self.history(since_timestamp=since_timestamp)
+                prev_point = None
+
+        if state is None:
+            state = {
+                "distance": 0.0, "rejected": 0, "by_day": {}, "counted": 0,
+                "first_timestamp": fresh[0]["timestamp"] if fresh else None,
+                "prev_point": None, "last_timestamp": since_timestamp, "result": None,
+            }
+
+        if not fresh and state["counted"] < 2:
             return {
-                "distance_metres": 0.0, "points": len(points), "rejected": 0,
+                "distance_metres": 0.0, "points": state["counted"], "rejected": 0,
                 "days": 0, "first_timestamp": None, "last_timestamp": None, "by_day": [],
             }
 
-        # ---------------------------------------------------------------
-        # ONE RULE: reject impossible speeds. Nothing else.
-        #
-        # This replaces four rules (a 20m noise floor, a keepalive-
-        # interval test, a returned-nearby lookback, and the speed
-        # ceiling) that were written when points were >=50m apart by
-        # construction. They are not any more - the van now logs every
-        # ~2 seconds while moving, so those rules fire constantly on
-        # real driving.
-        #
-        # Measured against Google Timeline, which is the ground truth
-        # this investigation lacked for days:
-        #
-        #   actual (Timeline)      92.0 mi
-        #   raw sum, no filters    96.6 mi   (+5%, corner-cutting)
-        #   old four-rule filter   76.2 mi   (-17%, eating real miles)
-        #
-        # The raw trail was already close to correct. Every rule beyond
-        # the teleport check was removing driving, not noise. The one
-        # genuinely bad data this receiver produces is a single wild fix
-        # - confirmed in this van's own history as 2.2km in 13s and back
-        # within 2m one second later - and a speed ceiling catches
-        # exactly that while touching nothing else.
-        #
-        # 60 m/s (~134mph) is deliberately generous: it is well above
-        # anything this van will do, so it can only ever catch the
-        # physically impossible. Being conservative here matters more
-        # than trimming the last 5% - undercounting is what people
-        # notice and complain about, and a slight overcount from
-        # corner-cutting is honest GPS behaviour rather than invented
-        # distance.
-        # ---------------------------------------------------------------
         MAX_SPEED_MPS = 60
 
-        distance = 0.0
-        rejected = 0
-        by_day: dict[str, float] = {}
-
-        for i in range(1, len(points)):
-            prev, cur = points[i - 1], points[i]
+        walk = ([prev_point] + fresh) if prev_point else fresh
+        for i in range(1, len(walk)):
+            prev, cur = walk[i - 1], walk[i]
             segment = _haversine_metres(prev["latitude"], prev["longitude"], cur["latitude"], cur["longitude"])
             elapsed = cur["timestamp"] - prev["timestamp"]
             if elapsed <= 0 or segment / elapsed > MAX_SPEED_MPS:
-                rejected += 1
+                state["rejected"] += 1
                 continue
-            distance += segment
+            state["distance"] += segment
             day = datetime.datetime.fromtimestamp(cur["timestamp"]).strftime("%a %-d %b")
-            by_day[day] = by_day.get(day, 0.0) + segment
+            state["by_day"][day] = state["by_day"].get(day, 0.0) + segment
 
-        span_days = (points[-1]["timestamp"] - points[0]["timestamp"]) / 86400
+        if fresh:
+            state["prev_point"] = fresh[-1]
+            state["last_timestamp"] = fresh[-1]["timestamp"]
+            if state["first_timestamp"] is None:
+                state["first_timestamp"] = fresh[0]["timestamp"]
+        state["counted"] = self._count_points(since_timestamp)
+
+        span_days = ((state["last_timestamp"] or 0) - (state["first_timestamp"] or 0)) / 86400
         result = {
-            "distance_metres": distance,
-            "points": len(points),
-            "rejected": rejected,
+            "distance_metres": state["distance"],
+            "points": state["counted"],
+            "rejected": state["rejected"],
             "days": max(1, math.ceil(span_days or 0)),
-            "first_timestamp": points[0]["timestamp"],
-            "last_timestamp": points[-1]["timestamp"],
+            "first_timestamp": state["first_timestamp"],
+            "last_timestamp": state["last_timestamp"],
             "by_day": sorted(
-                [{"day": d, "metres": m} for d, m in by_day.items()],
+                [{"day": d, "metres": m} for d, m in state["by_day"].items()],
                 key=lambda x: x["metres"], reverse=True,
             ),
         }
-        self._stats_cache = (cache_key, result)
+        state["result"] = result
+        self._accum[since_timestamp] = state
         return result
+
+    def _count_points(self, since_timestamp: float = 0.0) -> int:
+        from app.db.database import SessionLocal
+        from app.db.models import LocationHistory
+
+        db = SessionLocal()
+        try:
+            q = db.query(LocationHistory.id)
+            if since_timestamp:
+                q = q.filter(LocationHistory.timestamp >= since_timestamp)
+            return q.count()
+        finally:
+            db.close()
 
     def _newest_timestamp(self) -> float:
         """Cheap cache key - one indexed row, not the whole table."""
