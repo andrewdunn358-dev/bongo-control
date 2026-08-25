@@ -139,6 +139,8 @@ class LocationService:
         sampled[-1] = points[-1]
         return sampled
 
+    _stats_cache: tuple | None = None
+
     def trip_stats(self, since_timestamp: float = 0.0) -> dict[str, Any]:
         """Distance travelled, computed on the FULL-RESOLUTION trail.
 
@@ -178,6 +180,18 @@ class LocationService:
         Plus the returned-nearby check for slow drift that circles back
         on itself within 15 minutes.
         """
+        # Cached on (window, newest point). Reported: the Trips page
+        # "takes an age to load" - this walks every point in the table
+        # (15,080 and growing) with a lookback scan on each one, and it
+        # ran in full on every page load and every poll. The trail only
+        # changes when a new point is logged, so the result is stable
+        # between those - keying on the newest timestamp means a new
+        # point invalidates it automatically and nothing goes stale.
+        newest = self._newest_timestamp()
+        cache_key = (since_timestamp, newest)
+        if self._stats_cache and self._stats_cache[0] == cache_key:
+            return self._stats_cache[1]
+
         points = self.history(since_timestamp=since_timestamp)
         if len(points) < 2:
             return {
@@ -225,7 +239,7 @@ class LocationService:
             by_day[day] = by_day.get(day, 0.0) + segment
 
         span_days = (points[-1]["timestamp"] - points[0]["timestamp"]) / 86400
-        return {
+        result = {
             "distance_metres": distance,
             "points": len(points),
             "rejected": rejected,
@@ -237,6 +251,20 @@ class LocationService:
                 key=lambda x: x["metres"], reverse=True,
             ),
         }
+        self._stats_cache = (cache_key, result)
+        return result
+
+    def _newest_timestamp(self) -> float:
+        """Cheap cache key - one indexed row, not the whole table."""
+        from app.db.database import SessionLocal
+        from app.db.models import LocationHistory
+
+        db = SessionLocal()
+        try:
+            row = db.query(LocationHistory.timestamp).order_by(LocationHistory.timestamp.desc()).first()
+            return float(row[0]) if row else 0.0
+        finally:
+            db.close()
 
     def delete_history_range(self, after: float | None = None, before: float | None = None) -> int:
         """Delete breadcrumb rows in [after, before] (either bound

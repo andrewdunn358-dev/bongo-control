@@ -905,7 +905,7 @@ export function Trips() {
       </div>
 
       <div className="grid grid-cols-12 gap-4 lg:gap-6">
-        <GlassCard className="col-span-6 md:col-span-4 p-6">
+        <GlassCard className="col-span-6 md:col-span-6 p-6">
           <CardHeader label="Distance travelled" hint="along the trail" right={<Route size={16} className="text-aurora-teal" />} />
           {/* Was wrapping mid-number on a phone - "366.59" on one line and
               a clipped "mi" on the next - because a 4xl number in a
@@ -913,14 +913,15 @@ export function Trips() {
               breakpoint and refuses to wrap. */}
           <div className="num text-2xl sm:text-3xl lg:text-4xl font-semibold whitespace-nowrap">{empty ? DASH : fmtDistance(remote?.distance_metres ?? stats.distance)}</div>
           </GlassCard>
-        <GlassCard className="col-span-6 md:col-span-4 p-6">
+        <GlassCard className="col-span-6 md:col-span-6 p-6">
           <CardHeader label="Days logged" hint="first fix to now" right={<CalendarDays size={16} className="text-aurora-teal" />} />
           <div className="num text-4xl font-semibold">{empty ? DASH : (remote?.days ?? stats.days)}</div>
         </GlassCard>
-        <GlassCard className="col-span-12 md:col-span-4 p-6">
-          <CardHeader label="Breadcrumbs" hint="GPS points saved" right={<MapPin size={16} className="text-aurora-teal" />} />
-          <div className="num text-4xl font-semibold">{remote?.points ?? stats.points}</div>
-        </GlassCard>
+        {/* Breadcrumb count removed. It looks like a measure of the
+            trip but is really an artefact of how often the GPS happens
+            to log - 15,080 points says nothing about where you went,
+            and sitting beside the mileage it invited exactly the wrong
+            comparison. */}
 
         <GlassCard className="col-span-12 p-0 overflow-hidden">
           {useGoogle ? (
