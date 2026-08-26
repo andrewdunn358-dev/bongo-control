@@ -656,6 +656,25 @@ export function Trips() {
   });
   const remote = statsQuery.data;
 
+  // Mount the map only when it reaches the viewport. rootMargin starts
+  // it slightly early so it is usually ready by the time it is fully
+  // on screen, and the observer disconnects on first hit - once loaded
+  // it must not unmount when scrolled away, or panning back would
+  // re-download every tile.
+  const mapRef = useRef<HTMLDivElement | null>(null);
+  const [mapVisible, setMapVisible] = useState(false);
+  useEffect(() => {
+    const el = mapRef.current;
+    if (!el || mapVisible) return;
+    if (typeof IntersectionObserver === 'undefined') { setMapVisible(true); return; }
+    const io = new IntersectionObserver(
+      (entries) => { if (entries.some((e) => e.isIntersecting)) { setMapVisible(true); io.disconnect(); } },
+      { rootMargin: '200px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [mapVisible]);
+
   // The MAP has to respect the trip marker too. Reported: distance
   // switched to "this trip" but the map still drew the whole trail, so
   // the two disagreed on screen - the number said one trip, the picture
@@ -923,8 +942,27 @@ export function Trips() {
             and sitting beside the mileage it invited exactly the wrong
             comparison. */}
 
-        <GlassCard className="col-span-12 p-0 overflow-hidden">
-          {useGoogle ? (
+        {/* The map mounts only once it is scrolled into view.
+            Measured: the Trips page made 141 requests and pulled 6.6 MB
+            on load, almost all of it Google vector tiles for a route
+            spanning Newcastle to Ayr - 13 seconds, and none of it our
+            API, which now answers in well under a second.
+
+            The map sits below the fold and the numbers are what you
+            look at first, so there is no reason to pay for tiles before
+            it is on screen. Deferring makes the page usable
+            immediately, and on 4G it means scrolling past the map
+            costs nothing rather than several megabytes. */}
+        <div ref={mapRef} className="col-span-12">
+        <GlassCard className="p-0 overflow-hidden min-h-[200px]">
+          {!mapVisible ? (
+            <div className="h-[440px] grid place-items-center text-sm text-ink-muted">
+              <div className="flex items-center gap-2">
+                <MapPin size={16} className="text-aurora-teal" />
+                Scroll to load the map
+              </div>
+            </div>
+          ) : useGoogle ? (
             <GoogleTripsMap points={points} places={places} apiKey={mapsApiKey} />
           ) : (
             <MapLibreTripsMap points={points} places={places} />
@@ -939,6 +977,7 @@ export function Trips() {
             </div>
           )}
         </GlassCard>
+        </div>
 
         <GlassCard className="col-span-12 p-6" data-testid={TRIPS.places}>
           <CardHeader
