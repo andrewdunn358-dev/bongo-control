@@ -118,15 +118,31 @@ class LocationService:
 
         db = SessionLocal()
         try:
+            # COLUMNS, not entities. db.query(LocationHistory) builds a
+            # full ORM object per row - identity map, change tracking,
+            # instance state - and every one of those is then thrown
+            # away into a plain dict. Measured on the Pi with 18,931
+            # rows: 4,088 ms. Selecting the four columns returns plain
+            # tuples and skips all of it.
+            #
+            # This was the actual cause of the Trips page taking 13
+            # seconds, after several wrong guesses at the distance
+            # maths, the cache strategy and the auth path - none of
+            # which were ever the bottleneck.
             rows = (
-                db.query(LocationHistory)
+                db.query(
+                    LocationHistory.timestamp,
+                    LocationHistory.latitude,
+                    LocationHistory.longitude,
+                    LocationHistory.source,
+                )
                 .filter(LocationHistory.timestamp >= since_timestamp)
                 .order_by(LocationHistory.timestamp)
                 .all()
             )
             points = [
-                {"timestamp": r.timestamp, "latitude": r.latitude, "longitude": r.longitude, "source": r.source}
-                for r in rows
+                {"timestamp": ts, "latitude": la, "longitude": lo, "source": src}
+                for ts, la, lo, src in rows
             ]
         finally:
             db.close()
