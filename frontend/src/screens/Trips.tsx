@@ -702,6 +702,13 @@ export function Trips() {
   const cfg = useQuery({ queryKey: ['config-general'], queryFn: () => api.getConfig('general'), enabled: !isDemo });
   const mapsApiKey = String(cfg.data?.google_maps_api_key ?? '').trim();
   const useGoogle = !isDemo && mapsApiKey.length > 0;
+  // Wait for the config before mounting ANY map. On the first render
+  // cfg.data is undefined, so mapsApiKey is empty and useGoogle is
+  // false - which mounted MapLibre and started pulling OSM tiles, then
+  // tore it down and loaded Google the moment the config arrived. Two
+  // complete map libraries and two sets of tiles downloaded on every
+  // visit, for one map.
+  const mapConfigReady = isDemo || !cfg.isLoading;
 
   const stats = useMemo(() => {
     if (points.length < 1) return { distance: 0, days: 0, points: points.length, rejected: 0, byDay: [] as { day: string; metres: number }[] };
@@ -955,7 +962,7 @@ export function Trips() {
             costs nothing rather than several megabytes. */}
         <div ref={mapRef} className="col-span-12">
         <GlassCard className="p-0 overflow-hidden min-h-[200px]">
-          {!mapVisible ? (
+          {!mapVisible || !mapConfigReady ? (
             <div className="h-[440px] grid place-items-center text-sm text-ink-muted">
               <div className="flex items-center gap-2">
                 <MapPin size={16} className="text-aurora-teal" />
