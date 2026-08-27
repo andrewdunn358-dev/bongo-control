@@ -169,7 +169,6 @@ class AiChatService:
         return "\n".join(lines)
 
     @staticmethod
-    @staticmethod
     def _describe_wake_word() -> str:
         """Reported real gap: Ron told someone "no need to call me
         computer, you can call me Ron as well". Not true - the wake
@@ -195,6 +194,7 @@ class AiChatService:
             f"reply, the van listens again briefly, so a follow-up question needs no wake word at all."
         )
 
+    @staticmethod
     def _describe_capabilities() -> str:
         """Reported real gap: Ron confidently told someone he had 'no
         hands on the radio dial' and 'nobody's wired me up to your
