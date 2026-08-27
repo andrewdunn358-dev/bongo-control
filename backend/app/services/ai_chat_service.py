@@ -49,7 +49,15 @@ logger = logging.getLogger("vanos.ai_chat_service")
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
-MAX_TOKENS = 1024
+# Raised from 1024 after a real failure. With web search enabled, the
+# search results themselves are counted, and three of them can consume
+# the entire budget before the model writes a single word - the
+# response came back 200 OK containing only tool_use blocks and no text
+# at all, which surfaced to the user as "The AI didn't return a text
+# reply" after a 30-second wait. Spoken answers also need more room
+# than a chat bubble: they are read aloud, so a truncated reply is
+# worse than a slightly slower one.
+MAX_TOKENS = 3000
 REQUEST_TIMEOUT_SECONDS = 60.0
 MAX_SEARCHES_PER_CALL = 3
 # Bounds the conversation sent back to the API each turn - a long
@@ -132,6 +140,22 @@ class AiChatService:
         text_blocks = [block.get("text", "") for block in data.get("content", []) if block.get("type") == "text"]
         reply = text_blocks[-1] if text_blocks else ""
         if not reply.strip():
+            # Log WHAT came back rather than only that it was empty. The
+            # first time this happened the response was 200 OK with
+            # nothing but tool_use blocks - the model had spent the whole
+            # token budget on web searches - and the message alone gave
+            # no way to tell that from an outage or a bad key.
+            stop_reason = data.get("stop_reason")
+            kinds = [b.get("type") for b in data.get("content", [])]
+            usage = data.get("usage", {})
+            logger.warning(
+                "AI returned no text. stop_reason=%s block_types=%s input_tokens=%s output_tokens=%s",
+                stop_reason, kinds, usage.get("input_tokens"), usage.get("output_tokens"),
+            )
+            if stop_reason == "max_tokens":
+                raise AiChatUnavailableError(
+                    "The AI ran out of room before answering - the question needed more searching than it had budget for."
+                )
             raise AiChatUnavailableError("The AI didn't return a text reply")
         return reply.strip()
 
