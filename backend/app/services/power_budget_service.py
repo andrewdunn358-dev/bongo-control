@@ -92,6 +92,9 @@ class PowerBudgetService:
 
         soc_pct = battery_msg.payload.get("soc_pct")
         voltage = battery_msg.payload.get("voltage")
+        # Only a shunt reports current, so this is how we tell "no shunt"
+        # from "shunt fitted, not yet synchronised".
+        current_a = battery_msg.payload.get("current_a")
 
         if soc_pct is None:
             # No shunt - fall back to a voltage-based rough read, clearly
@@ -99,7 +102,15 @@ class PowerBudgetService:
             return {
                 "heater_all_night_possible": voltage is not None and voltage > 12.8,
                 "estimated_runtime_hours": None,
-                "note": "No battery shunt installed - estimate based on voltage only, not precise",
+                # Same distinction as the intelligence provider: a
+                # shunt that is fitted but not yet synchronised is not
+                # the same as no shunt, and saying so to someone who
+                # just installed one is a visible untruth.
+                "note": (
+                    "Shunt fitted but not yet synchronised - needs a full charge before it can report a percentage"
+                    if current_a is not None
+                    else "No battery shunt installed - estimate based on voltage only, not precise"
+                ),
             }
 
         bank_wh_remaining = (soc_pct / 100.0) * NOMINAL_BANK_WH

@@ -18,7 +18,16 @@ DEFAULT_TYPICAL_LOAD_WATTS = 50.0  # used only when no real load history exists 
 NOMINAL_BANK_WH = 100 * 12.8  # 100Ah @ 12.8V - same assumption the original math used
 HEATER_ALL_NIGHT_WH_THRESHOLD = 120 * 8
 VOLTAGE_HEATER_OK_THRESHOLD = 12.8
+# Two situations that read very differently to someone who has just
+# fitted a shunt. Presence of current_a is the test - only a shunt
+# reports it - and a SmartShunt gives no SoC until it has seen a full
+# charge, which can be days later.
 NO_SHUNT_CAVEAT = "No battery shunt installed - estimate based on voltage only, not precise"
+SHUNT_UNSYNCED_CAVEAT = "Shunt fitted but not yet synchronised - needs a full charge before it can report a percentage"
+
+
+def _caveat(payload: dict) -> str:
+    return SHUNT_UNSYNCED_CAVEAT if payload.get("current_a") is not None else NO_SHUNT_CAVEAT
 
 
 class PowerPredictionProvider:
@@ -48,11 +57,11 @@ class PowerPredictionProvider:
                 predictions.append(Prediction(key="heater_all_night_possible", label="Heater all night", value="Yes" if heater_ok else "No"))
             else:
                 predictions.append(
-                    Prediction(key="estimated_runtime_hours", label="Estimated runtime", value=None, unit="hours", confidence=NO_SHUNT_CAVEAT)
+                    Prediction(key="estimated_runtime_hours", label="Estimated runtime", value=None, unit="hours", confidence=_caveat(battery_msg.payload))
                 )
                 heater_ok = voltage is not None and voltage > VOLTAGE_HEATER_OK_THRESHOLD
                 predictions.append(
-                    Prediction(key="heater_all_night_possible", label="Heater all night", value="Yes" if heater_ok else "No", confidence=NO_SHUNT_CAVEAT)
+                    Prediction(key="heater_all_night_possible", label="Heater all night", value="Yes" if heater_ok else "No", confidence=_caveat(battery_msg.payload))
                 )
 
         weather_msg = self._telemetry.latest(TelemetryDomain.WEATHER)
