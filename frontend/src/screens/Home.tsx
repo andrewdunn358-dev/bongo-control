@@ -272,7 +272,11 @@ export function Home() {
               <span className="text-xs text-ink-muted uppercase tracking-widest">charging power</span>
               <span className="num text-lg ml-1">{fmtWatt(battery.payload?.charging_power_w ?? null)}</span>
             </div>
-            <div className="text-ink-faint text-xs">From the MPPT — total van draw isn't measurable without a shunt.</div>
+            <div className="text-ink-faint text-xs">
+              {battery.payload?.current_a != null
+                ? 'Solar in, from the MPPT. Net battery flow is measured by the shunt.'
+                : "From the MPPT — total van draw isn't measurable without a shunt."}
+            </div>
           </div>
         </GlassCard>
       </div>

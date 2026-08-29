@@ -28,11 +28,27 @@ export interface TelemetryMessage<T = unknown> {
 }
 
 export interface BatteryPayload {
-  /** ALWAYS null on this van — no shunt fitted. Never display a %. */
+  /**
+   * Null until a SmartShunt has SYNCHRONISED — which is not the same as
+   * "no shunt". A shunt reports current immediately but cannot know a
+   * percentage until it has observed one full charge with the battery
+   * capacity configured, possibly days after fitting. Was previously
+   * documented as "ALWAYS null on this van", which stopped being true
+   * the moment one was installed.
+   */
   soc_pct: number | null;
   voltage: number;
   charging: boolean;
   charging_power_w?: number | null;
+  /**
+   * Shunt-only fields. Their presence is how the UI tells a fitted
+   * shunt from no shunt: nothing else in this system measures current
+   * at the battery. Positive is INTO the battery, negative is out.
+   */
+  current_a?: number | null;
+  power_w?: number | null;
+  consumed_ah?: number | null;
+  time_remaining_mins?: number | null;
 }
 
 export interface SolarPayload {

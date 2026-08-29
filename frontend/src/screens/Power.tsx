@@ -48,7 +48,7 @@ export function Power() {
         <GlassCard level="hero" glow="teal" className="col-span-12 lg:col-span-6" data-testid={POWER.batteryVoltage}>
           <CardHeader
             label="Battery"
-            hint="MPPT / BMS"
+            hint={bp?.current_a != null ? 'SmartShunt' : 'MPPT / BMS'}
             right={
               <StatusPill tone={bp?.charging ? 'green' : 'slate'} data-testid={POWER.batteryCharging}>
                 {bp?.charging ? 'CHARGING' : 'IDLE'}
@@ -92,13 +92,33 @@ export function Power() {
               <span className="text-ink-muted">Charge power (MPPT → bank)</span><span className="num">{fmtWatt(bp?.charging_power_w ?? null)}</span>
             </li>
             <li className="flex justify-between">
-              <span className="text-ink-muted">State of charge</span><span className="num text-ink-faint">{DASH}%</span>
+              <span className="text-ink-muted">State of charge</span>
+              <span className="num">{bp?.soc_pct != null ? `${bp.soc_pct.toFixed(0)}%` : <span className="text-ink-faint">{DASH}%</span>}</span>
             </li>
+            {/* Only shown once a shunt is reporting - current is the
+                giveaway, since nothing else measures it. */}
+            {bp?.current_a != null && (
+              <>
+                <li className="flex justify-between border-t border-ink/5 pt-2">
+                  <span className="text-ink-muted">Current (shunt)</span><span className="num">{fmtAmp(bp.current_a)}</span>
+                </li>
+                <li className="flex justify-between">
+                  <span className="text-ink-muted">Consumed</span>
+                  <span className="num">{bp?.consumed_ah != null ? `${bp.consumed_ah.toFixed(1)} Ah` : DASH}</span>
+                </li>
+              </>
+            )}
           </ul>
           <div className="mt-4 text-xs text-ink-faint leading-relaxed">
-            No SoC percentage is shown — there's no shunt fitted, and reading a percentage off voltage alone would be
-            a guess, often a wrong one. A SmartShunt is planned; when it lands, this picks up an SoC automatically —
-            no rebuild required.
+            {bp?.current_a == null ? (
+              <>No SoC percentage is shown — there&apos;s no shunt fitted, and reading a percentage off voltage alone
+              would be a guess, often a wrong one.</>
+            ) : bp?.soc_pct == null ? (
+              <>The shunt is fitted and reporting current, but hasn&apos;t synchronised yet — it can&apos;t know the
+              percentage until it has seen one full charge with the battery capacity set in VictronConnect.</>
+            ) : (
+              <>State of charge is measured by the shunt, counting every amp in and out — not inferred from voltage.</>
+            )}
           </div>
         </GlassCard>
 
@@ -113,8 +133,10 @@ export function Power() {
             <li className="flex justify-between"><span className="text-ink-muted">LOAD power</span><span className="num">{fmtWatt(sp?.load_power_w ?? null)}</span></li>
           </ul>
           <div className="mt-4 text-xs text-ink-faint leading-relaxed">
-            LOAD is only the current drawn through the MPPT&apos;s dedicated LOAD terminal — van-wide load isn&apos;t
-            measurable without a shunt.
+            LOAD is only the current drawn through the MPPT&apos;s dedicated LOAD terminal.
+            {bp?.current_a != null
+              ? ' Van-wide draw is on the battery card above, measured by the shunt.'
+              : ' Van-wide load isn\u2019t measurable without a shunt.'}
           </div>
         </GlassCard>
 
