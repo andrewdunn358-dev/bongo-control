@@ -88,7 +88,7 @@ class HistoryService:
         self._retention_days = retention_days
         self._sample_task: asyncio.Task | None = None
         self._prune_task: asyncio.Task | None = None
-        self._last_sampled_at: dict[str, float] = {}
+        self._last_sampled_at: dict[tuple[str, str], float] = {}
 
     async def start(self) -> None:
         self._sample_task = asyncio.create_task(self._sample_loop())
@@ -112,11 +112,24 @@ class HistoryService:
                     continue
 
                 now = time.time()
+                # Keyed on (domain, source), not domain alone. With two
+                # plugins publishing BATTERY - the MPPT and the
+                # SmartShunt - a domain-only key meant whichever
+                # published first in each interval silently suppressed
+                # the other for the rest of it. The MPPT broadcasts more
+                # often, so the shunt's readings were dropped every
+                # time and its real state of charge never reached the
+                # database at all, while the MPPT's soc_pct of None was
+                # stored instead.
+                #
+                # Sampling still throttles per source, so this does not
+                # change the row rate for any single-source domain.
+                key = (message.domain, message.source)
                 interval = DOMAIN_SAMPLE_INTERVALS.get(message.domain, self._sample_interval)
-                if now - self._last_sampled_at.get(message.domain, 0) < interval:
+                if now - self._last_sampled_at.get(key, 0) < interval:
                     continue  # sampled recently enough, skip this one
 
-                self._last_sampled_at[message.domain] = now
+                self._last_sampled_at[key] = now
                 self._persist(message.domain, message.source, message.timestamp, message.payload)
         except asyncio.CancelledError:
             raise
