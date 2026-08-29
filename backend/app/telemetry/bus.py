@@ -25,9 +25,17 @@ import asyncio
 import logging
 from collections import defaultdict
 
-from app.telemetry.models import TelemetryDomain, TelemetryMessage
+from app.telemetry.models import TelemetryDomain, TelemetryMessage, TelemetrySource
 
 logger = logging.getLogger("vanos.telemetry")
+
+
+# Lowest priority first - later sources overwrite earlier ones for any
+# field they both report. Only domains with more than one publisher need
+# an entry.
+FIELD_PRECEDENCE: dict[str, list] = {
+    TelemetryDomain.BATTERY: [TelemetrySource.VICTRON_MPPT, TelemetrySource.VICTRON_SHUNT],
+}
 
 
 class TelemetryBus:
@@ -37,10 +45,50 @@ class TelemetryBus:
         self._history: dict[TelemetryDomain, list[TelemetryMessage]] = defaultdict(list)
         self._history_size = history_size
         self._lock = asyncio.Lock()
+        self._latest_by_source: dict[tuple, TelemetryMessage] = {}
 
     async def publish(self, message: TelemetryMessage) -> None:
         """Called by plugins to emit a new reading."""
         async with self._lock:
+            # MERGE rather than overwrite, so two plugins publishing
+            # the same domain don't erase each other, WITH PRECEDENCE so
+            # the more accurate source wins where they overlap.
+            #
+            # The SmartShunt and the MPPT both publish BATTERY. The
+            # shunt measures at the battery post and knows current,
+            # consumed_ah and state of charge; the MPPT measures at its
+            # own terminals - which reads higher while charging by the
+            # drop across the cable - and knows solar and charge power.
+            # Plain assignment meant whichever arrived last won, so the
+            # Home screen alternated between 12.84V and 12.49V for the
+            # same battery.
+            #
+            # Both are correct readings of different points; the shunt
+            # is the one that answers "what is the battery doing", so it
+            # wins for the fields both report. A field is also only ever
+            # overwritten by a NON-None value, so a source that cannot
+            # measure something never blanks one that can.
+            self._latest_by_source[(message.domain, message.source)] = message
+            order = FIELD_PRECEDENCE.get(message.domain)
+            merged: dict = {}
+            if order:
+                # Undeclared sources first, so a declared one always
+                # wins over them.
+                for (domain, source), held in self._latest_by_source.items():
+                    if domain == message.domain and source not in order:
+                        merged.update({k: v for k, v in held.payload.items() if v is not None})
+                # Then declared sources in precedence order, lowest
+                # first. The INCOMING message is deliberately not
+                # appended afterwards - doing so let whichever plugin
+                # published most recently override the precedence, which
+                # is exactly the alternating-voltage bug this replaces.
+                for source in order:
+                    held = self._latest_by_source.get((message.domain, source))
+                    if held is not None:
+                        merged.update({k: v for k, v in held.payload.items() if v is not None})
+            else:
+                merged = dict(message.payload)
+            message = message.model_copy(update={"payload": merged})
             self._latest[message.domain] = message
             domain_history = self._history[message.domain]
             domain_history.append(message)

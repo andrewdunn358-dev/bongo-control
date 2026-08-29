@@ -20,7 +20,14 @@ VOLTAGE_WARNING_THRESHOLD = 12.2
 SOC_CRITICAL_THRESHOLD = 20.0
 SOC_WARNING_THRESHOLD = 40.0
 
+# Two different situations, and saying the wrong one is a lie the user
+# can see: no shunt at all, versus a shunt fitted but not yet
+# synchronised. A SmartShunt reports no state of charge until it has
+# observed a full charge with the battery capacity configured, which
+# can be days after fitting - and telling someone who just installed
+# one that they haven't got one is worse than saying nothing.
 NO_SHUNT_CAVEAT = "no battery shunt installed, voltage-only estimate"
+SHUNT_UNSYNCED_CAVEAT = "shunt fitted but not yet synchronised - needs a full charge before it can report a percentage"
 
 
 class BatterySignalProvider:
@@ -34,6 +41,9 @@ class BatterySignalProvider:
 
         soc_pct = battery_msg.payload.get("soc_pct")
         voltage = battery_msg.payload.get("voltage")
+        # current_a only ever comes from a shunt, so its presence is how
+        # we know one exists even while soc_pct is still None.
+        caveat = SHUNT_UNSYNCED_CAVEAT if battery_msg.payload.get("current_a") is not None else NO_SHUNT_CAVEAT
 
         if soc_pct is None:
             # No shunt - same voltage-only fallback PowerBudgetService
@@ -44,20 +54,20 @@ class BatterySignalProvider:
                 return Signal(
                     source="battery",
                     severity=SignalSeverity.OK,
-                    message=f"Battery voltage {voltage:.2f}V looks healthy ({NO_SHUNT_CAVEAT})",
+                    message=f"Battery voltage {voltage:.2f}V looks healthy ({caveat})",
                     weight=2,
                 )
             if voltage > VOLTAGE_WARNING_THRESHOLD:
                 return Signal(
                     source="battery",
                     severity=SignalSeverity.WARNING,
-                    message=f"Battery voltage {voltage:.2f}V is getting low ({NO_SHUNT_CAVEAT})",
+                    message=f"Battery voltage {voltage:.2f}V is getting low ({caveat})",
                     weight=2,
                 )
             return Signal(
                 source="battery",
                 severity=SignalSeverity.CRITICAL,
-                message=f"Battery voltage {voltage:.2f}V is critically low ({NO_SHUNT_CAVEAT})",
+                message=f"Battery voltage {voltage:.2f}V is critically low ({caveat})",
                 weight=3,
             )
 
