@@ -59,6 +59,11 @@ class SharedBleScanner:
         async with self._lock:
             self._subscribers[name] = callback
             if self._scanner is not None:
+                # Logged even when the scan is already up, otherwise a
+                # plugin attaching to a running scan is completely
+                # silent and there is no way to tell "subscribed fine"
+                # from "never started" in the log.
+                logger.info("%s subscribed to the shared BLE scan (%d total)", name, len(self._subscribers))
                 return
             scanner = BleakScanner(detection_callback=self._dispatch)
             try:

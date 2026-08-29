@@ -273,8 +273,19 @@ class VictronMPPTPlugin(Plugin):
         assert self._decoder is not None  # start() already checked this
         try:
             parsed = self._decoder.parse(data)
-        except Exception as e:  # noqa: BLE001 - a malformed/foreign packet must not kill the scanner
-            self.record_error(f"Failed to decrypt advertisement: {e}")
+        except Exception as e:  # noqa: BLE001 - a foreign or malformed packet must not kill the scanner
+            # NOT an error, and deliberately not recorded as one. With
+            # more than one Victron device broadcasting, every packet
+            # reaches every plugin and each will fail to decrypt the
+            # others' payloads with its own key - "Incorrect
+            # advertisement key" on someone else's advertisement is the
+            # normal, expected case. Recording it marked a perfectly
+            # healthy plugin as ERROR several times a minute.
+            #
+            # A genuinely wrong key shows up as this plugin never
+            # receiving anything, which the staleness supervisor already
+            # reports.
+            logger.debug("Ignoring an advertisement this plugin can't decrypt: %s", e)
             return
 
         self._last_advertisement_at = time.time()
