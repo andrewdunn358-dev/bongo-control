@@ -50,6 +50,7 @@ class TelemetrySource(str, Enum):
     WEATHER = "weather"
     ONEWIRE_TEMP = "onewire_temp"
     RENOGY_MPPT = "renogy_mppt"
+    VICTRON_SHUNT = "victron_shunt"
 
 
 class TelemetryMessage(BaseModel):

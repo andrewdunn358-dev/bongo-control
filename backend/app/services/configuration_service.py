@@ -96,6 +96,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "plugins": {
         "simulation": {"enabled": True},
         "victron_mppt": {"enabled": False},
+        "victron_shunt": {"enabled": False},
         "weather": {"enabled": True},
     },
     "notifications": {"enabled": True},
