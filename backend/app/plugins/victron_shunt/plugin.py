@@ -41,12 +41,12 @@ import logging
 import time
 from typing import Any
 
-from bleak import BleakScanner
 from bleak.backends.device import BLEDevice
 from bleak.backends.scanner import AdvertisementData
 from victron_ble.devices.battery_monitor import BatteryMonitor, BatteryMonitorData
 
 from app.plugins.base import Plugin, PluginStatus
+from app.plugins.ble_scanner import shared_ble_scanner
 from app.telemetry.bus import TelemetryBus
 from app.telemetry.models import TelemetryDomain, TelemetryMessage, TelemetrySource
 
@@ -65,7 +65,6 @@ class VictronShuntPlugin(Plugin):
 
     def __init__(self, bus: TelemetryBus) -> None:
         super().__init__(bus)
-        self._scanner: BleakScanner | None = None
         self._supervisor_task: asyncio.Task | None = None
         self._decoder: BatteryMonitor | None = None
         self._mac_address: str | None = None
@@ -105,12 +104,7 @@ class VictronShuntPlugin(Plugin):
         self.status = PluginStatus.STOPPED
 
     async def _stop_scanner(self) -> None:
-        if self._scanner:
-            try:
-                await self._scanner.stop()
-            except Exception as e:  # noqa: BLE001 - best-effort cleanup
-                logger.debug("Error stopping BLE scanner (ignored): %s", e)
-            self._scanner = None
+        await shared_ble_scanner.unsubscribe(self.name)
 
     async def _run_supervisor(self) -> None:
         """Same shape as the MPPT plugin's supervisor: a broadcast
@@ -134,7 +128,7 @@ class VictronShuntPlugin(Plugin):
                     if silence > STALE_AFTER_SECONDS:
                         logger.warning("No SmartShunt advertisement in %.0fs, restarting BLE scan", silence)
                         self.record_error(f"No data for {round(silence)}s — restarting scan")
-                        await self._stop_scanner()
+                        await shared_ble_scanner.restart()
         except asyncio.CancelledError:
             raise
         except Exception as e:  # noqa: BLE001 - a plugin must never crash the app
@@ -142,15 +136,23 @@ class VictronShuntPlugin(Plugin):
             self.record_error(str(e))
 
     async def _ensure_scanning(self) -> None:
-        if self._scanner is not None:
+        """Subscribe to the SHARED scanner rather than starting our own.
+
+        BlueZ allows one discovery session per adapter, so two plugins
+        each owning a BleakScanner meant the second failed forever with
+        "[org.bluez.Error.InProgress] Operation already in progress".
+        Both Victron devices broadcast on the same protocol and the one
+        adapter hears both, so one scan fanned out is all that was ever
+        needed.
+        """
+        if shared_ble_scanner.running and self.status == PluginStatus.RUNNING:
             return
         try:
-            self._scanner = BleakScanner(detection_callback=self._on_advertisement)
-            await self._scanner.start()
+            await shared_ble_scanner.subscribe(self.name, self._on_advertisement)
+            await shared_ble_scanner.ensure_running()
             self.status = PluginStatus.RUNNING
             self._reconnect_attempts = 0
         except Exception as e:  # noqa: BLE001
-            self._scanner = None
             self._reconnect_attempts += 1
             self.status = PluginStatus.ERROR
             self.record_error(f"Failed to start BLE scan: {e}")
