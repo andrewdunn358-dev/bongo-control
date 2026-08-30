@@ -10,8 +10,9 @@ physical switch, and there's no sense line back to tell us. Every
 piece of state here is therefore named and reported as "commanded",
 never "actual", and the UI says so plainly. Claiming to know the true
 circuit state would be inventing information, the same thing this
-project avoids with battery SoC (no shunt), humidity (no sensor), and
-AI-generated content.
+project avoids elsewhere - battery SoC was left blank for months rather
+than inferred from voltage, humidity is absent because there is no
+sensor, and AI-generated content is labelled as such.
 
 Uses gpiozero with the lgpio backend - the current supported approach
 on Raspberry Pi OS Bookworm. RPi.GPIO is deliberately avoided: it

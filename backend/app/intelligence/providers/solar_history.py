@@ -21,11 +21,16 @@ solar history, all derived from real measurements (never fabricated):
      that exists (weather only started being persisted recently) and then
      switches on by itself - no redeploy, no fabricated confidence.
 
-Deliberately NOT an energy *balance* ("you're netting +X Wh/day"): total
-van draw isn't measurable without a battery shunt (the same reason the
-app shows voltage, not a guessed SoC %), so a net figure would be
-exactly the kind of number this project refuses to invent. Harvest is
-measured, so harvest is what's reported.
+Deliberately NOT an energy *balance* ("you're netting +X Wh/day").
+
+That was originally because total van draw wasn't measurable at all. A
+SmartShunt is now fitted and DOES measure it, so the original reason no
+longer applies - but this provider still reports harvest only, because
+a daily net figure needs draw integrated over the same period from
+stored shunt history, not a single instantaneous reading. That is a
+real feature worth building; it is not something to fake by multiplying
+the current draw by 24. Harvest is measured, so harvest is what's
+reported.
 """
 
 from __future__ import annotations

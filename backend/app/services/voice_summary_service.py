@@ -14,9 +14,10 @@ constraint from the rest of the app:
 
 Honesty rules carry over unchanged. If a reading is missing it is
 omitted from the sentence entirely rather than spoken as zero, and
-battery is reported as VOLTAGE because this van has no shunt - saying
-a percentage aloud would be inventing a number, and it'd be even more
-convincing spoken than it is on screen.
+battery is reported as a percentage when the shunt has measured one,
+and as VOLTAGE when it hasn't - never as a percentage guessed from
+voltage. A made-up number is even more convincing spoken aloud than it
+is on screen, so the rule matters more here, not less.
 """
 
 from __future__ import annotations

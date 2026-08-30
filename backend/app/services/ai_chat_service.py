@@ -187,8 +187,9 @@ class AiChatService:
         lines.append(self._describe_capabilities())
         lines.append(
             "If asked something this context doesn't cover and you're not confident, say so plainly rather "
-            "than guessing - the same honesty this whole app is built around (e.g. it never shows a fake "
-            "battery percentage without a shunt installed)."
+            "than guessing - the same honesty this whole app is built around (e.g. it shows no battery "
+            "percentage at all until a shunt has actually measured one, rather than inferring a plausible "
+            "number from voltage)."
         )
         return "\n".join(lines)
 
@@ -324,7 +325,18 @@ class AiChatService:
             if bp.get("soc_pct") is not None:
                 bits.append(f"{bp['soc_pct']}% state of charge")
             else:
-                bits.append("no state-of-charge percentage available (no battery shunt installed - voltage only)")
+                # Distinguish the two cases. current_a only ever comes
+                # from a shunt, so its presence means one is fitted and
+                # simply hasn't synchronised - saying "no shunt
+                # installed" to someone who just fitted one is a visible
+                # untruth, and Ron would repeat it confidently.
+                if bp.get("current_a") is not None:
+                    bits.append(
+                        "no state-of-charge percentage yet (shunt fitted but not synchronised - it needs "
+                        "a full charge first); voltage only for now"
+                    )
+                else:
+                    bits.append("no state-of-charge percentage available (no battery shunt installed - voltage only)")
         if solar and solar.payload and solar.payload.get("watts") is not None:
             bits.append(f"{solar.payload['watts']}W solar right now")
         if not bits:
