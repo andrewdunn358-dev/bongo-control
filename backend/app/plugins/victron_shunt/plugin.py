@@ -205,6 +205,12 @@ class VictronShuntPlugin(Plugin):
         current = data.get_current()
         soc = data.get_soc()
         consumed_ah = data.get_consumed_ah()
+        # The shunt's AUX input. Victron calls it "starter battery"
+        # because that is the usual use; here it is the external
+        # leisure battery, so it is published under an honest name.
+        # Voltage only - the aux input cannot measure current, so there
+        # is no state of charge for that battery and none is invented.
+        aux_voltage = data.get_starter_voltage()
         remaining_mins = data.get_remaining_mins()
 
         # Sign convention: victron-ble reports current POSITIVE into the
@@ -220,6 +226,7 @@ class VictronShuntPlugin(Plugin):
             "power_w": power_w,
             "soc_pct": round(soc, 1) if soc is not None else None,
             "consumed_ah": round(consumed_ah, 2) if consumed_ah is not None else None,
+            "external_voltage": round(aux_voltage, 2) if aux_voltage is not None else None,
             # Victron reports a very large number when it cannot estimate
             # (i.e. the battery is charging, so it will never run out).
             # Publishing that as a real figure would put something absurd

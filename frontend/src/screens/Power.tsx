@@ -108,6 +108,31 @@ export function Power() {
                 </li>
               </>
             )}
+            {/* The external battery, read from the shunt's aux input.
+                Voltage only - aux cannot measure current, so no state
+                of charge is shown for it and none is guessed.
+
+                The gap between the two is the useful part. Paralleled
+                batteries settle within a few hundredths of each other,
+                so a large difference means they are NOT actually
+                connected - a tripped breaker, a bad Anderson contact.
+                That exact failure went unnoticed for hours once, with
+                the external battery down at 11V while the main bank
+                read 13V. */}
+            {bp?.external_voltage != null && (
+              <>
+                <li className="flex justify-between border-t border-ink/5 pt-2">
+                  <span className="text-ink-muted">External battery</span>
+                  <span className="num">{fmtVolt(bp.external_voltage)}</span>
+                </li>
+                {bp.voltage != null && Math.abs(bp.voltage - bp.external_voltage) > 0.4 && (
+                  <li className="text-xs text-status-amber pt-1">
+                    The two batteries differ by {Math.abs(bp.voltage - bp.external_voltage).toFixed(2)}V — if they
+                    should be linked, check the Anderson connector and the breaker.
+                  </li>
+                )}
+              </>
+            )}
           </ul>
           <div className="mt-4 text-xs text-ink-faint leading-relaxed">
             {bp?.current_a == null ? (

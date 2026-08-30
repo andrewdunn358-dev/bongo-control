@@ -49,6 +49,13 @@ export interface BatteryPayload {
   power_w?: number | null;
   consumed_ah?: number | null;
   time_remaining_mins?: number | null;
+  /**
+   * The shunt's AUX input, wired to the external leisure battery.
+   * Voltage only - the aux input cannot measure current, so there is no
+   * state of charge for that battery. Victron labels this "starter
+   * battery" in its own app; that is not what it is here.
+   */
+  external_voltage?: number | null;
 }
 
 export interface SolarPayload {
