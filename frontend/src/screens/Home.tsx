@@ -76,12 +76,57 @@ export function Home() {
             <CardHeader label="Battery voltage" right={<BatteryIcon size={15} className="text-aurora-teal" />} />
             <div className="num text-3xl font-bold">{fmtVolt(battery.payload?.voltage)}</div>
             <div className="text-[11px] text-ink-faint mt-1">{battery.payload?.charging ? 'Charging' : 'Resting reading'}</div>
+            {/* State of charge, only when the shunt has actually
+                synchronised. Voltage stays the headline because it is
+                always available and always true; the bar is the thing
+                you read at a glance.
+
+                Thresholds match the shunt's own 50% discharge floor:
+                below that an AGM takes permanent damage, so red means
+                "you are hurting the batteries", not merely "getting
+                low". Amber starts at 70% to give warning before that.
+
+                Deliberately absent rather than estimated when there is
+                no percentage - drawing a bar off voltage alone would be
+                exactly the guess this app has always refused to make. */}
+            {battery.payload?.soc_pct != null && (
+              <div className="mt-3">
+                <div className="flex items-baseline justify-between mb-1">
+                  <span className="text-[10px] uppercase tracking-wider text-ink-muted">State of charge</span>
+                  <span className="num text-sm font-semibold">{Math.round(battery.payload.soc_pct)}%</span>
+                </div>
+                <div
+                  className="h-2 rounded-full bg-white/10 overflow-hidden"
+                  role="progressbar"
+                  aria-valuenow={Math.round(battery.payload.soc_pct)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label="Battery state of charge"
+                >
+                  <div
+                    className={`h-full rounded-full transition-[width] duration-700 ${
+                      battery.payload.soc_pct < 50
+                        ? 'bg-status-red'
+                        : battery.payload.soc_pct < 70
+                          ? 'bg-status-amber'
+                          : 'bg-status-green'
+                    }`}
+                    style={{ width: `${Math.max(2, Math.min(100, battery.payload.soc_pct))}%` }}
+                  />
+                </div>
+                {battery.payload.soc_pct < 50 && (
+                  <div className="text-[10px] text-status-red mt-1">Below the 50% floor — sustained time here shortens AGM life.</div>
+                )}
+              </div>
+            )}
             <div className="mt-3"><Sparkline data={voltSeries} width={260} height={44} stroke="#22d3ee" fill="rgba(34,211,238,0.25)" minRange={0.4} /></div>
             {/* useSparkBuffer holds only what has arrived over the
                 WebSocket since this page loaded, so the caption can only
                 honestly claim that window - not a fixed period. Seeding
                 the buffer from /api/history is a separate change. */}
-            <div className="text-[10px] text-ink-faint mt-2">Since page load · no shunt · voltage only</div>
+            <div className="text-[10px] text-ink-faint mt-2">
+              Since page load{battery.payload?.current_a == null ? ' · no shunt · voltage only' : ''}
+            </div>
           </GlassCard>
 
           <GlassCard data-testid={HOME.solarWatts}>
