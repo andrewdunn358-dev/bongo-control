@@ -1,4 +1,5 @@
 from app.services.battery_alarm_service import BatteryAlarmService
+from app.services.battery_bank_service import BatteryBankService
 from app.services.battery_service import BatteryService
 from app.services.configuration_service import configuration_service
 from app.services.history_service import HistoryService
@@ -12,10 +13,11 @@ from app.services.wifi_service import wifi_service
 
 battery_service = BatteryService(telemetry_service, notification_service)
 battery_alarm_service = BatteryAlarmService(telemetry_service, notification_service, configuration_service)
+battery_bank_service = BatteryBankService(telemetry_service, configuration_service)
 history_service = HistoryService(telemetry_service)
 location_service = LocationService(configuration_service)
 place_service = PlaceService(location_service)
-power_budget_service = PowerBudgetService(telemetry_service, history_service)
+power_budget_service = PowerBudgetService(telemetry_service, history_service, battery_bank_service)
 
 __all__ = [
     "configuration_service",
@@ -23,6 +25,7 @@ __all__ = [
     "notification_service",
     "battery_service",
     "battery_alarm_service",
+    "battery_bank_service",
     "history_service",
     "location_service",
     "place_service",

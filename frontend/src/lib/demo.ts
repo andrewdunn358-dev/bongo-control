@@ -713,6 +713,7 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
     // Section-aware: the alarms card reads different keys from the
     // general one, and a single blended object made the showcase show
     // an armed alarm with no thresholds behind it.
+    if (p === '/config/battery_bank') return R({ leisure_ah: 120, external_ah: 130 });
     if (p === '/config/alarms')
       return R({ battery_enabled: false, soc_floor_pct: 50, divergence_volts: 0.4, renotify_hours: 6, ntfy_topic_set: false });
     return R({ contact_email: 'demo@vanos.example', ai_model: '', anthropic_api_key_set: true });

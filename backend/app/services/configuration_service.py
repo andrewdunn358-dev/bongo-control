@@ -135,6 +135,17 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "ntfy_topic": "",
         "ntfy_server": "https://ntfy.sh",
     },
+    # Physical battery capacity. Two AGMs: the permanent leisure
+    # battery and a removable external one paralleled through an
+    # Anderson connector. See battery_bank_service.py for how "is the
+    # external one actually connected" is decided - it is voltage
+    # agreement with the main bank, not merely an aux reading being
+    # present, because a battery whose connector has backed out still
+    # reports a healthy voltage while contributing nothing.
+    "battery_bank": {
+        "leisure_ah": 120.0,
+        "external_ah": 130.0,
+    },
     "developer": {},
 }
 

@@ -269,3 +269,95 @@ noted here so it isn't re-litigated from scratch:
 - **Or rob it for the TV circuit.** Pin 11 has the board fault. Moving
   that load onto a known-good channel is quicker than wiring the spare
   5V relay module, and costs the spare.
+
+---
+
+## Follow-up: pooled bank capacity (`battery_bank_service.py`)
+
+Frankie's ask: when the external battery is connected, the runtime
+estimate should reflect the combined amp-hours.
+
+**What was actually wrong.** Every "how long will this last" figure
+divided by one hardcoded `NOMINAL_BANK_WH = 100 * 12.8`, duplicated
+across three files. Wrong twice: the leisure battery is 120Ah not 100Ah,
+and the 130Ah external one spends much of its life paralleled on. With
+both connected the van had more than twice the energy the estimate
+assumed. Now a single service, so the runtime estimate, days-to-floor
+and anything added later can't disagree.
+
+Capacities are in a new `battery_bank` config section (120 / 130,
+editable in Settings → Battery alarms).
+
+### Detecting "connected" — the bit that matters
+
+Not "is there an aux reading". The sense wire keeps reporting a healthy
+12.8V off a battery whose Anderson connector has backed out or whose
+breaker has tripped from vibration — both known faults on this van, and
+exactly what the divergence alarm exists to catch. A battery that is
+present but not connected contributes nothing, and counting it would
+promise runtime that doesn't exist.
+
+The test is **voltage agreement**: two genuinely paralleled batteries are
+the same electrical node and must read the same. The threshold is read
+from the *same* `alarms.divergence_volts` the alarm uses, so the app can
+never simultaneously warn that the batteries are disconnected and count
+the capacity of one of them.
+
+Agreement is strong under load or charge (a disconnected battery diverges
+within seconds once current flows) and weak at rest (two disconnected
+batteries can both sit at 12.7V). That ambiguity is reported via a
+`confident` flag rather than hidden. The estimate carries its assumption
+— "250Ah bank — external battery connected" — into the existing
+`confidence` field, which the Overview predictions card already renders.
+Without it the number appears to double for no reason.
+
+### Two things this does NOT fix, established while working it out
+
+**`soc_pct` is computed inside the shunt**, against the capacity set in
+VictronConnect, and arrives already calculated. If the shunt is set to
+one battery while two are connected, its percentage is wrong at source
+and no arithmetic in the app corrects it — only VictronConnect can.
+**Worth checking what the shunt is configured for.** What this service
+does is stop the app compounding it by converting that percentage to
+watt-hours with the wrong capacity.
+
+**The external battery's 130W panel is invisible to the shunt.** Its PWM
+controller is wired directly to the battery terminals, so the charge loop
+closes at the posts, upstream of the sense element. Because the Anderson
+parallels both batteries, that panel charges the *whole bank* unmeasured.
+`consumed_ah` therefore over-counts — energy goes in unseen and comes out
+seen — so SoC reads lower than reality. Partly self-limiting, since the
+shunt resets `consumed_ah` on a full-charge sync; the worst drift is
+spring and autumn, when there's enough sun to matter but not enough to
+reach a sync.
+
+Fixing it is one wire: move the PWM's negative from the battery post to
+the shunt's SYSTEM MINUS stud. The cost is that the panel then does
+nothing while the battery is detached from the van, which may be the
+whole point of it having its own panel. Left as-is deliberately.
+
+**And the two are mutually exclusive.** For the shunt to measure the
+combined bank as one battery, both negatives must be on BATTERY MINUS —
+which is precisely what puts the PWM on the unmeasured side. Wiring the
+external negative to SYSTEM MINUS would count some of that solar, but
+then the shunt treats the external battery as part of the *system*,
+`soc_pct` tracks the leisure battery alone, and pooled capacity breaks.
+Pooling is the more useful of the two. **Still unconfirmed which stud the
+external negative is actually on** — worth checking, because if it's on
+system minus, the pooling is wrong in a way nothing here detects.
+
+### Tests — `backend/test_battery_bank.py`
+
+20 assertions. The important one is case 3: a present-but-diverging
+battery is *not* counted. Also covers the shared threshold, at-rest
+uncertainty, config-driven capacities, and garbage values never producing
+a bigger bank.
+
+`test_energy_balance.py` gained a `FakeBank` and a case proving
+days-to-floor roughly doubles with 250Ah connected — same deficit, same
+data, only the capacity differs.
+
+> Note: adding the constructor argument broke `test_energy_balance.py`
+> immediately — the same stale-fake failure that had silently disabled
+> the roof suite for weeks. It was caught this time only because the
+> suites were run. **Run all four after touching any constructor.**

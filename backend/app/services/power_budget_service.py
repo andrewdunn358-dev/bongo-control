@@ -34,13 +34,15 @@ logger = logging.getLogger("vanos.power_budget_service")
 
 RECOMPUTE_MIN_INTERVAL_SECONDS = 30
 DEFAULT_TYPICAL_LOAD_WATTS = 50.0  # used only when no real load history exists to estimate from
-NOMINAL_BANK_WH = 100 * 12.8  # 100Ah @ 12.8V - same assumption the old simulation-only math used
 
 
 class PowerBudgetService:
-    def __init__(self, telemetry_service: TelemetryService, history_service: HistoryService) -> None:
+    def __init__(self, telemetry_service: TelemetryService, history_service: HistoryService, battery_bank_service) -> None:
         self._telemetry = telemetry_service
         self._history = history_service
+        # See battery_bank_service.py - the bank is 120Ah or 250Ah
+        # depending on whether the external battery is paralleled on.
+        self._bank = battery_bank_service
         self._task: asyncio.Task | None = None
         self._last_computed_at: float = 0.0
 
@@ -113,14 +115,20 @@ class PowerBudgetService:
                 ),
             }
 
-        bank_wh_remaining = (soc_pct / 100.0) * NOMINAL_BANK_WH
+        bank = self._bank.capacity(battery_msg.payload)
+        bank_wh_remaining = (soc_pct / 100.0) * bank["watt_hours"]
         typical_load_watts = self._estimate_typical_load_watts()
         estimated_runtime_hours = round(min(999, bank_wh_remaining / typical_load_watts), 1) if typical_load_watts > 0 else None
 
         return {
             "heater_all_night_possible": bank_wh_remaining > 120 * 8,
             "estimated_runtime_hours": estimated_runtime_hours,
-            "note": None,
+            # Which bank the estimate assumed. Carried in the existing
+            # `note` field rather than a new one, so it lands wherever
+            # the shunt caveats already render.
+            "note": f"{bank['amp_hours']:.0f}Ah bank — {bank['reason']}",
+            "bank_amp_hours": bank["amp_hours"],
+            "external_connected": bank["external_connected"],
         }
 
     def _estimate_typical_load_watts(self) -> float:
@@ -141,7 +149,7 @@ class PowerBudgetService:
             return DEFAULT_TYPICAL_LOAD_WATTS  # net charging over the window, can't infer a discharge rate
 
         soc_drop = soc0 - soc1
-        wh_used = (soc_drop / 100.0) * NOMINAL_BANK_WH
+        wh_used = (soc_drop / 100.0) * self._bank.watt_hours()
         watts = wh_used / elapsed_hours
         return watts if watts > 1 else DEFAULT_TYPICAL_LOAD_WATTS
 

@@ -65,6 +65,32 @@ class FakeHistory:
         return [r for r in self._rows if r["timestamp"] >= since_timestamp]
 
 
+class FakeBank:
+    """Stands in for BatteryBankService. Defaults to the leisure
+    battery alone so the days-to-floor assertions stay stable; pass
+    250Ah to exercise the external-battery case."""
+
+    def __init__(self, amp_hours=120.0, external_connected=False):
+        self._ah = amp_hours
+        self._external = external_connected
+
+    def capacity(self, payload=None):
+        return {
+            "amp_hours": self._ah,
+            "watt_hours": self._ah * 12.8,
+            "external_connected": self._external,
+            "confident": True,
+            "reason": "test",
+        }
+
+    def watt_hours(self, payload=None):
+        return self._ah * 12.8
+
+
+def provider(rows, bank=None):
+    return EnergyBalanceSignalProvider(FakeHistory(rows), bank or FakeBank())
+
+
 def main():
     print("=== 1. ARITHMETIC: a flat day integrates to the obvious number ===")
     # -10W held all day = -240 Wh. This van's measured 10W base load, so
@@ -127,7 +153,7 @@ def main():
     for d in (1, 2, 3):
         rows += rows_for_day(d, -20.0)          # -480 Wh/day
     rows += rows_for_day(4, -20.0, end_s=3600)  # 4% coverage, -20 Wh
-    signal = EnergyBalanceSignalProvider(FakeHistory(rows)).evaluate()
+    signal = provider(rows).evaluate()
     check("four days of rows, three counted", signal.detail["days"] == 3, f"got {signal.detail['days']}")
     check("the excluded day is reported, not dropped silently", signal.detail.get("days_excluded_low_coverage") == 1)
     check("average is the real -480, not diluted", close(signal.detail["avg_net_wh"], -480, 10), f"got {signal.detail['avg_net_wh']}")
@@ -136,28 +162,38 @@ def main():
     print("\n=== 8. A DEFICIT WARNS, AND PROJECTS TO THE FLOOR ===")
     check("severity is WARNING", signal.severity == SignalSeverity.WARNING)
     check("names the deficit", "480" in signal.message, signal.message)
-    # 640 Wh usable above the 50% floor / 480 Wh a day = 1.33 -> 1 day.
-    check("projects days to the 50% floor", signal.detail["days_to_floor"] == 1, str(signal.detail.get("days_to_floor")))
+    # 120Ah = 1536 Wh, 768 Wh usable above the 50% floor, / 480 Wh a
+    # day = 1.6 -> 2 days.
+    check("projects days to the 50% floor", signal.detail["days_to_floor"] == 2, str(signal.detail.get("days_to_floor")))
+    check("names the bank it assumed", "120Ah" in signal.message, signal.message)
+
+    print("\n=== 8b. THE EXTERNAL BATTERY EXTENDS THE PROJECTION ===")
+    # Same deficit, same data - only the connected capacity differs.
+    # 250Ah = 3200 Wh, 1600 Wh usable, / 480 = 3.3 -> 3 days.
+    combined = provider(rows, FakeBank(250.0, external_connected=True)).evaluate()
+    check("days to floor roughly doubles with 250Ah connected", combined.detail["days_to_floor"] == 3, str(combined.detail.get("days_to_floor")))
+    check("the message says which bank", "250Ah" in combined.message, combined.message)
+    check("and the detail records the external battery", combined.detail["external_connected"] is True)
 
     print("\n=== 9. A SURPLUS DOES NOT WARN ===")
     rows = []
     for d in (1, 2, 3):
         rows += rows_for_day(d, 20.0)
-    signal = EnergyBalanceSignalProvider(FakeHistory(rows)).evaluate()
+    signal = provider(rows).evaluate()
     check("severity is OK", signal.severity == SignalSeverity.OK)
     check("reports it as net positive", "positive" in signal.message.lower(), signal.message)
     check("no floor projection on a surplus", "days_to_floor" not in signal.detail)
 
     print("\n=== 10. NOT ENOUGH DATA SAYS SO RATHER THAN GUESSING ===")
-    signal = EnergyBalanceSignalProvider(FakeHistory(rows_for_day(1, -20.0))).evaluate()
+    signal = provider(rows_for_day(1, -20.0)).evaluate()
     check("one day is not a trend", signal.severity == SignalSeverity.OK)
     check("says it is still building up", "needs a few more" in signal.message, signal.message)
     check("no average published from one day", "avg_net_wh" not in signal.detail)
 
     print("\n=== 11. NO SHUNT HISTORY AT ALL IS SILENCE, NOT A ZERO ===")
-    check("returns no signal", EnergyBalanceSignalProvider(FakeHistory([])).evaluate() is None)
+    check("returns no signal", provider([]).evaluate() is None)
     mppt_only = rows_for_day(1, -10.0, source=TelemetrySource.VICTRON_MPPT.value)
-    check("MPPT rows alone produce no signal", EnergyBalanceSignalProvider(FakeHistory(mppt_only)).evaluate() is None)
+    check("MPPT rows alone produce no signal", provider(mppt_only).evaluate() is None)
 
     print("\n=== 12. TODAY IS REPORTED SEPARATELY FROM COMPLETE DAYS ===")
     now = time.time()
@@ -167,7 +203,7 @@ def main():
         for d in (1, 2, 3):
             rows += rows_for_day(d, -20.0)
         rows += rows_for_day(0, -10.0, end_s=int(elapsed))
-        signal = EnergyBalanceSignalProvider(FakeHistory(rows)).evaluate()
+        signal = provider(rows).evaluate()
         check("today's figure is present", "today_net_wh" in signal.detail)
         check("today is not counted as a complete day", signal.detail["days"] == 3)
         check(

@@ -69,9 +69,9 @@ MIN_COVERAGE = 0.8
 DEFICIT_WH = 120.0
 MIN_DAYS_FOR_TREND = 3
 # Only used to turn an average deficit into "days until the floor",
-# which is a projection and is labelled as one. Matches
-# power_budget_service.NOMINAL_BANK_WH.
-NOMINAL_BANK_WH = 100 * 12.8
+# which is a projection and is labelled as one. The capacity itself
+# comes from battery_bank_service - it is 120Ah or 250Ah depending on
+# whether the external battery is paralleled on.
 AGM_FLOOR_FRACTION = 0.5
 
 
@@ -141,8 +141,9 @@ def daily_battery_energy(rows: list[dict]) -> dict[str, dict[str, float]]:
 
 
 class EnergyBalanceSignalProvider:
-    def __init__(self, history_service) -> None:
+    def __init__(self, history_service, battery_bank_service) -> None:
         self._history = history_service
+        self._bank = battery_bank_service
 
     def evaluate(self) -> Signal | None:
         since = time.time() - LOOKBACK_DAYS * 86400
@@ -192,16 +193,23 @@ class EnergyBalanceSignalProvider:
         detail["worst_net_wh"] = round(min(nets))
 
         if avg_net < -DEFICIT_WH:
-            usable_wh = NOMINAL_BANK_WH * (1 - AGM_FLOOR_FRACTION)
+            # Capacity read live: with the external battery paralleled
+            # on, "days to the floor" roughly doubles. A projection
+            # against a fixed bank would be wrong by more than the
+            # thing it's projecting.
+            bank = self._bank.capacity()
+            usable_wh = bank["watt_hours"] * (1 - AGM_FLOOR_FRACTION)
             days_to_floor = max(1, round(usable_wh / abs(avg_net)))
             detail["days_to_floor"] = days_to_floor
+            detail["bank_amp_hours"] = bank["amp_hours"]
+            detail["external_connected"] = bank["external_connected"]
             return Signal(
                 source="energy_balance",
                 severity=SignalSeverity.WARNING,
                 message=(
                     f"Running an energy deficit of about {abs(avg_net):.0f} Wh a day over the last "
-                    f"{len(complete)} full days. From a full bank that's roughly {days_to_floor} days "
-                    f"to the 50% floor — worth a hookup or a longer drive."
+                    f"{len(complete)} full days. From a full {bank['amp_hours']:.0f}Ah bank that's roughly "
+                    f"{days_to_floor} days to the 50% floor — worth a hookup or a longer drive."
                 ),
                 weight=2,
                 detail=detail,

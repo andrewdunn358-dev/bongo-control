@@ -40,7 +40,7 @@ from app.services.roof_service import roof_service
 from app.services.voice_control_service import voice_control_service
 from app.services.internet_radio_service import internet_radio_service
 from app.services.arrival_notification_service import arrival_notification_service
-from app.services import battery_alarm_service, battery_service, configuration_service, history_service, location_service, notification_service, power_budget_service, telemetry_service
+from app.services import battery_alarm_service, battery_bank_service, battery_service, configuration_service, history_service, location_service, notification_service, power_budget_service, telemetry_service
 from app.services.relay_service import relay_service
 from app.telemetry.bus import bus
 
@@ -62,10 +62,10 @@ intelligence_engine = IntelligenceEngine(
         # Daily net Wh at the battery, measured by the shunt. The
         # counterpart to SolarHistory above, which reports harvest
         # only and says in its own docstring why it stops there.
-        EnergyBalanceSignalProvider(history_service),
+        EnergyBalanceSignalProvider(history_service, battery_bank_service),
     ],
     prediction_providers=[
-        PowerPredictionProvider(telemetry_service, history_service),
+        PowerPredictionProvider(telemetry_service, history_service, battery_bank_service),
     ],
 )
 intelligence_runner = IntelligenceRunner(telemetry_service, intelligence_engine)

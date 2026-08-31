@@ -15,7 +15,6 @@ from app.telemetry.models import TelemetryDomain
 from app.intelligence.signals import Prediction
 
 DEFAULT_TYPICAL_LOAD_WATTS = 50.0  # used only when no real load history exists to estimate from
-NOMINAL_BANK_WH = 100 * 12.8  # 100Ah @ 12.8V - same assumption the original math used
 HEATER_ALL_NIGHT_WH_THRESHOLD = 120 * 8
 VOLTAGE_HEATER_OK_THRESHOLD = 12.8
 # Two situations that read very differently to someone who has just
@@ -31,9 +30,14 @@ def _caveat(payload: dict) -> str:
 
 
 class PowerPredictionProvider:
-    def __init__(self, telemetry_service: TelemetryService, history_service: HistoryService) -> None:
+    def __init__(self, telemetry_service: TelemetryService, history_service: HistoryService, battery_bank_service) -> None:
         self._telemetry = telemetry_service
         self._history = history_service
+        # Bank capacity is no longer a constant: the external 130Ah
+        # battery is paralleled on and off through an Anderson
+        # connector, so "how much battery is there" is a live question.
+        # See battery_bank_service.py.
+        self._bank = battery_bank_service
 
     def predict(self) -> list[Prediction]:
         predictions: list[Prediction] = []
@@ -45,9 +49,17 @@ class PowerPredictionProvider:
 
             if soc_pct is not None:
                 typical_load_watts = self._estimate_typical_load_watts()
-                bank_wh_remaining = (soc_pct / 100.0) * NOMINAL_BANK_WH
+                bank = self._bank.capacity(battery_msg.payload)
+                bank_wh_remaining = (soc_pct / 100.0) * bank["watt_hours"]
                 runtime_hours = round(min(999, bank_wh_remaining / typical_load_watts), 1) if typical_load_watts > 0 else None
-                predictions.append(Prediction(key="estimated_runtime_hours", label="Estimated runtime", value=runtime_hours, unit="hours"))
+                # The estimate more than doubles when the external
+                # battery is paralleled on, so which bank it assumed is
+                # not a footnote - without it the number looks like it
+                # jumped for no reason.
+                bank_note = f"{bank['amp_hours']:.0f}Ah bank — {bank['reason']}"
+                predictions.append(
+                    Prediction(key="estimated_runtime_hours", label="Estimated runtime", value=runtime_hours, unit="hours", confidence=bank_note)
+                )
                 heater_ok = bank_wh_remaining > HEATER_ALL_NIGHT_WH_THRESHOLD
                 # Yes/No, not a raw int(bool) with a fake "bool" unit - the
                 # unit field is for real physical units (hours, MJ/m²); a
@@ -91,6 +103,9 @@ class PowerPredictionProvider:
             return DEFAULT_TYPICAL_LOAD_WATTS  # net charging over the window, can't infer a discharge rate
 
         soc_drop = soc0 - soc1
-        wh_used = (soc_drop / 100.0) * NOMINAL_BANK_WH
+        # Same capacity question in reverse: a percentage drop is a
+        # different number of watt-hours depending on how much battery
+        # was connected while it happened.
+        wh_used = (soc_drop / 100.0) * self._bank.watt_hours()
         watts = wh_used / elapsed_hours
         return watts if watts > 1 else DEFAULT_TYPICAL_LOAD_WATTS

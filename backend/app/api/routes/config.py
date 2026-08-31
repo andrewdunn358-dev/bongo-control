@@ -22,7 +22,7 @@ from app.services.roof_service import roof_service
 # the AI API key — all hardware-affecting or secret-bearing.
 router = APIRouter(prefix="/api/config", tags=["config"], dependencies=[Depends(require_app_token)])
 
-VALID_SECTIONS = {"general", "appearance", "hardware", "plugins", "notifications", "alarms", "developer", "location", "relays", "roof"}
+VALID_SECTIONS = {"general", "appearance", "hardware", "plugins", "notifications", "alarms", "battery_bank", "developer", "location", "relays", "roof"}
 
 # Secret keys are stored but NEVER returned in a GET (the app is reachable
 # over the internet through the tunnel). Instead a "<key>_set" boolean is

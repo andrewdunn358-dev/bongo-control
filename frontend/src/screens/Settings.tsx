@@ -815,12 +815,16 @@ function VoiceControlCard() {
 function BatteryAlarmsCard() {
   const qc = useQueryClient();
   const cfg = useQuery({ queryKey: ['config-alarms'], queryFn: () => api.getConfig('alarms') });
+  const bank = useQuery({ queryKey: ['config-battery-bank'], queryFn: () => api.getConfig('battery_bank') });
 
   const [enabled, setEnabled] = useState(false);
   const [floor, setFloor] = useState('50');
   const [divergence, setDivergence] = useState('0.4');
   const [ntfyTopic, setNtfyTopic] = useState('');
+  const [leisureAh, setLeisureAh] = useState('120');
+  const [externalAh, setExternalAh] = useState('130');
   const [seeded, setSeeded] = useState(false);
+  const [bankSeeded, setBankSeeded] = useState(false);
 
   useEffect(() => {
     if (cfg.data && !seeded) {
@@ -831,7 +835,33 @@ function BatteryAlarmsCard() {
     }
   }, [cfg.data, seeded]);
 
+  useEffect(() => {
+    if (bank.data && !bankSeeded) {
+      setLeisureAh(String(bank.data.leisure_ah ?? 120));
+      setExternalAh(String(bank.data.external_ah ?? 130));
+      setBankSeeded(true);
+    }
+  }, [bank.data, bankSeeded]);
+
   const topicSet = cfg.data?.ntfy_topic_set === true;
+
+  // Capacities live in their own config section and drive the runtime
+  // estimate rather than the alarms, but they belong on the same card:
+  // it's all "what is the battery bank", and splitting it across two
+  // places would mean two saves for one mental change.
+  const saveBank = useMutation({
+    mutationFn: () =>
+      api.setConfig('battery_bank', {
+        leisure_ah: Number(leisureAh) || 120,
+        external_ah: Number(externalAh) || 130,
+      }),
+    onSuccess: () => {
+      toast.success('Battery capacities saved');
+      qc.invalidateQueries({ queryKey: ['config-battery-bank'] });
+      qc.invalidateQueries({ queryKey: ['intelligence'] });
+    },
+    onError: () => toast.error('Could not save capacities'),
+  });
 
   const save = useMutation({
     mutationFn: () => {
@@ -920,6 +950,42 @@ function BatteryAlarmsCard() {
             Install the ntfy app and subscribe to the same topic. Pick something unguessable — anyone who knows the
             name can read the alerts.
           </div>
+        </div>
+      </div>
+
+      <div className="mt-6 pt-5 border-t border-ink/10">
+        <div className="text-[11px] uppercase tracking-[0.18em] text-ink-muted mb-1">Bank capacity</div>
+        <div className="text-[11px] text-ink-faint mb-3">
+          Drives the runtime estimate and days-to-floor. The external battery is counted only while it&apos;s
+          actually connected — matching voltage on the shunt&apos;s aux input, not just a reading being present.
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <div>
+            <label className="text-[11px] uppercase tracking-widest text-ink-muted">Leisure battery (Ah)</label>
+            <input
+              value={leisureAh}
+              inputMode="decimal"
+              onChange={(e) => setLeisureAh(e.target.value)}
+              className="mt-1 w-full rounded-xl bg-ink/[0.04] ring-1 ring-inset ring-ink/10 px-3 py-2 text-sm num outline-none focus:ring-aurora-teal/50"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] uppercase tracking-widest text-ink-muted">External battery (Ah)</label>
+            <input
+              value={externalAh}
+              inputMode="decimal"
+              onChange={(e) => setExternalAh(e.target.value)}
+              className="mt-1 w-full rounded-xl bg-ink/[0.04] ring-1 ring-inset ring-ink/10 px-3 py-2 text-sm num outline-none focus:ring-aurora-teal/50"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => saveBank.mutate()}
+            disabled={saveBank.isPending}
+            className="rounded-full px-4 py-2 text-sm bg-ink/[0.06] ring-1 ring-inset ring-ink/15 hover:bg-ink/[0.1] disabled:opacity-40"
+          >
+            {saveBank.isPending ? 'Saving…' : 'Save capacities'}
+          </button>
         </div>
       </div>
 
