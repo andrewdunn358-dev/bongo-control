@@ -57,12 +57,6 @@ async def get_connectivity() -> dict:
     return _snapshot_or_404(TelemetryDomain.CONNECTIVITY)
 
 
-@router.get("/system")
-async def get_system() -> dict:
-    """Includes the Power Budget payload."""
-    return _snapshot_or_404(TelemetryDomain.SYSTEM)
-
-
 @router.get("/history/{domain}")
 def get_history(
     domain: TelemetryDomain,

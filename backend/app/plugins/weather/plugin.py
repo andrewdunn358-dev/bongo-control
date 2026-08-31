@@ -138,8 +138,8 @@ class WeatherPlugin(Plugin):
             ),
             # 5 days: enough for a proper forecast row without making
             # the response heavy. today/tomorrow are still exposed
-            # separately below (PowerBudgetService and the solar
-            # outlook both depend on them by name), the extra days are
+            # separately below (the solar outlook and solar history
+            # providers depend on them by name), the extra days are
             # additive.
             "forecast_days": 5,
             "timezone": "auto",
@@ -195,10 +195,9 @@ class WeatherPlugin(Plugin):
             "current_weather_code": current.get("weather_code"),
             "current_weather_description": describe_weather_code(current.get("weather_code")),
             # today/tomorrow kept as named keys deliberately, not
-            # replaced by forecast[0]/forecast[1]: PowerBudgetService
-            # and the intelligence providers both read them by name,
-            # and breaking that to save a little duplication would be a
-            # poor trade.
+            # replaced by forecast[0]/forecast[1]: the intelligence
+            # providers read them by name, and breaking that to save a
+            # little duplication would be a poor trade.
             "today": build_day(0),
             "tomorrow": build_day(1),
             # Full multi-day forecast for the day-tile row.

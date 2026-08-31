@@ -72,7 +72,7 @@ export function Switches() {
     mutationFn: ({ id, on }: { id: number; on: boolean }) => api.setRelay(id, on),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['relays'] }),
     onError: (e) => {
-      if (e instanceof ApiError && e.status === 401) toast.error('Locked — unlock on the Camera screen first.');
+      if (e instanceof ApiError && e.status === 401) toast.error('Locked — the unlock screen will reappear.');
       else toast.error('Relay update failed');
     },
   });

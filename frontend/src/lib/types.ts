@@ -138,14 +138,6 @@ export interface ConnectivityPayload {
   signal_dbm?: number | null;
 }
 
-export interface SystemPayload {
-  cpu_pct?: number | null;
-  ram_pct?: number | null;
-  temperature_c?: number | null;
-  uptime_s?: number | null;
-  version?: string | null;
-}
-
 /* -------- REST payloads -------- */
 
 export interface RadioStation {

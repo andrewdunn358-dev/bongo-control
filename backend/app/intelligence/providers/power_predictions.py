@@ -1,8 +1,9 @@
 """
-PowerPredictionProvider — the numeric half of PowerBudgetService's
-original logic (estimated runtime, heater-tonight, solar energy
-figures), carried over verbatim including the typical-load-from-
-discharge-rate estimation.
+PowerPredictionProvider — the numeric half of the old
+PowerBudgetService (estimated runtime, heater-tonight, solar energy
+figures), carried over including the typical-load-from-discharge-rate
+estimation. That service has since been deleted; this is now the only
+place these figures are computed.
 """
 
 from __future__ import annotations
@@ -88,7 +89,7 @@ class PowerPredictionProvider:
         return predictions
 
     def _estimate_typical_load_watts(self) -> float:
-        """Verbatim from PowerBudgetService: derives a rough typical
+        """Derives a rough typical
         load from recent battery discharge rate if we have enough
         history; falls back to a fixed assumption otherwise.
         """

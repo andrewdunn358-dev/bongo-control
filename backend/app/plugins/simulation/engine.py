@@ -180,12 +180,13 @@ class SimulationEngine(Plugin):
             },
         )
 
-        # Power Budget (heater_all_night_possible, estimated_runtime_hours,
-        # tomorrow's outlook) is now computed by PowerBudgetService instead
-        # of here - that version works identically whether simulation or
-        # real hardware (Victron) is providing the underlying battery/solar
-        # data, using actual recorded history + weather forecast rather
-        # than fabricated simulation-only math. See services/power_budget_service.py.
+        # Estimated runtime, heater-all-night and tomorrow's outlook are
+        # deliberately NOT emitted here. They are computed by the
+        # intelligence layer (app/intelligence/providers/) from recorded
+        # history and the weather forecast, which works identically
+        # whether simulation or real hardware is supplying the underlying
+        # battery/solar data - rather than fabricated simulation-only
+        # math that would look plausible and mean nothing.
 
         temp_c = 12 + 8 * math.sin(math.pi * ((elapsed_hours + 8) % 24 - 6) / 12)
         await emit(

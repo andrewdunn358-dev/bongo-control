@@ -8,7 +8,6 @@ import type {
   EnergyPayload,
   EnvironmentPayload,
   SolarPayload,
-  SystemPayload,
   TelemetryDomain,
   TelemetryMessage,
   TelemetrySource,
@@ -203,7 +202,6 @@ export const useEnergy = () => useDomain<EnergyPayload>('energy');
 export const useEnvironment = () => useDomain<EnvironmentPayload>('environment');
 export const useWeather = () => useDomain<WeatherPayload>('weather');
 export const useConnectivity = () => useDomain<ConnectivityPayload>('connectivity');
-export const useSystem = () => useDomain<SystemPayload>('system');
 
 /**
  * A stable, sparkline-friendly buffer of `key(payload)` values for a domain.

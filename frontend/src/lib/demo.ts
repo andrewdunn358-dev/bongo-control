@@ -749,12 +749,6 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
     if (r) r.in_use = !!body.in_use;
     return R({ available: true, reason: null, state_is_commanded_only: true, channels: relays });
   }
-  if (p.startsWith('/relays/') && p.endsWith('/toggle')) {
-    const id = Number(p.split('/')[2]);
-    const r = relays.find((x) => x.id === id);
-    if (r) r.commanded_on = !r.commanded_on;
-    return R({ available: true, reason: null, state_is_commanded_only: true, channels: relays });
-  }
   if (p === '/relays/all-off') {
     relays.forEach((r) => (r.commanded_on = false));
     return R({ ok: true });

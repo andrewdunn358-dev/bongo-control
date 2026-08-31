@@ -2,7 +2,8 @@
 SolarOutlookSignalProvider — reads the latest WEATHER telemetry and
 produces a Signal comparing tomorrow's forecast solar radiation against
 today's. Thresholds and wording carried over verbatim from
-PowerBudgetService's original _compute_tomorrow_outlook().
+the old PowerBudgetService's _compute_tomorrow_outlook(), which this
+replaced.
 """
 
 from __future__ import annotations

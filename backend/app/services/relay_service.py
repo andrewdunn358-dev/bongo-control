@@ -634,9 +634,6 @@ class RelayService:
         self._persist_commanded_state()
         return self.status()
 
-    def toggle(self, channel_id: int, source: str = "unspecified") -> dict[str, Any]:
-        return self.set(channel_id, not self._commanded.get(channel_id, False), source=source)
-
     def all_off(self, source: str = "unspecified") -> dict[str, Any]:
         for channel in self._channels:
             if self._available:

@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Awaitable, Callable
+from typing import Callable
 
 from bleak import BleakScanner
 from bleak.backends.device import BLEDevice

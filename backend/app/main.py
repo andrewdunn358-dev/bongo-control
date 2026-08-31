@@ -40,7 +40,7 @@ from app.services.roof_service import roof_service
 from app.services.voice_control_service import voice_control_service
 from app.services.internet_radio_service import internet_radio_service
 from app.services.arrival_notification_service import arrival_notification_service
-from app.services import battery_alarm_service, battery_bank_service, battery_service, configuration_service, history_service, location_service, notification_service, power_budget_service, telemetry_service
+from app.services import battery_alarm_service, battery_bank_service, battery_service, configuration_service, history_service, location_service, notification_service, telemetry_service
 from app.services.relay_service import relay_service
 from app.telemetry.bus import bus
 
@@ -49,10 +49,10 @@ logger = logging.getLogger("vanos.main")
 
 plugin_manager = PluginManager(bus, configuration_service, notification_service)
 
-# Signal/Prediction providers read telemetry the same way
-# PowerBudgetService already does (telemetry_service.latest(domain)) -
-# a future Water/Heating/Door-Sensor plugin adds itself here as one
-# more provider, with zero changes to IntelligenceEngine's own code.
+# Signal/Prediction providers pull telemetry themselves
+# (telemetry_service.latest(domain)) rather than being pushed to - a
+# future Water/Heating/Door-Sensor plugin adds itself here as one more
+# provider, with zero changes to IntelligenceEngine's own code.
 intelligence_engine = IntelligenceEngine(
     signal_providers=[
         BatterySignalProvider(telemetry_service),
@@ -129,8 +129,6 @@ async def lifespan(app: FastAPI):
     await history_service.start()
     logger.info("History service started")
 
-    await power_budget_service.start()
-    logger.info("Power Budget service started")
 
     intelligence_routes.set_engine(intelligence_engine)
     await intelligence_runner.start()
@@ -170,7 +168,6 @@ async def lifespan(app: FastAPI):
     await arrival_notification_service.stop()
     internet_radio_service.stop()
     await intelligence_runner.stop()
-    await power_budget_service.stop()
     await history_service.stop()
     await battery_bank_service.stop()
     await battery_alarm_service.stop()

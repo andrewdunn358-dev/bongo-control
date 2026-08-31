@@ -7,6 +7,7 @@
     "start": "vite --host 0.0.0.0 --port 3000",
     "dev": "vite --host 0.0.0.0 --port 3000",
     "build": "tsc -b && vite build",
+    "build:image": "vite build",
     "preview": "vite preview --host 0.0.0.0 --port 3000",
     "typecheck": "tsc --noEmit",
     "test:maps": "bash scripts/test-offline-maps.sh"

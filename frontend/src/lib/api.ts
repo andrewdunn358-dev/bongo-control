@@ -25,7 +25,6 @@ import type {
   RoofStatus,
   CameraSnapshot,
   SolarPayload,
-  SystemPayload,
   TelemetryMessage,
   VoiceControlStatus,
   WifiNetwork,
@@ -93,7 +92,6 @@ export const api = {
   energy: () => request<TelemetryMessage<EnergyPayload>>('/energy'),
   environment: () => request<TelemetryMessage<EnvironmentPayload>>('/environment'),
   connectivity: () => request<TelemetryMessage<ConnectivityPayload>>('/connectivity'),
-  system: () => request<TelemetryMessage<SystemPayload>>('/system'),
 
   history: (domain: string, hours = 24, maxPoints?: number) => {
     const qs = new URLSearchParams({ hours: String(hours) });
@@ -255,8 +253,6 @@ export const api = {
     }),
   setRelay: (id: number, on: boolean) =>
     request<RelayResponse>(`/relays/${encodeURIComponent(id)}/set`, { method: 'POST', body: JSON.stringify({ on }) }),
-  toggleRelay: (id: number) =>
-    request<RelayResponse>(`/relays/${encodeURIComponent(id)}/toggle`, { method: 'POST' }),
   relaysAllOff: () => request<{ ok: boolean }>('/relays/all-off', { method: 'POST' }),
   relayEvents: (before?: number) =>
     request<{ events: RelayEvent[]; count: number }>(`/relays/events${before ? `?before=${before}` : ''}`),

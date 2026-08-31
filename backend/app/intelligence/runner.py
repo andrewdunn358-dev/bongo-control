@@ -1,16 +1,16 @@
 """
-IntelligenceRunner — subscribes to the bus like PowerBudgetService
-does, recomputes on a throttle, keeps IntelligenceEngine.latest()
-fresh for the REST endpoint.
+IntelligenceRunner — subscribes to the bus, recomputes on a throttle,
+keeps IntelligenceEngine.latest() fresh for the REST endpoint.
 
-Deliberately runs ALONGSIDE PowerBudgetService rather than replacing
-it for this first pass - PowerBudgetService's existing SYSTEM-domain
-publish is what the current SIT REP card reads; a risky one-shot
-migration of that working code isn't worth it in the same change that
-introduces the new engine. Consolidating the duplication between
-PowerBudgetService and the new Signal/Prediction providers is a
-reasonable future cleanup once this is proven working, not a
-prerequisite for it.
+This ran alongside the old PowerBudgetService for a while, deliberately:
+that service was working code and a one-shot migration wasn't worth the
+risk in the same change that introduced this engine. The consolidation
+its docstring promised has now happened - PowerBudgetService is deleted.
+It had been computing estimated runtime, heater-all-night and tomorrow's
+outlook on its own 30-second loop, querying six hours of battery history
+from SQLite each time, and publishing them to a SYSTEM telemetry domain
+that nothing read: the providers here had taken over every one of those
+figures, and the Overview screen reads this engine's mission brief.
 """
 
 from __future__ import annotations

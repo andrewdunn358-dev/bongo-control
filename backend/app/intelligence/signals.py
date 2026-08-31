@@ -3,10 +3,9 @@ Signal / Prediction contracts for the Intelligence Engine.
 
 Deliberately pull-based, matching the whole rest of this codebase's
 philosophy (stated in telemetry/models.py): consumers pull the latest
-value for a domain, nothing pushes to a specific named consumer.
-PowerBudgetService already worked this way — it called
-telemetry_service.latest(TelemetryDomain.BATTERY) itself, rather than
-BatteryService knowing PowerBudgetService existed.
+value for a domain, nothing pushes to a specific named consumer. A
+provider calls telemetry_service.latest(TelemetryDomain.BATTERY)
+itself, rather than any producer knowing the provider exists.
 
 Why this matters for extensibility: a future Water Tank plugin (or
 Heating, Door Sensors, etc.) needs to contribute to the mission brief
@@ -60,9 +59,9 @@ class Prediction(BaseModel):
     label: str  # "Estimated runtime"
     value: float | int | str | None
     unit: str | None = None  # "hours", "%", "MJ/m²"
-    # Same honesty pattern as PowerBudgetService's existing "note"
-    # field - e.g. "No battery shunt installed - voltage-only estimate,
-    # not precise". Shown alongside the number, not silently omitted.
+    # e.g. "No battery shunt installed - voltage-only estimate, not
+    # precise", or which bank a runtime figure assumed. Shown alongside
+    # the number, not silently omitted.
     confidence: str | None = None
 
 

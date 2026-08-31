@@ -57,18 +57,6 @@ async def set_relay(channel_id: int, body: RelaySetRequest) -> dict:
         raise HTTPException(status_code=503, detail=str(e))
 
 
-@router.post("/{channel_id}/toggle")
-async def toggle_relay(channel_id: int) -> dict:
-    # Toggle can't tell in advance whether it lands on ON, so it's
-    # blocked outright for roof channels - see set_relay above.
-    if channel_id in roof_service.managed_channel_ids:
-        raise HTTPException(status_code=409, detail=_ROOF_TOGGLE_MESSAGE)
-    try:
-        return relay_service.toggle(channel_id, source="app:switches")
-    except RelayUnavailableError as e:
-        raise HTTPException(status_code=503, detail=str(e))
-
-
 @router.post("/all-off")
 async def all_off() -> dict:
     """Panic switch - useful if something's been left on, and a

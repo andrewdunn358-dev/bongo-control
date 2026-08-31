@@ -1,9 +1,9 @@
 """
 BatterySignalProvider — reads the latest BATTERY telemetry and produces
 a Signal. The voltage-only-fallback behavior (no shunt installed) is
-carried over verbatim from PowerBudgetService's original
-_compute_power_budget(), including its honest caveat wording — this is
-a refactor of working, already-tuned logic, not a rewrite.
+carried over verbatim from the old PowerBudgetService (since deleted —
+this layer replaced it), including its honest caveat wording: a
+refactor of working, already-tuned logic rather than a rewrite.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from app.services.telemetry_service import TelemetryService
 from app.telemetry.models import TelemetryDomain
 from app.intelligence.signals import Signal, SignalSeverity
 
-# Same thresholds already implied by PowerBudgetService's original
+# Same thresholds the old PowerBudgetService implied with its
 # "heater_all_night_possible" voltage check (> 12.8V).
 VOLTAGE_OK_THRESHOLD = 12.8
 VOLTAGE_WARNING_THRESHOLD = 12.2
@@ -46,7 +46,7 @@ class BatterySignalProvider:
         caveat = SHUNT_UNSYNCED_CAVEAT if battery_msg.payload.get("current_a") is not None else NO_SHUNT_CAVEAT
 
         if soc_pct is None:
-            # No shunt - same voltage-only fallback PowerBudgetService
+            # No shunt - same voltage-only fallback the old PowerBudgetService
             # already used, with the same honest caveat carried over.
             if voltage is None:
                 return Signal(source="battery", severity=SignalSeverity.UNKNOWN, message="No battery data yet", weight=2)
