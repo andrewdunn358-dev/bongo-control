@@ -45,34 +45,63 @@ error matters: over-stating capacity tells someone they have two days of
 headroom when they have none. Under-stating it just means a pleasant
 surprise.
 
-WHAT THIS SERVICE DOES NOT FIX
+CORRECTING THE STATE OF CHARGE
 
-`soc_pct` is computed inside the SmartShunt against the capacity
-configured in VictronConnect, and arrives here already calculated. This
-service does not change it. If the shunt is configured for one battery
-while two are connected, its percentage is wrong at the source and no
-arithmetic here corrects that - it can only be fixed in VictronConnect.
-What this service does is stop the app compounding the problem by
-converting that percentage into watt-hours with the wrong capacity.
+`soc_pct` is computed inside the SmartShunt, against the battery capacity
+configured in VictronConnect. That setting is a single fixed number and
+this bank is not - so whenever the external battery is paralleled on, the
+shunt is dividing by roughly half the capacity that is actually there and
+its percentage is wrong before it ever reaches this app.
 
-Separately: the external battery's own 130W panel charges through a PWM
-controller wired directly to the battery terminals, which is upstream of
-the shunt's sense element. That harvest is real but unmeasured, so
-`consumed_ah` counts energy leaving that it never saw arrive. Noted here
-because it is the same battery, and because anything reading this service
-to build an energy figure should know that the external battery's input
-is invisible.
+The app can compute the right one, and does. `consumed_ah` is a raw
+integration of current in and out; it does not depend on the configured
+capacity at all. So:
+
+    corrected SoC = (connected Ah - consumed Ah) / connected Ah
+
+which is the same arithmetic the shunt performs, with the capacity that
+is genuinely connected instead of the one it was told about. Both numbers
+in it are measured. This is not an estimate standing in for a measurement
+- it is the measurement, divided correctly.
+
+The correction is published as its own DERIVED telemetry source rather
+than rewriting the shunt's payload, so the raw hardware reading is never
+destroyed and the bus's existing precedence merge does the overriding. It
+applies ONLY while the external battery is connected: with the leisure
+battery alone the shunt's own configured capacity is right and its
+percentage is correct, so the correction publishes None and hands the
+field straight back. It should be, and is, a no-op in that case.
+
+WHAT THIS STILL CANNOT FIX
+
+The external battery's own 130W panel charges through a PWM controller
+wired directly to the battery terminals, upstream of the shunt's sense
+element - and because the Anderson connector parallels the two batteries,
+that panel charges the whole bank unmeasured. `consumed_ah` therefore
+counts energy leaving that it never saw arrive, so both the shunt's SoC
+and the corrected one read LOWER than reality.
+
+The correction above fixes the capacity error. It cannot fix this one,
+because the missing amp-hours were never measured by anything. The drift
+resets whenever the shunt sees a full charge, so it accumulates only
+between syncs - worst in spring and autumn, when there is enough sun to
+matter but not enough to reach a sync. Fixing it properly is one wire:
+the PWM's negative moved from the battery post to the shunt's system
+minus stud, at the cost of that panel doing nothing while the battery is
+out of the van.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 from typing import Any
 
 from app.services.battery_alarm_service import DEFAULT_DIVERGENCE_VOLTS
 from app.services.configuration_service import ConfigurationService
 from app.services.telemetry_service import TelemetryService
-from app.telemetry.models import TelemetryDomain
+from app.telemetry.models import TelemetryDomain, TelemetryMessage, TelemetrySource
 
 logger = logging.getLogger("vanos.battery_bank_service")
 
@@ -96,6 +125,9 @@ class BatteryBankService:
     ) -> None:
         self._telemetry = telemetry_service
         self._config = configuration_service
+        self._task: asyncio.Task | None = None
+        self._last_published_soc: float | None = None
+        self._last_published_at: float = 0.0
 
     def _settings(self) -> tuple[float, float]:
         cfg = self._config.get("battery_bank", {}) or {}
@@ -169,6 +201,129 @@ class BatteryBankService:
     def watt_hours(self, payload: dict[str, Any] | None = None) -> float:
         """Just the number, for the arithmetic-only call sites."""
         return float(self.capacity(payload)["watt_hours"])
+
+    # ------------------------------------------------- corrected SoC
+
+    def corrected_soc(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """State of charge recomputed against the capacity that is
+        actually connected. See the module docstring.
+
+        Returns `soc_pct: None` whenever the correction does not apply,
+        which is the signal to fall back to the shunt's own figure - the
+        bus merge skips None values, so publishing that hands the field
+        back with no special-casing anywhere downstream.
+        """
+        bank = self.capacity(payload)
+        consumed = _as_optional_float(payload.get("consumed_ah"))
+
+        if not bank["external_connected"]:
+            # Leisure battery alone: the shunt's configured capacity is
+            # the right one and its percentage is already correct.
+            # Correcting here would be inventing a difference.
+            return {"soc_pct": None, "reason": "Shunt figure used — external battery not connected", "bank": bank}
+
+        if consumed is None:
+            # A shunt that has never seen a full charge reports neither
+            # a percentage nor consumed amp-hours. Nothing to divide.
+            return {"soc_pct": None, "reason": "No consumed-Ah reading yet", "bank": bank}
+
+        capacity_ah = bank["amp_hours"]
+        if capacity_ah <= 0:
+            return {"soc_pct": None, "reason": "No bank capacity configured", "bank": bank}
+
+        # Victron reports consumed amp-hours as a negative quantity
+        # (-40Ah meaning 40Ah taken out). Taking the magnitude rather
+        # than trusting a sign convention that differs between firmware
+        # and library versions - it can only ever mean "this much has
+        # been removed", so the sign carries no information the name
+        # doesn't already.
+        drawn = abs(consumed)
+        remaining_fraction = (capacity_ah - drawn) / capacity_ah
+        # Clamped because the inputs are independent measurements that
+        # can disagree at the edges: more drawn than the configured
+        # capacity, or a full-charge sync landing slightly late.
+        soc = max(0.0, min(100.0, remaining_fraction * 100.0))
+
+        return {
+            "soc_pct": round(soc, 1),
+            "reason": f"Recalculated against the connected {capacity_ah:.0f}Ah bank",
+            "bank": bank,
+        }
+
+    async def start(self) -> None:
+        self._task = asyncio.create_task(self._run())
+
+    async def stop(self) -> None:
+        if self._task:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+            self._task = None
+
+    async def _run(self) -> None:
+        """Watches BATTERY telemetry and republishes the corrected state
+        of charge under the DERIVED source.
+
+        Republishing rather than correcting in the shunt plugin keeps the
+        plugin layer unaware that services exist, which is the layering
+        rule this codebase holds to everywhere else - and it means the
+        correction reaches the WebSocket, the history table and every
+        consumer at once, instead of each call site remembering to apply
+        it.
+        """
+        queue = self._telemetry.subscribe()
+        try:
+            while True:
+                message = await queue.get()
+                if message.domain != TelemetryDomain.BATTERY:
+                    continue
+                # Our own republish comes back round the bus. Ignoring it
+                # is what stops this being an infinite loop.
+                if message.source == TelemetrySource.DERIVED:
+                    continue
+                try:
+                    await self._publish_correction(message.payload)
+                except Exception as e:  # noqa: BLE001 - a derived value must never take down telemetry
+                    logger.warning("Could not publish corrected SoC: %s", e)
+        except asyncio.CancelledError:
+            raise
+        finally:
+            self._telemetry.unsubscribe(queue)
+
+    async def _publish_correction(self, payload: dict[str, Any]) -> None:
+        result = self.corrected_soc(payload)
+        soc = result["soc_pct"]
+        bank = result["bank"]
+
+        # Throttled: the shunt broadcasts about once a second and a
+        # state of charge does not move that fast. Publish on a real
+        # change or every 30s, so the bus and the history table don't
+        # carry a second copy of everything.
+        now = time.time()
+        changed = self._last_published_soc != soc
+        if not changed and now - self._last_published_at < 30.0:
+            return
+        self._last_published_soc = soc
+        self._last_published_at = now
+
+        await self._telemetry.publish(
+            TelemetryMessage(
+                domain=TelemetryDomain.BATTERY,
+                source=TelemetrySource.DERIVED,
+                payload={
+                    # None here relinquishes the field back to the shunt
+                    # (the merge skips None), which is exactly what
+                    # should happen when the correction doesn't apply.
+                    "soc_pct": soc,
+                    "soc_is_derived": soc is not None,
+                    "soc_note": result["reason"],
+                    "bank_amp_hours": bank["amp_hours"],
+                    "external_connected": bank["external_connected"],
+                },
+            )
+        )
 
 
 def _as_float(value: Any, fallback: float) -> float:

@@ -33,8 +33,18 @@ logger = logging.getLogger("vanos.telemetry")
 # Lowest priority first - later sources overwrite earlier ones for any
 # field they both report. Only domains with more than one publisher need
 # an entry.
+# DERIVED sits above the hardware sources deliberately: it exists to
+# correct a field the hardware reports wrongly (the shunt computes
+# soc_pct against its own configured capacity, which is not the capacity
+# actually connected). Because the merge skips None values, publishing
+# soc_pct=None from DERIVED cleanly hands the field back to the shunt -
+# that is how the correction turns itself off when it doesn't apply.
 FIELD_PRECEDENCE: dict[str, list] = {
-    TelemetryDomain.BATTERY: [TelemetrySource.VICTRON_MPPT, TelemetrySource.VICTRON_SHUNT],
+    TelemetryDomain.BATTERY: [
+        TelemetrySource.VICTRON_MPPT,
+        TelemetrySource.VICTRON_SHUNT,
+        TelemetrySource.DERIVED,
+    ],
 }
 
 

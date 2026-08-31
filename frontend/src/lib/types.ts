@@ -56,6 +56,21 @@ export interface BatteryPayload {
    * battery" in its own app; that is not what it is here.
    */
   external_voltage?: number | null;
+  /**
+   * True when `soc_pct` above was recalculated by the app rather than
+   * taken from the shunt. The shunt divides by the capacity configured
+   * in VictronConnect, which is a single fixed number, so its
+   * percentage is wrong whenever the external battery is paralleled
+   * on. `consumed_ah` is a raw integration of current and does not
+   * depend on that setting, so the app can divide by the capacity
+   * genuinely connected. See backend battery_bank_service.py.
+   */
+  soc_is_derived?: boolean | null;
+  /** Why the percentage above is what it is - which bank was used. */
+  soc_note?: string | null;
+  /** Amp-hours currently connected: leisure alone, or both paralleled. */
+  bank_amp_hours?: number | null;
+  external_connected?: boolean | null;
 }
 
 export interface SolarPayload {

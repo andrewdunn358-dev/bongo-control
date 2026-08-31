@@ -94,6 +94,61 @@ def main():
         c = svc.capacity({"voltage": 12.7, "external_voltage": bad, "current_a": -5.0})
         check(f"external_voltage={bad!r} is not treated as a match", c["amp_hours"] == 120.0, str(c["amp_hours"]))
 
+    print("\n=== 9. CORRECTED SoC — THE POINT OF ALL THIS ===")
+    svc = fresh()
+    # 250Ah connected, 50Ah drawn -> 80%. The shunt, configured for
+    # 120Ah, would be reporting (120-50)/120 = 58%.
+    r = svc.corrected_soc({"voltage": 12.6, "external_voltage": 12.6, "current_a": -8.0, "consumed_ah": -50.0})
+    check("recalculates against the connected bank", r["soc_pct"] == 80.0, str(r["soc_pct"]))
+    check("says which bank it used", "250Ah" in r["reason"], r["reason"])
+
+    print("\n=== 10. NO-OP WITH THE LEISURE BATTERY ALONE ===")
+    # The shunt's own capacity setting is right in this case, so
+    # correcting would be inventing a difference. None hands the field
+    # back to the shunt via the bus merge.
+    r = svc.corrected_soc({"voltage": 12.6, "external_voltage": None, "current_a": -8.0, "consumed_ah": -50.0})
+    check("publishes None rather than a second opinion", r["soc_pct"] is None)
+    check("reason says the shunt figure is used", "Shunt figure" in r["reason"], r["reason"])
+
+    r = svc.corrected_soc({"voltage": 12.75, "external_voltage": 12.10, "current_a": -8.0, "consumed_ah": -50.0})
+    check("a diverging battery also gets no correction", r["soc_pct"] is None)
+
+    print("\n=== 11. SIGN CONVENTION AND EDGES ===")
+    base = {"voltage": 12.6, "external_voltage": 12.6, "current_a": -8.0}
+    check("positive consumed_ah reads the same as negative",
+          svc.corrected_soc({**base, "consumed_ah": 50.0})["soc_pct"] == 80.0)
+    check("nothing drawn is 100%", svc.corrected_soc({**base, "consumed_ah": 0.0})["soc_pct"] == 100.0)
+    check("more drawn than capacity clamps to 0, not negative",
+          svc.corrected_soc({**base, "consumed_ah": -400.0})["soc_pct"] == 0.0)
+    check("no consumed-Ah reading yet gives None",
+          svc.corrected_soc({**base, "consumed_ah": None})["soc_pct"] is None)
+
+    print("\n=== 12. IT ACTUALLY OVERRIDES ON THE BUS ===")
+    # The correction is only worth anything if the merge lets it win
+    # over the shunt, and lets go again when it publishes None.
+    import asyncio
+    from app.telemetry.bus import TelemetryBus
+    from app.telemetry.models import TelemetryDomain, TelemetryMessage, TelemetrySource
+
+    async def bus_check():
+        bus = TelemetryBus()
+        await bus.publish(TelemetryMessage(domain=TelemetryDomain.BATTERY, source=TelemetrySource.VICTRON_SHUNT,
+                                           payload={"soc_pct": 58.0, "voltage": 12.6, "consumed_ah": -50.0}))
+        check("shunt figure stands on its own", bus.latest(TelemetryDomain.BATTERY).payload["soc_pct"] == 58.0)
+
+        await bus.publish(TelemetryMessage(domain=TelemetryDomain.BATTERY, source=TelemetrySource.DERIVED,
+                                           payload={"soc_pct": 80.0, "soc_is_derived": True}))
+        merged = bus.latest(TelemetryDomain.BATTERY).payload
+        check("derived overrides the shunt", merged["soc_pct"] == 80.0, str(merged["soc_pct"]))
+        check("and the shunt's other fields survive", merged["voltage"] == 12.6)
+
+        await bus.publish(TelemetryMessage(domain=TelemetryDomain.BATTERY, source=TelemetrySource.DERIVED,
+                                           payload={"soc_pct": None, "soc_is_derived": False}))
+        merged = bus.latest(TelemetryDomain.BATTERY).payload
+        check("publishing None hands the field back to the shunt", merged["soc_pct"] == 58.0, str(merged["soc_pct"]))
+
+    asyncio.run(bus_check())
+
     print()
     if failures:
         print(f"{len(failures)} FAILURE(S):")

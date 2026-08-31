@@ -361,3 +361,91 @@ data, only the capacity differs.
 > immediately — the same stale-fake failure that had silently disabled
 > the roof suite for weeks. It was caught this time only because the
 > suites were run. **Run all four after touching any constructor.**
+
+
+---
+
+## Follow-up 2: the app calculates state of charge itself
+
+The first pass corrected the *watt-hours* but still trusted the shunt's
+*percentage*. That was half a fix. The shunt computes `soc_pct` against
+the capacity set in VictronConnect — one fixed number, for a bank that is
+120Ah or 250Ah depending on whether the Anderson is plugged in. Whenever
+the external battery is on, the shunt divides by roughly half the
+capacity that is there, and everything downstream inherits the error.
+
+**`consumed_ah` is the way out, and it was in front of us the whole time.**
+It is a raw integration of current in and out. It does not depend on the
+configured capacity in any way. So:
+
+    corrected SoC = (connected Ah − consumed Ah) / connected Ah
+
+Same arithmetic the shunt performs, with the capacity that is actually
+connected. Both inputs are measured. This is not an estimate standing in
+for a measurement — it is the measurement, divided correctly.
+
+Worked example, and the size of the bug: 250Ah connected, 50Ah drawn.
+True SoC 80%. The shunt, configured for 120Ah, reports **58%**. That is a
+22-point error, in the pessimistic direction, on the number the whole
+app reasons about.
+
+### How it reaches everything
+
+Published as a new `TelemetrySource.DERIVED`, sitting at the top of the
+bus's existing `FIELD_PRECEDENCE` for BATTERY — the mechanism already
+built for the shunt-beats-MPPT case. That means:
+
+- The raw hardware reading is never destroyed. The shunt's own figure is
+  still in `_latest_by_source` and still in history under its own source.
+- The correction reaches the WebSocket, the history table, the alarms,
+  the predictions and the Power screen at once, instead of each call site
+  having to remember to apply it.
+- **It turns itself off cleanly.** The merge skips None values, so
+  publishing `soc_pct: None` hands the field straight back to the shunt.
+  No special-casing anywhere downstream.
+
+That last point is what makes the no-op case safe: with the leisure
+battery alone the shunt's configured capacity is right and its percentage
+is correct, so the correction publishes None and changes nothing. It only
+ever acts where the shunt is provably wrong.
+
+The publisher loop lives in `battery_bank_service` (it owns capacity, and
+the SoC follows from capacity). It ignores its own DERIVED messages,
+which is what stops it looping, and throttles to a real change or every
+30s so the bus and history don't carry a second copy of everything.
+
+Plugin layering is preserved — the shunt plugin still knows nothing about
+services. That was the reason for republishing rather than correcting the
+payload inside the plugin.
+
+### Still not fixed, and it can't be in software
+
+The PWM harvest is still invisible, so `consumed_ah` over-counts and both
+percentages read low. The correction fixes the *capacity* error; it
+cannot fix missing amp-hours that nothing ever measured. Resets on each
+full-charge sync, so it only accumulates between them. One wire fixes it
+properly — see above.
+
+### Tests
+
+`test_battery_bank.py` now 32 assertions. The ones that matter:
+
+- 250Ah connected + 50Ah drawn = 80%, where the shunt would say 58%.
+- **No-op with the leisure battery alone**, and no-op when the batteries
+  diverge — correcting there would be inventing a difference.
+- Sign convention: consumed_ah works whether reported positive or
+  negative, because the name already carries the direction.
+- Clamping at both ends.
+- A real `TelemetryBus` round trip proving derived actually overrides the
+  shunt, that the shunt's other fields survive the merge, and that
+  publishing None hands the field back.
+- A live loop test through a real bus: repeated shunt publishes produce
+  no runaway, and unplugging the external battery returns the displayed
+  figure to the shunt's own.
+
+### On the Power screen
+
+State of charge now carries a line saying which bank it was worked out
+against, and flags when the app recalculated it rather than the shunt.
+Plus a "Bank connected" row. The percentage shifts substantially when the
+Anderson goes in; without saying why, it looks like it moved on its own.

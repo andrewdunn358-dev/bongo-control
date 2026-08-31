@@ -120,6 +120,12 @@ async def lifespan(app: FastAPI):
     await battery_alarm_service.start()
     logger.info("Battery alarm service started")
 
+    # Publishes the state of charge recalculated against the capacity
+    # actually connected. The shunt divides by its own fixed setting,
+    # which is wrong whenever the external battery is paralleled on.
+    await battery_bank_service.start()
+    logger.info("Battery bank service started")
+
     await history_service.start()
     logger.info("History service started")
 
@@ -166,6 +172,7 @@ async def lifespan(app: FastAPI):
     await intelligence_runner.stop()
     await power_budget_service.stop()
     await history_service.stop()
+    await battery_bank_service.stop()
     await battery_alarm_service.stop()
     await battery_service.stop_monitoring()
     await plugin_manager.stop_all()

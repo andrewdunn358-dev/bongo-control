@@ -51,6 +51,13 @@ class TelemetrySource(str, Enum):
     ONEWIRE_TEMP = "onewire_temp"
     RENOGY_MPPT = "renogy_mppt"
     VICTRON_SHUNT = "victron_shunt"
+    # Not a plugin and not hardware: values the app computes from other
+    # sources' measurements. Currently the state of charge corrected for
+    # the real connected bank capacity - see battery_bank_service.py.
+    # Kept as its own source, rather than rewriting another plugin's
+    # payload in place, so the raw hardware reading is never lost and
+    # the bus's existing precedence merge does the overriding.
+    DERIVED = "derived"
 
 
 class TelemetryMessage(BaseModel):

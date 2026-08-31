@@ -95,6 +95,25 @@ export function Power() {
               <span className="text-ink-muted">State of charge</span>
               <span className="num">{bp?.soc_pct != null ? `${bp.soc_pct.toFixed(0)}%` : <span className="text-ink-faint">{DASH}%</span>}</span>
             </li>
+            {/* Which bank the percentage was worked out against. Not a
+                footnote: the figure shifts substantially when the
+                external battery is paralleled on, and without this it
+                looks like it moved on its own. */}
+            {bp?.soc_note && (
+              <li className="text-[11px] text-ink-faint -mt-1">
+                {bp.soc_note}
+                {bp.soc_is_derived && ' · recalculated by the app, not the shunt'}
+              </li>
+            )}
+            {bp?.bank_amp_hours != null && (
+              <li className="flex justify-between border-t border-ink/5 pt-2">
+                <span className="text-ink-muted">Bank connected</span>
+                <span className="num">
+                  {bp.bank_amp_hours.toFixed(0)} Ah
+                  {bp.external_connected ? '' : ' (leisure only)'}
+                </span>
+              </li>
+            )}
             {/* Only shown once a shunt is reporting - current is the
                 giveaway, since nothing else measures it. */}
             {bp?.current_a != null && (
