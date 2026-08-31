@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Power } from 'lucide-react';
+import { Power, PlugZap, Unplug } from 'lucide-react';
 import { GlassCard } from '@/components/primitives/GlassCard';
 import { api, ApiError } from '@/lib/api';
 import { SWITCH } from '@/constants/testIds';
 import { fmtUnixTime } from '@/lib/format';
+import { pinLabel } from '@/lib/pins';
 
 export function Switches() {
   const qc = useQueryClient();
@@ -52,6 +53,19 @@ export function Switches() {
       setEditingId(null);
     },
     onError: () => toast.error('Could not rename'),
+  });
+
+  // Marks a channel as wired to a real circuit, or not. A spare stays
+  // fully togglable here (that's how you bench-test one before wiring
+  // it) - the flag only controls whether Ron offers it and whether
+  // voice will match its name.
+  const inUseMut = useMutation({
+    mutationFn: ({ id, in_use }: { id: number; in_use: boolean }) => api.setRelayInUse(id, in_use),
+    onSuccess: (_d, { in_use }) => {
+      qc.invalidateQueries({ queryKey: ['relays'] });
+      toast.success(in_use ? 'Marked as wired to a circuit' : 'Marked as a spare — Ron will stop offering it');
+    },
+    onError: () => toast.error('Could not update'),
   });
 
   const setMut = useMutation({
@@ -104,7 +118,7 @@ export function Switches() {
         {relays.map((r) => (
           <GlassCard
             key={r.id}
-            className="p-5 transition"
+            className={`p-5 transition ${r.in_use ? '' : 'opacity-60'}`}
             data-testid={SWITCH.relay(r.id)}
           >
             <div className="flex items-start justify-between gap-3">
@@ -137,7 +151,13 @@ export function Switches() {
                     {r.name}
                   </button>
                 )}
-                <div className="text-[11px] text-ink-faint mt-1 num">GPIO {r.gpio}</div>
+                {/* Physical header pin, not the BCM number the backend
+                    stores - see lib/pins.ts. This is the number written
+                    on the wiring diagrams and countable on the header. */}
+                <div className="text-[11px] text-ink-faint mt-1 num">
+                  {pinLabel(r.gpio)}
+                  {!r.in_use && <span className="ml-2 text-ink-muted">· spare, no load wired</span>}
+                </div>
               </div>
             </div>
             <div className="mt-4">
@@ -149,6 +169,19 @@ export function Switches() {
                 className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed bg-ink/[0.06] ring-1 ring-inset ring-ink/15 hover:bg-ink/[0.1]"
               >
                 <Power size={14} /> Toggle
+              </button>
+              <button
+                type="button"
+                onClick={() => inUseMut.mutate({ id: r.id, in_use: !r.in_use })}
+                disabled={inUseMut.isPending}
+                title={
+                  r.in_use
+                    ? 'Mark as a spare — keeps the toggle, but Ron and voice stop offering it'
+                    : 'Mark as wired to a real circuit — Ron and voice start offering it again'
+                }
+                className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-xl py-1.5 text-[11px] text-ink-muted transition disabled:opacity-50 hover:text-ink"
+              >
+                {r.in_use ? <><Unplug size={12} /> Mark as spare</> : <><PlugZap size={12} /> Mark as wired</>}
               </button>
             </div>
           </GlassCard>

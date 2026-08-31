@@ -137,21 +137,51 @@ def record_relay_event(channel_id: int | None, channel_name: str, action: str, s
 # pull-down-by-default range; on this LOW-trigger board that means
 # they'd energise at boot without the config.txt guard (see the module
 # docstring). Names mirror the seeded config in configuration_service.py.
+#
+# PHYSICAL PIN NUMBERS are what this van is wired and documented by; the
+# `gpio` key is a BCM number only because that is what gpiozero's
+# constructor takes. The mapping, so nobody has to look it up:
+# GPIO 17 = pin 11, GPIO 27 = pin 13, GPIO 22 = pin 15, GPIO 23 = pin 16,
+# GPIO 12 = pin 32, GPIO 13 = pin 33, GPIO 16 = pin 36, GPIO 26 = pin 37.
+#
+# `in_use` (default True when absent) means "this channel switches a
+# circuit that actually exists". A channel set False is still wired,
+# still togglable from the Switches screen for bench testing, and still
+# has its pin claimed and held safe at boot - it is simply not offered
+# by voice and not listed to Ron as something he can tell you to
+# switch. See set_in_use() for why that distinction is worth a flag
+# rather than a rename.
 DEFAULT_CHANNELS = [
-    {"id": 1, "gpio": 17, "name": "Heater"},
-    # inverted: True - confirmed 13 Aug via a clean, repeatable 3-for-3
-    # inversion (commanded ON -> bulb dark, commanded OFF -> bulb lit,
-    # switch untouched throughout) - see the note where this is
-    # consumed in start() for the full reasoning.
+    # Pin 11. Named Heater until 31 Aug 2026; the diesel heater is now
+    # fed direct from the battery and never went through a relay in its
+    # final wiring, so this channel carries the TV circuit.
+    # NOTE: this channel has a HARDWARE FAULT on the Hailege board - the
+    # Pi drives the pin correctly and the relay does not actuate. A
+    # spare 5V relay module is the intended fix. It is left in_use=True
+    # deliberately: it is a broken circuit to repair, not a
+    # decommissioned one.
+    {"id": 1, "gpio": 17, "name": "TV"},
+    # Pin 13. inverted: True - confirmed 13 Aug via a clean, repeatable
+    # 3-for-3 inversion (commanded ON -> bulb dark, commanded OFF ->
+    # bulb lit, switch untouched throughout) - see the note where this
+    # is consumed in start() for the full reasoning.
     {"id": 2, "gpio": 27, "name": "Lights", "inverted": True},
-    {"id": 3, "gpio": 22, "name": "Radio / amp"},
-    {"id": 4, "gpio": 23, "name": "Fridge / TV"},
+    # Pin 15.
+    {"id": 3, "gpio": 22, "name": "Amp"},
+    # Pin 16. This was the diesel heater's channel. The heater now runs
+    # direct off the battery (the 1.4V drop through the relay board was
+    # a real, measured contributor to its ignition failures), so this
+    # channel switches NOTHING - it is a spare with a relay behind it
+    # and no load in front of it. in_use=False so Ron stops offering to
+    # switch a heater that isn't on a relay any more.
+    {"id": 4, "gpio": 23, "name": "Spare", "in_use": False},
+    # Pin 36.
     {"id": 7, "gpio": 16, "name": "Roof up"},
-    # GPIO 25 (physical pin 22) was the original pick here, but proved
-    # dead on this specific Pi - continuity-tested good wire, good relay
-    # channel (it lit fine once moved to a different pin), yet pin 22
-    # itself never did anything. Moved to GPIO 26 (pin 37) rather than
-    # spend more time diagnosing a single flaky header pin.
+    # Pin 37. GPIO 25 (physical pin 22) was the original pick here, but
+    # proved dead on this specific Pi - continuity-tested good wire,
+    # good relay channel (it lit fine once moved to a different pin),
+    # yet pin 22 itself never did anything. Moved to GPIO 26 (pin 37)
+    # rather than spend more time diagnosing a single flaky header pin.
     {"id": 8, "gpio": 26, "name": "Roof down"},
 ]
 
@@ -514,6 +544,42 @@ class RelayService:
 
         return self.status()
 
+    def set_in_use(self, channel_id: int, in_use: bool) -> dict[str, Any]:
+        """Marks a channel as switching a real circuit, or not.
+
+        Exists because renaming a decommissioned channel to "Spare"
+        is not enough. The relay list is what tells the voice layer
+        which circuits exist and what to call them, and it is also
+        what Ron reads to answer "what can you switch?". A channel
+        left in that list under any name is a channel Ron will offer,
+        and a phrase the voice matcher will act on - so after the
+        diesel heater came off the relay board, Ron went on
+        confidently telling people to say "turn the heater on" for a
+        circuit that no longer existed. Renaming it to "Spare" would
+        have swapped one wrong offer for a meaningless one.
+
+        Deliberately does NOT release the pin or stop the channel
+        working. The pin stays claimed and driven safe at boot (which
+        is the whole point of claiming it), the Switches screen can
+        still toggle it, and a multimeter on COM/NO still proves the
+        board out - all of which you want when the spare is about to
+        have something wired to it. The flag scopes exactly one thing:
+        whether this channel is offered as a load a person can name.
+        """
+        channel = next((c for c in self._channels if c["id"] == channel_id), None)
+        if channel is None:
+            raise RelayUnavailableError(f"No relay channel with id {channel_id}")
+
+        channel["in_use"] = bool(in_use)
+
+        from app.services.configuration_service import configuration_service
+
+        relay_config = configuration_service.get("relays", {})
+        relay_config["channels"] = [dict(c) for c in self._channels]
+        configuration_service.set("relays", relay_config)
+
+        return self.status()
+
     def status(self) -> dict[str, Any]:
         return {
             "available": self._available,
@@ -527,6 +593,12 @@ class RelayService:
                     "gpio": c["gpio"],
                     "name": c["name"],
                     "commanded_on": self._commanded.get(c["id"], False),
+                    # Absent means True. A channel that predates this
+                    # flag is one that was wired to something, so the
+                    # safe default is "yes, it's real" - the flag has to
+                    # be set deliberately to take a channel out of
+                    # voice control, never inferred.
+                    "in_use": bool(c.get("in_use", True)),
                 }
                 for c in self._channels
             ],

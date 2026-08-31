@@ -13,14 +13,22 @@ class FakeRelays:
     def __init__(self):
         self.state = {2: False, 3: False}
         self.calls = []
+        self.sources = []
         self.available = True
 
     def is_available(self):
         return self.available
 
-    def set(self, channel, on):
+    def set(self, channel, on, source=None):
+        # `source` is accepted (and recorded) because the real
+        # RelayService.set() gained it when the relay audit trail was
+        # added, and RoofService passes it on every call. Without it
+        # here every test in this file died on a TypeError before
+        # asserting anything - a stale fake silently disabling the roof
+        # safety suite, which is the one suite that most needs to run.
         self.state[channel] = on
         self.calls.append((channel, on))
+        self.sources.append(source)
 
     def both_off(self):
         return not any(self.state.values())

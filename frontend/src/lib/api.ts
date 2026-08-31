@@ -248,6 +248,11 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ name }),
     }),
+  setRelayInUse: (id: number, in_use: boolean) =>
+    request<RelayResponse>(`/relays/${encodeURIComponent(id)}/in-use`, {
+      method: 'PUT',
+      body: JSON.stringify({ in_use }),
+    }),
   setRelay: (id: number, on: boolean) =>
     request<RelayResponse>(`/relays/${encodeURIComponent(id)}/set`, { method: 'POST', body: JSON.stringify({ on }) }),
   toggleRelay: (id: number) =>

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Wifi, WifiOff, Lock, Loader2, Radio, Sun, Moon, Mail, KeyRound, Sparkles, MapPin, Globe, Download, Upload, SignalHigh, Map, Trash2, Navigation, Volume2, ChevronDown, Play, Pause, Square } from 'lucide-react';
+import { Wifi, WifiOff, Lock, Loader2, Radio, Sun, Moon, Mail, KeyRound, Sparkles, MapPin, Globe, Download, Upload, SignalHigh, Map, Trash2, Navigation, Volume2, ChevronDown, Play, Pause, Square, BellRing, BatteryWarning } from 'lucide-react';
 import { GlassCard, CardHeader } from '@/components/primitives/GlassCard';
 import { GpsSatellitesCard } from '@/components/GpsSatellites';
 import { RelayEventLog } from '@/components/RelayEventLog';
@@ -798,6 +798,148 @@ function VoiceControlCard() {
  * nothing to configure for that here, it's handled entirely on the
  * backend (internet_radio_service.py).
  */
+/**
+ * Battery alarms — the AGM floor and the two-battery divergence check.
+ * See backend/app/services/battery_alarm_service.py for what each one
+ * actually watches.
+ *
+ * Ships disabled, and this card is the only way to turn it on: an alarm
+ * that has never run against this van's real readings isn't something
+ * to enable on someone's behalf.
+ *
+ * The ntfy topic is write-only, same treatment as the API keys, for a
+ * reason worth being explicit about in the UI: an ntfy topic is public
+ * by name, so the string IS the credential. Anyone who knows it can
+ * subscribe to the van's battery alerts.
+ */
+function BatteryAlarmsCard() {
+  const qc = useQueryClient();
+  const cfg = useQuery({ queryKey: ['config-alarms'], queryFn: () => api.getConfig('alarms') });
+
+  const [enabled, setEnabled] = useState(false);
+  const [floor, setFloor] = useState('50');
+  const [divergence, setDivergence] = useState('0.4');
+  const [ntfyTopic, setNtfyTopic] = useState('');
+  const [seeded, setSeeded] = useState(false);
+
+  useEffect(() => {
+    if (cfg.data && !seeded) {
+      setEnabled(cfg.data.battery_enabled === true);
+      setFloor(String(cfg.data.soc_floor_pct ?? 50));
+      setDivergence(String(cfg.data.divergence_volts ?? 0.4));
+      setSeeded(true);
+    }
+  }, [cfg.data, seeded]);
+
+  const topicSet = cfg.data?.ntfy_topic_set === true;
+
+  const save = useMutation({
+    mutationFn: () => {
+      const value: Record<string, unknown> = {
+        battery_enabled: enabled,
+        soc_floor_pct: Number(floor) || 50,
+        divergence_volts: Number(divergence) || 0.4,
+      };
+      // Blank means "leave the stored topic alone", the same rule the
+      // API keys use — so saving a threshold change doesn't wipe the
+      // topic just because the field renders empty.
+      if (ntfyTopic.trim()) value.ntfy_topic = ntfyTopic.trim();
+      return api.setConfig('alarms', value);
+    },
+    onSuccess: () => {
+      toast.success('Battery alarms saved');
+      setNtfyTopic('');
+      qc.invalidateQueries({ queryKey: ['config-alarms'] });
+    },
+    onError: () => toast.error('Could not save'),
+  });
+
+  return (
+    <GlassCard className="col-span-12 p-6">
+      <CardHeader label="Battery alarms" hint={enabled ? 'armed' : 'off'} />
+
+      <div className="rounded-xl bg-ink/[0.03] ring-1 ring-ink/10 px-4 py-3 flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <BatteryWarning size={16} className={enabled ? 'text-amber-400' : 'text-ink-muted'} />
+          <div>
+            <div className="text-sm">Watch the bank</div>
+            <div className="text-[11px] text-ink-faint">
+              Alerts when charge drops below the floor, or the two batteries drift apart for more than ten minutes.
+            </div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setEnabled((v) => !v)}
+          aria-label="Toggle battery alarms"
+          className={cn(
+            'relative h-7 w-12 rounded-full transition shrink-0',
+            enabled ? 'bg-amber-400/40 ring-1 ring-amber-400/50' : 'bg-ink/10 ring-1 ring-ink/15',
+          )}
+        >
+          <span className={cn('absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform', enabled ? 'left-[calc(100%-1.625rem)]' : 'left-0.5')} />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="text-[11px] uppercase tracking-widest text-ink-muted">Charge floor (%)</label>
+          <input
+            value={floor}
+            inputMode="decimal"
+            onChange={(e) => setFloor(e.target.value)}
+            className="mt-1 w-full rounded-xl bg-ink/[0.04] ring-1 ring-inset ring-ink/10 px-3 py-2 text-sm num outline-none focus:ring-aurora-teal/50"
+          />
+          <div className="text-[11px] text-ink-faint mt-1">
+            50% for AGM — below this shortens their life. Separate from the existing 20%/10% low-battery alerts.
+          </div>
+        </div>
+        <div>
+          <label className="text-[11px] uppercase tracking-widest text-ink-muted">Divergence (V)</label>
+          <input
+            value={divergence}
+            inputMode="decimal"
+            onChange={(e) => setDivergence(e.target.value)}
+            className="mt-1 w-full rounded-xl bg-ink/[0.04] ring-1 ring-inset ring-ink/10 px-3 py-2 text-sm num outline-none focus:ring-aurora-teal/50"
+          />
+          <div className="text-[11px] text-ink-faint mt-1">
+            Gap between the leisure and external batteries. Must hold for ten minutes, so the inverter doesn&apos;t trip it.
+          </div>
+        </div>
+        <div>
+          <label className="text-[11px] uppercase tracking-widest text-ink-muted flex items-center gap-1.5">
+            <BellRing size={12} /> ntfy topic {topicSet && <span className="text-emerald-400 normal-case tracking-normal">· set</span>}
+          </label>
+          <input
+            value={ntfyTopic}
+            placeholder={topicSet ? '•••••••• (leave blank to keep)' : 'optional — phone push'}
+            onChange={(e) => setNtfyTopic(e.target.value)}
+            className="mt-1 w-full rounded-xl bg-ink/[0.04] ring-1 ring-inset ring-ink/10 px-3 py-2 text-sm outline-none focus:ring-aurora-teal/50"
+          />
+          <div className="text-[11px] text-ink-faint mt-1">
+            Install the ntfy app and subscribe to the same topic. Pick something unguessable — anyone who knows the
+            name can read the alerts.
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center gap-3 flex-wrap">
+        <button
+          type="button"
+          onClick={() => save.mutate()}
+          disabled={save.isPending}
+          className="rounded-full px-4 py-2 text-sm bg-aurora-teal text-navy-900 font-semibold hover:brightness-110 disabled:opacity-40"
+        >
+          {save.isPending ? 'Saving…' : 'Save alarms'}
+        </button>
+        <span className="text-[11px] text-ink-faint">
+          Alerts also appear in the app. Re-sent at most once every 6 hours while a condition lasts.
+        </span>
+      </div>
+    </GlassCard>
+  );
+}
+
 function InternetRadioCard() {
   const qc = useQueryClient();
   const [streamUrl, setStreamUrl] = useState('');
@@ -1281,6 +1423,7 @@ export function Settings() {
         </GlassCard>
 
         <VoiceControlCard />
+        <BatteryAlarmsCard />
         <InternetRadioCard />
         </CollapsibleGroup>
 

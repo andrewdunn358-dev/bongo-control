@@ -22,12 +22,17 @@ from app.services.roof_service import roof_service
 # the AI API key — all hardware-affecting or secret-bearing.
 router = APIRouter(prefix="/api/config", tags=["config"], dependencies=[Depends(require_app_token)])
 
-VALID_SECTIONS = {"general", "appearance", "hardware", "plugins", "notifications", "developer", "location", "relays", "roof"}
+VALID_SECTIONS = {"general", "appearance", "hardware", "plugins", "notifications", "alarms", "developer", "location", "relays", "roof"}
 
 # Secret keys are stored but NEVER returned in a GET (the app is reachable
 # over the internet through the tunnel). Instead a "<key>_set" boolean is
 # exposed so the UI can show "configured" without ever handling the value.
-SECRET_KEYS = {"anthropic_api_key", "ofcom_api_key", "modem_password", "groq_api_key", "google_tts_api_key"}
+# ntfy_topic is here for a slightly different reason from the API
+# keys: it is not a credential issued to us, it IS the credential.
+# ntfy topics are public by name - anyone who knows the string can
+# subscribe and read the van's battery alerts - so echoing it back
+# over a tunnel that is reachable from the internet would leak it.
+SECRET_KEYS = {"anthropic_api_key", "ofcom_api_key", "modem_password", "groq_api_key", "google_tts_api_key", "ntfy_topic"}
 
 
 def _redact(section_data: dict) -> dict:

@@ -34,6 +34,10 @@ class RelaySetRequest(BaseModel):
     on: bool
 
 
+class RelayInUseRequest(BaseModel):
+    in_use: bool
+
+
 @router.get("")
 async def list_relays() -> dict:
     return relay_service.status()
@@ -83,6 +87,23 @@ async def rename_relay(channel_id: int, body: RelayRenameRequest) -> dict:
     """
     try:
         return relay_service.rename(channel_id, body.name)
+    except RelayUnavailableError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.put("/{channel_id}/in-use")
+async def set_relay_in_use(channel_id: int, body: RelayInUseRequest) -> dict:
+    """Mark a channel as switching a real circuit, or not.
+
+    A channel set to not-in-use keeps its pin, keeps its boot-safe
+    state and stays togglable here for bench testing - it just stops
+    being offered by voice and stops being listed to Ron as something
+    he can tell you to switch. Wire something to the spare, flip this
+    back on, and it becomes a real load again with no redeploy. See
+    RelayService.set_in_use().
+    """
+    try:
+        return relay_service.set_in_use(channel_id, body.in_use)
     except RelayUnavailableError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

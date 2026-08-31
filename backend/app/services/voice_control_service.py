@@ -601,7 +601,18 @@ class VoiceControlService:
         """Name (lowercased) -> channel id, for exactly the relays voice
         is allowed to touch. See the module docstring for why roof
         exclusion happens here, structurally, rather than as a filter
-        applied after matching."""
+        applied after matching.
+
+        Channels marked in_use=False are excluded for a different
+        reason from the roof ones: not danger, but honesty. A spare
+        channel with nothing wired to it is not a load anyone can
+        name, and matching a phrase against it would click a relay and
+        report success while nothing in the van changed - the same
+        kind of confident-but-empty answer this project refuses
+        everywhere else. `in_use` is absent on any channel configured
+        before the flag existed, and absent means True: taking a
+        circuit out of voice control has to be a deliberate act.
+        """
         try:
             channels = relay_service.status().get("channels", [])
         except Exception:  # noqa: BLE001 - relay control being unavailable shouldn't crash voice status
@@ -610,7 +621,7 @@ class VoiceControlService:
         return {
             str(c["name"]).strip().lower(): c["id"]
             for c in channels
-            if c.get("id") not in roof_ids and c.get("name")
+            if c.get("id") not in roof_ids and c.get("name") and c.get("in_use", True)
         }
 
     @staticmethod

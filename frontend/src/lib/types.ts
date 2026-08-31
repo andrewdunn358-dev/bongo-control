@@ -319,6 +319,13 @@ export interface Relay {
    *  the relays sit in parallel with manual switches and there is no
    *  sense line back. */
   commanded_on: boolean;
+  /** Whether this channel actually switches a circuit that exists.
+   *  False = wired to nothing (a spare). It stays togglable here for
+   *  bench testing, but Ron won't offer it and voice won't match it,
+   *  because clicking a relay with no load behind it and reporting
+   *  success would be the same empty confidence this app avoids
+   *  everywhere else. */
+  in_use: boolean;
 }
 
 export interface RelayResponse {

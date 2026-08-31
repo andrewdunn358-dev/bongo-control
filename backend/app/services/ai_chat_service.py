@@ -246,11 +246,26 @@ class AiChatService:
         stays accurate if they're ever renamed, and the roof relays are
         structurally excluded here the same deliberate way they are
         there (hold-to-run only, never a plain voice on/off).
+
+        Channels marked in_use=False are excluded too, and that
+        exclusion is the fix for a second reported gap: Ron kept
+        offering to switch the heater and the fridge long after
+        neither was on a relay (the heater went direct to the battery,
+        the fridge onto the Victron load output). The relay list was
+        still telling him they existed, so he was reasoning correctly
+        from a stale premise - the same shape of failure as the radio
+        one above. Building this from a flag rather than a name means
+        wiring the spare channel to something real and flipping it
+        back on is all it takes for Ron to start offering it again.
         """
         try:
             channels = relay_service.status().get("channels", [])
             roof_ids = roof_service.managed_channel_ids
-            relay_names = sorted({str(c["name"]).strip() for c in channels if c.get("id") not in roof_ids and c.get("name")})
+            relay_names = sorted({
+                str(c["name"]).strip()
+                for c in channels
+                if c.get("id") not in roof_ids and c.get("name") and c.get("in_use", True)
+            })
         except Exception:  # noqa: BLE001 - this is prompt context, not a critical path; missing it shouldn't break a reply
             relay_names = []
 

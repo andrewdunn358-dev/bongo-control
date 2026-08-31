@@ -162,15 +162,18 @@ const plugins = [
 ];
 
 const relays = [
-  { id: 1, gpio: 17, name: 'Water Pump', commanded_on: false },
-  { id: 2, gpio: 27, name: 'Interior Lights', commanded_on: true },
-  { id: 3, gpio: 22, name: 'Fridge', commanded_on: true },
-  { id: 4, gpio: 23, name: 'Diesel Heater', commanded_on: false },
+  { id: 1, gpio: 17, name: 'Water Pump', commanded_on: false, in_use: true },
+  { id: 2, gpio: 27, name: 'Interior Lights', commanded_on: true, in_use: true },
+  { id: 3, gpio: 22, name: 'Fridge', commanded_on: true, in_use: true },
+  // One spare in the demo deliberately, so the showcase exercises the
+  // dimmed card and the "mark as wired" control rather than hiding a
+  // state that exists on the real van.
+  { id: 4, gpio: 23, name: 'Spare', commanded_on: false, in_use: false },
   // Roof channels 7/8 — present in the list (matches the real /relays
   // shape) but the Switches screen filters these out itself once
   // /roof reports up_channel/down_channel, same as production.
-  { id: 7, gpio: 16, name: 'Roof up', commanded_on: false },
-  { id: 8, gpio: 26, name: 'Roof down', commanded_on: false },
+  { id: 7, gpio: 16, name: 'Roof up', commanded_on: false, in_use: true },
+  { id: 8, gpio: 26, name: 'Roof down', commanded_on: false, in_use: true },
 ];
 
 // --- Roof (hold-to-run) simulation ---
@@ -707,6 +710,11 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
 
   if (p.startsWith('/config/')) {
     if (method === 'PUT') return R(body.value || {});
+    // Section-aware: the alarms card reads different keys from the
+    // general one, and a single blended object made the showcase show
+    // an armed alarm with no thresholds behind it.
+    if (p === '/config/alarms')
+      return R({ battery_enabled: false, soc_floor_pct: 50, divergence_volts: 0.4, renotify_hours: 6, ntfy_topic_set: false });
     return R({ contact_email: 'demo@vanos.example', ai_model: '', anthropic_api_key_set: true });
   }
 
@@ -732,6 +740,12 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
     const id = Number(p.split('/')[2]);
     const r = relays.find((x) => x.id === id);
     if (r) r.commanded_on = !!body.on;
+    return R({ available: true, reason: null, state_is_commanded_only: true, channels: relays });
+  }
+  if (p.startsWith('/relays/') && p.endsWith('/in-use')) {
+    const id = Number(p.split('/')[2]);
+    const r = relays.find((x) => x.id === id);
+    if (r) r.in_use = !!body.in_use;
     return R({ available: true, reason: null, state_is_commanded_only: true, channels: relays });
   }
   if (p.startsWith('/relays/') && p.endsWith('/toggle')) {

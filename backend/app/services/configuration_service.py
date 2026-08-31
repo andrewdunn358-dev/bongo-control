@@ -45,10 +45,15 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "relays": {
         "active_high": True,
         "channels": [
-            {"id": 1, "gpio": 17, "name": "Heater"},
+            # Physical pins 11 / 13 / 15 / 16 in that order. Kept in
+            # step with DEFAULT_CHANNELS in relay_service.py, which is
+            # the copy that actually gets used - see the note there for
+            # why channel 4 is a spare and why channel 1 is left marked
+            # in use despite its board fault.
+            {"id": 1, "gpio": 17, "name": "TV"},
             {"id": 2, "gpio": 27, "name": "Lights"},
-            {"id": 3, "gpio": 22, "name": "Radio / amp"},
-            {"id": 4, "gpio": 23, "name": "Fridge / TV"},
+            {"id": 3, "gpio": 22, "name": "Amp"},
+            {"id": 4, "gpio": 23, "name": "Spare", "in_use": False},
             # Roof reversing bridge - owned by RoofService, not a plain
             # switch. See roof_service.py and the "roof" section below.
             # Relay 8 is GPIO 26, not 25 - physical pin 22 (GPIO25) tested
@@ -100,6 +105,36 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "weather": {"enabled": True},
     },
     "notifications": {"enabled": True},
+    # Battery alarms - see battery_alarm_service.py for what each one
+    # watches and why. A NEW TOP-LEVEL SECTION deliberately, rather than
+    # extra keys inside "notifications": _load() shallow-merges, so a
+    # stored section fully shadows its defaults and new sub-keys added
+    # to an existing section never reach an install that has already
+    # saved one. A new top-level key merges in cleanly for everybody.
+    #
+    # Off by default. These have never run against this van's real
+    # readings, and switching an alarm on for someone remotely is not a
+    # decision to make on their behalf.
+    "alarms": {
+        "battery_enabled": False,
+        # 50%, not 20%: this is an AGM bank, and the floor is the number
+        # that protects the batteries rather than the one that means
+        # they're nearly empty. BatteryService's own 20/10% alerts are
+        # unchanged and still fire below this.
+        "soc_floor_pct": 50.0,
+        # Two paralleled batteries should sit at the same voltage. A gap
+        # this size, HELD (see DIVERGENCE_SUSTAIN_SECONDS), means the
+        # Anderson connector, the external battery's breaker, or the
+        # battery itself.
+        "divergence_volts": 0.4,
+        "renotify_hours": 6,
+        # Optional push to a phone. Empty means in-app notifications
+        # only. The topic name is the whole credential - anyone who
+        # knows it can read the alerts - so it lives in SECRET_KEYS and
+        # is never read back by the API.
+        "ntfy_topic": "",
+        "ntfy_server": "https://ntfy.sh",
+    },
     "developer": {},
 }
 

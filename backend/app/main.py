@@ -29,6 +29,7 @@ from app.core.logging_config import configure_logging
 from app.db.database import init_db
 from app.intelligence.engine import IntelligenceEngine
 from app.intelligence.providers.battery_signal import BatterySignalProvider
+from app.intelligence.providers.energy_balance import EnergyBalanceSignalProvider
 from app.intelligence.providers.power_predictions import PowerPredictionProvider
 from app.intelligence.providers.solar_outlook import SolarOutlookSignalProvider
 from app.intelligence.providers.solar_yield import SolarYieldSignalProvider
@@ -39,7 +40,7 @@ from app.services.roof_service import roof_service
 from app.services.voice_control_service import voice_control_service
 from app.services.internet_radio_service import internet_radio_service
 from app.services.arrival_notification_service import arrival_notification_service
-from app.services import battery_service, configuration_service, history_service, location_service, notification_service, power_budget_service, telemetry_service
+from app.services import battery_alarm_service, battery_service, configuration_service, history_service, location_service, notification_service, power_budget_service, telemetry_service
 from app.services.relay_service import relay_service
 from app.telemetry.bus import bus
 
@@ -58,6 +59,10 @@ intelligence_engine = IntelligenceEngine(
         SolarOutlookSignalProvider(telemetry_service),
         SolarYieldSignalProvider(telemetry_service, location_service),
         SolarHistorySignalProvider(history_service),
+        # Daily net Wh at the battery, measured by the shunt. The
+        # counterpart to SolarHistory above, which reports harvest
+        # only and says in its own docstring why it stops there.
+        EnergyBalanceSignalProvider(history_service),
     ],
     prediction_providers=[
         PowerPredictionProvider(telemetry_service, history_service),
@@ -108,6 +113,13 @@ async def lifespan(app: FastAPI):
     await battery_service.start_monitoring()
     logger.info("Battery service monitoring started")
 
+    # Separate from battery_service above: the AGM floor and the
+    # two-battery divergence check, with optional ntfy push. Ships
+    # disabled - starting the subscriber loop costs nothing and lets
+    # Settings switch it on without a restart.
+    await battery_alarm_service.start()
+    logger.info("Battery alarm service started")
+
     await history_service.start()
     logger.info("History service started")
 
@@ -154,6 +166,7 @@ async def lifespan(app: FastAPI):
     await intelligence_runner.stop()
     await power_budget_service.stop()
     await history_service.stop()
+    await battery_alarm_service.stop()
     await battery_service.stop_monitoring()
     await plugin_manager.stop_all()
 
