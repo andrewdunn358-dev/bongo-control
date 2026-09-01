@@ -59,8 +59,24 @@ async def set_relay(channel_id: int, body: RelaySetRequest) -> dict:
 
 @router.post("/all-off")
 async def all_off() -> dict:
-    """Panic switch - useful if something's been left on, and a
-    reasonable thing to reach for before leaving the van.
+    """Commands every channel to its OFF state.
+
+    NOT a panic switch, and deliberately not offered as a button in the
+    UI. This docstring used to call it "a reasonable thing to reach for
+    before leaving the van", which was a promise the wiring cannot keep:
+    every circuit is two-way, with the relay in parallel with a physical
+    wall switch, so the load state is the relay AND the switch position
+    combined. Commanding a relay off does not mean the load goes off -
+    and if that circuit's switch happens to be sitting on the other
+    side, this is exactly as likely to switch a load ON. See the honesty
+    constraint at the top of relay_service.py, and the note in start()
+    about the hours-long mystery an unconditional all-off once caused.
+
+    What it is honestly good for: returning every channel to a known
+    COMMANDED state, which is a sane thing to do from a script or before
+    testing. Kept for that, with no UI, because a button labelled
+    anything a user would understand would be claiming more than this
+    can do.
     """
     try:
         return relay_service.all_off(source="app:all-off")

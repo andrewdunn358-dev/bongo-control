@@ -131,13 +131,35 @@ Recording these so they don't get re-investigated:
 
 ---
 
-## One thing found that is a gap, not clutter
+## `/relays/all-off` — looked like a gap, was actually a false claim
 
-**`/relays/all-off` has no UI.** The backend panic switch exists, is
-auth-gated, and its docstring calls it *"a reasonable thing to reach for
-before leaving the van"* — but nothing in the app can call it. That's a
-missing button, not dead code, so it was left alone rather than deleted.
-Worth adding to the Switches screen.
+Flagged initially as a missing button: the endpoint exists, is
+auth-gated, and its docstring called it a *"panic switch … a reasonable
+thing to reach for before leaving the van"*, but nothing in the app can
+call it.
+
+**Frankie's answer: don't add the button, because we don't know the
+state of the switches.** That is the correct call and a better reason
+than the one that prompted the question. Every circuit is two-way — the
+relay sits in parallel with a physical wall switch, so the load state is
+the relay AND the switch position combined. Commanding a relay off does
+not mean the load goes off, and if that circuit's switch is sitting on
+the other side, "all off" is exactly as likely to switch a load **on**.
+`relay_service.py` has known this from the start (it's the same
+reasoning behind restore-on-startup, and behind the hours-long mystery
+an unconditional all-off once caused) — the route's docstring had simply
+never been held to it.
+
+So the fix was to the docstring, not the UI. It now says what the call
+actually does — return every channel to a known *commanded* state, which
+is honestly useful from a script or before testing — and states plainly
+that it is not a panic switch and should not get a button, because any
+label a user would understand would claim more than the wiring can
+deliver.
+
+Worth generalising: **a missing UI is sometimes a correct UI.** The
+question to ask before adding a control is not "is this endpoint
+reachable" but "can the hardware keep the promise the label makes".
 
 ---
 
