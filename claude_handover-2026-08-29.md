@@ -131,10 +131,12 @@ positive.
 ## Open items
 
 **Hardware**
-- Diesel heater fuel pump (22mL) waiting at home. Both E-08 and E-10 are
-  fuel-supply codes in the manual; a leak was found on the pump body.
-  Check whether the leak is the body or a union before assuming the new
-  pump fixes it.
+- **Diesel heater — see `claude_heater-diagnosis.md`, which supersedes
+  this entry.** The 22mL pump was bought but **never fitted** (connector
+  mismatch), so it is NOT eliminated despite later notes saying so. The
+  heater is also fed from the vehicle's fuel line via a T junction with a
+  non-return valve, which no earlier note recorded. Warranty is now out
+  of time.
 - 100A ANL fuse for the inverter's 25mm² feed — currently unfused.
 - Inline fuse on the Pi's battery feed. Open since July.
 - The external battery's circuit breaker tripped from road vibration.
