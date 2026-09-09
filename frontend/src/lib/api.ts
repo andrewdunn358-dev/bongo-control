@@ -21,6 +21,8 @@ import type {
   RadioStation,
   Relay,
   RelayEvent,
+  HeaterResponse,
+  HeaterState,
   RelayResponse,
   RoofStatus,
   CameraSnapshot,
@@ -246,6 +248,17 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ name }),
     }),
+  heater: () => request<HeaterResponse>('/heater'),
+  heaterPower: (on: boolean) =>
+    request<HeaterState>('/heater/power', { method: 'POST', body: JSON.stringify({ on }) }),
+  heaterTemperature: (celsius: number) =>
+    request<HeaterState>('/heater/temperature', { method: 'POST', body: JSON.stringify({ celsius }) }),
+  heaterLevel: (level: number) =>
+    request<HeaterState>('/heater/level', { method: 'POST', body: JSON.stringify({ level }) }),
+  heaterMode: (mode: 'level' | 'temperature') =>
+    request<HeaterState>('/heater/mode', { method: 'POST', body: JSON.stringify({ mode }) }),
+  heaterAutoStartStop: () =>
+    request<HeaterState>('/heater/auto-start-stop', { method: 'POST', body: '{}' }),
   setRelayInUse: (id: number, in_use: boolean) =>
     request<RelayResponse>(`/relays/${encodeURIComponent(id)}/in-use`, {
       method: 'PUT',

@@ -12,6 +12,7 @@ export const NAV = {
   coverage: 'nav-coverage',
   switches: 'nav-switches',
   roof: 'nav-roof',
+  heater: 'nav-heater',
   camera: 'nav-camera',
   history: 'nav-history',
   trips: 'nav-trips',

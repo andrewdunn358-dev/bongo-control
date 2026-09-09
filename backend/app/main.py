@@ -21,6 +21,7 @@ from app.api.routes import places as places_routes
 from app.api.routes import backup as backup_routes
 from app.api.routes import voice as voice_routes
 from app.api.routes import voice_control as voice_control_routes
+from app.api.routes import heater as heater_routes
 from app.api.routes import relays as relay_routes
 from app.api.routes import health, location as location_routes, plugins as plugins_routes, poi as poi_routes, settings as settings_routes, telemetry, wifi as wifi_routes
 from app.api.websocket import router as websocket_router
@@ -212,6 +213,7 @@ app.include_router(roof_routes.router)
 app.include_router(voice_routes.router)
 app.include_router(voice_control_routes.router)
 app.include_router(relay_routes.router)
+app.include_router(heater_routes.router)
 app.include_router(internet_radio_routes.router)
 app.include_router(radio_directory_routes.router)
 app.include_router(websocket_router)

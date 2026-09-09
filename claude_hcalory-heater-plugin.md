@@ -1,160 +1,96 @@
-# Hcalory heater BLE plugin
+# Hcalory heater — VanOS plugin and Heater screen
 
-_9 Sep 2026. Reads the new diesel heater's live state into VanOS._
+_9 Sep 2026. Read AND control the diesel heater from VanOS._
 
-## What it does
+## The heater
 
-Publishes body temperature, cabin temperature, supply voltage, run
-state, mode and power setting to a new `HEATING` telemetry domain. The
-same figures the phone app shows.
+- Advertises as **`Heater5579`**, MAC **`20:25:05:19:0D:33`**
+- Service **BD39** — Hcalory **MVP2**
+- PIN **0000**
+- Signal from the Pi: **−23 dBm**, the strongest device in the scan.
+  Range was never the problem.
 
-**Read-only, deliberately.** The protocol supports start/stop and the
-command bytes are in the plugin, unused. Turning a combustion heater on
-from a web UI — potentially from outside the van over the Cloudflare
-tunnel — is a different decision from switching a light and deserves its
-own interlocks, not arriving as a side effect of adding a sensor.
+## What took an evening to find
 
-## Why it is shaped unlike the Victron plugins
-
-The Victron devices **broadcast**. Those plugins share one passive
-scanner and never connect (see `ble_scanner.py`).
-
-This heater tells you nothing unless asked. You must open a GATT
-connection, subscribe to notifications on the read characteristic, then
-**write a "pump data" command** before it sends anything. The official
-app does this once a second. So this plugin holds a connection and
-polls.
-
-Two consequences:
-
-1. **Only one thing can connect at a time.** While VanOS holds the
-   connection the phone app cannot, and vice versa. That is the heater's
-   behaviour, not a bug — and it is the first thing to check when either
-   stops working. It is also the likeliest reason the first Pi scan for
-   the heater found nothing.
-2. An active GATT connection alongside BlueZ's discovery scan (which the
-   Victron plugins keep running) is less reliable on a Pi than either
-   alone. Hence retry with backoff rather than assuming the link holds.
-
-## Protocol
-
-From `evanfoster/hcalory-control` (LGPL-3.0) and `mSoftMS/AirHeater-BLE`
-(MIT), both of which reverse-engineered the official app.
-
-- Write characteristic `0000fff2-…`, read `0000fff1-…`
-- Command = 20-byte header `000200010001000e040000090000000000000000`
-  plus a two-byte opcode. Pump data is `000d`.
-- Response, 39 bytes: `[20]` state, `[21]` mode, `[22]` setting,
-  `[25]` voltage in tenths, `[27:29]` body temp in tenths big-endian,
-  `[30:32]` ambient temp in tenths.
-
-Reimplemented rather than taken as a dependency: upstream pulls in
-`datastruct` to parse one 39-byte frame, and `struct` is in the standard
-library. On a Pi 2B that is a poor trade.
-
-**One deliberate difference from upstream:** it uses integer division,
-so 12.4 V arrives as 12 and 150.7 °C as 150. The raw values are tenths
-and the app shows the decimal, so this keeps it.
-
-## Setup
-
-1. **Find the MAC.** Close the Hcalory app completely and turn the
-   phone's Bluetooth off, or the heater will not advertise. Then on the
-   Pi:
-
-       timeout 20 bluetoothctl scan on | grep -iE "hcalory|airheater|Name:"
-
-   It advertises as `HCALORY`, `AirHeater` or `TY`.
-
-2. Set `hcalory_heater.mac` in config and `enabled: true`.
-
-Note for a future scan: the unnamed devices with manufacturer ID
-`0x02e1` in a BlueZ scan are the **Victron** MPPT and SmartShunt, not
-phones. On 9 Sep those appeared at −44 and −73 dBm, which proves the
-Pi's radio hears the van fine.
-
-## Error codes, for reference
-
-From AirHeater-BLE, and they match what this van produced:
-
-| Code | Meaning |
-|---|---|
-| E-01 | General |
-| E-02 | Low / high voltage |
-| E-03 | Glow plug |
-| E-04 | Fuel pump |
-| E-05 | Overheat |
-| E-06 | Fan |
-| E-07 | Communication |
-| E-08 | No fuel / flame-out |
-| E-09 | Sensor |
-| E-10 | Ignition failure |
-
-E-07 appeared on this van when the controller wire fell out during the
-heater swap, which matches exactly.
-
-## The uninterruptible flag
-
-States 65/67/69 (cooldown) and 128/129/131/135 (ignition and heating)
-are flagged `uninterruptible`. Cutting power during those is what leaves
-unburnt fuel in the exhaust — on this van that fouled the old heater
-badly enough that the replacement had to burn through the residue before
-it would light. Anything that later adds control must respect this flag.
-
-## IMPORTANT — the protocol may be wrong
-
-**Do the probe before trusting this plugin.**
-
-`Spettacolo83/homeassistant-diesel-heater` (197 commits, 213 tests,
-actively maintained, and the most thorough of the three projects found)
-documents **two incompatible Hcalory variants**:
+**There are two incompatible Hcalory variants.** The first plugin
+implemented MVP1 (service FFF0), from a project written against a W1,
+and was simply wrong for this van.
 
 | Variant | Service | Write | Notify |
 |---|---|---|---|
 | MVP1 | `FFF0` | `FFF2` | `FFF1` |
 | MVP2 | `BD39` | `BDF7` | `BDF8` |
 
-This plugin implements **MVP1**, taken from `evanfoster/hcalory-control`
-which was written against a W1. Their state codes also disagree
-completely — evanfoster's frame uses 0=off, 133=running, 135=heating,
-while the newer library's Hcalory protocol uses 0x00=standby,
-0x01=heating temp auto, 0x02=heating manual gear, 0xFF=fault. Both
-cannot be right for the same device.
+**MVP2 needs a password handshake immediately after connecting.**
+Without it the heater drops the link, which bleak reports as `failed to
+discover services, device disconnected` — indistinguishable from a
+Bluetooth fault. Several theories were chased (BlueZ version, bluez
+package missing from the container, bleak 0.22 vs 3.0) and none was the
+cause: it was the missing handshake, plus genuine intermittency. Two
+container rebuilds were spent on wrong guesses.
 
-This van's heater was bought September 2026, so MVP2 is a real
-possibility — in which case this plugin will not find its
-characteristics and will never connect.
+**BLE pairing is not involved.** `bluetoothctl pair` returns
+`AuthenticationFailed`, consistent with the phone app never having been
+paired either. Don't try to pair it.
 
-**Run `backend/tools/heater_probe.py` and let the heater answer**, rather
-than guessing and making a trip to the van per guess:
+**Only one connection at a time.** While VanOS holds the link the phone
+app can't connect, and vice versa. First thing to check when either
+stops working.
 
-    python3 backend/tools/heater_probe.py                     # scan
-    python3 backend/tools/heater_probe.py AA:BB:CC:DD:EE:FF   # connect and enumerate
+## Protocol
 
-If it reports MVP2, the sensible move is to drop this hand-rolled parser
-and depend on `diesel-heater-ble` from PyPI, which handles six protocol
-variants with auto-detection and is far better tested than one van's
-worth of guesswork.
+`diesel-heater-ble` (MIT, pinned in requirements) builds and parses the
+packets — six protocol variants, 213 tests. It is protocol-only and
+leaves the BLE transport to the caller, so the connection handling in
+the plugin is ours.
 
-## Other things worth knowing, from that project
+## Safety guards — do not weaken these
 
-- **Unpair from the phone first.** Their number-one support issue. A
-  backgrounded app still holds the connection.
-- **Raspberry Pi internal Bluetooth is unreliable for BLE.** They
-  recommend a USB Bluetooth 5.0 dongle or an ESP32 proxy near the
-  heater. Given the heater is under the driver's seat behind metal and
-  the Pi is elsewhere in the van, this may matter here.
-- Some protocols use a **PIN, default 1234**.
-- Write with `response=False` — some setups return "insufficient
-  authorization" otherwise. This plugin already does.
+Enforced in the plugin, not the UI, so they hold however the heater is
+commanded — a future voice command or automation gets the same
+protection as a button press.
 
-## Status
+- **A stop is refused during ignition.** Interrupting it leaves unburnt
+  fuel in the burner and exhaust. On this van that fouled the previous
+  heater badly enough that its replacement had to burn through the
+  residue before it would light.
+- **A start is refused during cooldown.** The heater is purging and will
+  not honour it anyway.
 
-Parser tested — 39 assertions, cross-checked against a real reading
-taken from the phone app (150.0 °C body, 22.0 °C ambient, 12.0 V,
-running, thermostat, set 21). Those numbers are consistent with the MVP1
-layout, which is mild evidence for it — but the app displays the same
-figures whatever the wire format, so it is not proof.
+Both check the heater's own reported `running_step`, never what we think
+we last commanded — those diverge exactly when it matters. The API
+returns 409 for these, which the UI shows as guidance rather than an
+error.
 
-**The BLE connection itself is untested** and cannot be exercised
-without the heater.
+## The screen
+
+`/heater`, laid out to match the Hcalory phone app deliberately — big
+target temperature with −/+, readings row, three mode buttons, heating
+bar. That layout is already learned; no reason to invent another.
+
+Differences from the app: controls are disabled during ignition and
+cooldown **with the reason shown**, and target reads `—` rather than a
+stale number when the heater is off and reports no setpoint.
+
+High Plateau is present but disabled — it only matters above 3000 m and
+this van is at sea level, so wiring it up would be pretend
+functionality.
+
+## Enabling it
+
+Config `hcalory_heater`: MAC and PIN are already seeded. Set
+`enabled: true`.
+
+## Still to do
+
+- **Untested against the real heater.** The protocol is proven — the
+  standalone test connected, handshook and returned live readings — but
+  the plugin's own connect/poll loop and every control command are
+  unexercised. Expect a round of corrections.
+- The `state` code mapping in the UI (0 off, 8 heating, 0xC ventilation,
+  0xF fault) is from the library's constants, not observed on this
+  heater. Watch it against real transitions.
+- Connection proved intermittent from inside the container — the same
+  command failed twice then worked unchanged. The plugin retries with
+  backoff, but the real failure rate is unknown and the poll interval
+  may need tuning.

@@ -27,6 +27,7 @@ import {
   BatteryCharging,
   Sparkles,
   Radio as RadioIcon,
+  Flame,
 } from 'lucide-react';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { NAV } from '@/constants/testIds';
@@ -63,6 +64,7 @@ const LINKS: NavLinkDef[] = [
   { to: '/radio', label: 'Radio', short: 'Radio', icon: RadioIcon, testId: NAV.radio },
   { to: '/switches', label: 'Switches', short: 'Switch', icon: ToggleRight, testId: NAV.switches },
   { to: '/roof', label: 'Roof', short: 'Roof', icon: ChevronsUp, testId: NAV.roof },
+  { to: '/heater', label: 'Heater', short: 'Heat', icon: Flame, testId: NAV.heater },
   { to: '/camera', label: 'Camera', short: 'Cam', icon: Camera, testId: NAV.camera },
   { to: '/history', label: 'History', short: 'History', icon: LineChart, testId: NAV.history },
   { to: '/trips', label: 'Trips', short: 'Trips', icon: Route, testId: NAV.trips },

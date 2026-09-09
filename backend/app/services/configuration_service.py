@@ -105,7 +105,14 @@ DEFAULT_CONFIG: dict[str, Any] = {
         # address has to be discovered by scanning - see the plugin
         # docstring. Read-only: this reports the heater's state and
         # does not control it.
-        "hcalory_heater": {"enabled": False, "mac": "", "poll_seconds": 15},
+        # MAC and PIN found by tools/heater_probe.py on 9 Sep 2026:
+        # advertises as "Heater5579" on service BD39 (MVP2), PIN 0000.
+        "hcalory_heater": {
+            "enabled": False,
+            "mac": "20:25:05:19:0D:33",
+            "pin": 0,
+            "poll_seconds": 10,
+        },
         "victron_mppt": {"enabled": False},
         "victron_shunt": {"enabled": False},
         "weather": {"enabled": True},

@@ -1,63 +1,68 @@
 """
-Hcalory diesel air heater plugin (Bluetooth LE).
+Hcalory diesel air heater plugin (Bluetooth LE, MVP2).
 
-Reads the heater's live state - body temperature, cabin temperature,
-supply voltage, run state, mode and power setting - and publishes it to
-the HEATING domain.
+Reads the heater's live state and sends commands to it: the same
+figures and controls the Hcalory phone app shows - case temperature,
+cabin temperature, supply voltage, run state, mode, target, and
+auto start/stop.
 
-WHY THIS IS SHAPED DIFFERENTLY FROM THE VICTRON PLUGINS
-The Victron devices broadcast. They advertise their readings to anyone
-listening, so those plugins share one passive scanner and never connect
-to anything (see ble_scanner.py).
+WHY MVP2 SPECIFICALLY
+There are two incompatible Hcalory variants. The first version of this
+plugin implemented MVP1 (service FFF0), taken from a project written
+against a W1, and it was simply wrong for this van. The probe settled
+it: this heater advertises as "Heater5579" on service BD39 - MVP2,
+with different characteristics AND a different frame layout.
 
-This heater does the opposite, and awkwardly: it tells you nothing
-unless you ask. You must open a GATT connection, subscribe to
-notifications on the read characteristic, and then WRITE a "pump data"
-command to the write characteristic before it will send anything back.
-The official phone app does this once per second. So this plugin holds a
-connection rather than listening, and polls on a timer.
+    MVP1  service FFF0, write FFF2, notify FFF1
+    MVP2  service BD39, write BDF7, notify BDF8
 
-That has two consequences worth knowing:
+MVP2 also requires a PASSWORD HANDSHAKE immediately after connecting.
+Without it the heater drops the link, which surfaces as bleak's
+unhelpful "failed to discover services, device disconnected" and looks
+like a Bluetooth fault rather than a protocol one. That cost an
+evening. This van's PIN is 0000.
 
-  1. Only ONE thing can be connected at a time. While VanOS holds the
-     connection, the Hcalory phone app cannot connect, and vice versa.
-     This is a property of the heater, not a bug here - but it is the
-     first thing to check when either one stops working.
+PROTOCOL
+`diesel-heater-ble` (MIT) builds and parses the packets. It covers six
+protocol variants and has 213 tests behind it, which is a great deal
+more than anything derivable from one van. It is protocol-only and
+deliberately leaves the BLE transport to the caller, so the connection
+handling below is ours.
 
-  2. An active GATT connection alongside BlueZ's discovery scan (which
-     the Victron plugins keep running) is less reliable on a Pi than
-     either alone. Hence the retry/backoff loop rather than assuming a
-     connection stays up.
+WHY IT HOLDS A CONNECTION RATHER THAN LISTENING
+The Victron devices broadcast; those plugins share one passive scanner
+and never connect (see ble_scanner.py). This heater says nothing unless
+asked: connect, subscribe, then write a query before it answers. So
+this holds a connection and polls.
 
-PROTOCOL CREDIT
-The frame format, characteristic UUIDs and command bytes come from
-evanfoster/hcalory-control (LGPL-3.0) and mSoftMS/AirHeater-BLE (MIT),
-both of which reverse-engineered the official app. Reimplemented here
-against the documented protocol rather than taken as a dependency: the
-upstream library pulls in `datastruct` to parse one 39-byte frame, and
-adding a dependency to a Pi 2B for that is a poor trade when `struct`
-is in the standard library.
+Consequence worth knowing: only ONE thing can be connected at a time.
+While VanOS holds the link the phone app cannot, and vice versa. That
+is the heater's behaviour, not a bug here, and it is the first thing to
+check when either stops working.
 
-ONE DELIBERATE DIFFERENCE from upstream: it reports voltage and
-temperatures with integer division, so 12.4 V arrives as 12 and 150.7 C
-as 150. The raw values are tenths and the phone app displays the
-decimal, so this keeps the tenth. Throwing away a known digit is the
-kind of quiet precision loss this project avoids elsewhere.
+SAFETY - the part that matters
+This is a combustion device and the app is reachable from outside the
+van over the Cloudflare tunnel. Two guards, enforced here rather than
+left to the UI to remember:
 
-WHAT IT DOES NOT DO
-Control. This reads only. Turning a combustion heater on or off from a
-web UI - potentially from outside the van, over the tunnel - is a
-different kind of decision from switching a light, and it deserves its
-own thought about interlocks rather than arriving as a side effect of
-adding a sensor. The protocol supports it and the commands are listed
-below unused, deliberately.
+  * A stop is REFUSED while the heater is igniting. Interrupting
+    ignition leaves unburnt fuel in the burner and exhaust. On this van
+    that fouled the previous heater badly enough that its replacement
+    had to burn through the residue before it would light.
+
+  * A start is REFUSED during cooldown. The heater is purging and will
+    not honour it anyway; queuing one risks an immediate restart into a
+    hot chamber.
+
+Both are checked against the heater's own reported running_step, not
+against what we think we last commanded - those two diverge exactly
+when it matters.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-import struct
 import time
 from typing import Any
 
@@ -67,109 +72,63 @@ from app.telemetry.models import TelemetryDomain, TelemetryMessage, TelemetrySou
 
 logger = logging.getLogger("vanos.plugins.hcalory_heater")
 
-WRITE_CHARACTERISTIC = "0000fff2-0000-1000-8000-00805f9b34fb"
-READ_CHARACTERISTIC = "0000fff1-0000-1000-8000-00805f9b34fb"
+MVP2_WRITE = "0000bdf7-0000-1000-8000-00805f9b34fb"
+MVP2_NOTIFY = "0000bdf8-0000-1000-8000-00805f9b34fb"
 
-# Every command is this header plus a two-byte opcode.
-COMMAND_HEADER = bytes.fromhex("000200010001000e040000090000000000000000")
-CMD_PUMP_DATA = COMMAND_HEADER + bytes.fromhex("000d")
-
-# Present and unused on purpose - see "WHAT IT DOES NOT DO" above.
-CMD_START_HEAT = COMMAND_HEADER + bytes.fromhex("020f")
-CMD_STOP_HEAT = COMMAND_HEADER + bytes.fromhex("010e")
-
-DEFAULT_POLL_SECONDS = 15.0
-CONNECT_TIMEOUT = 30.0
-RESPONSE_TIMEOUT = 10.0
+DEFAULT_POLL_SECONDS = 10.0
+DEFAULT_PIN = 0
+CONNECT_TIMEOUT = 45.0
+REPLY_TIMEOUT = 12.0
 MAX_BACKOFF_SECONDS = 120.0
-# A response shorter than this cannot contain the fields we read.
-MIN_FRAME_LENGTH = 32
 
-HEATER_STATES = {
-    0: "off",
-    65: "cooldown",
-    67: "cooldown_starting",
-    69: "cooldown_received",
-    128: "ignition_received",
-    129: "ignition_starting",
-    131: "igniting",
-    133: "running",
-    135: "heating",
-    255: "error",
-}
+# Vevor-style command numbers the library maps onto Hcalory packets.
+CMD_STATUS = 1
+CMD_SET_MODE = 2
+CMD_POWER = 3
+CMD_SET_TEMPERATURE = 4
+CMD_SET_LEVEL = 5
 
-HEATER_MODES = {0: "off", 1: "thermostat", 2: "gear", 8: "ignition_failed"}
-
-# States during which the heater must not be interrupted - it is either
-# establishing a flame or purging one. Cutting power here is what leaves
-# unburnt fuel in the exhaust, which on this van fouled a heater badly
-# enough to need replacing.
-UNINTERRUPTIBLE = {65, 67, 69, 128, 129, 131, 135}
+# running_step values, from the library's constants.
+STEP_IGNITION = 0x3
+STEP_COOLDOWN = 0x4
 
 
-def parse_frame(data: bytes) -> dict[str, Any] | None:
-    """Decode one status frame.
+class HeaterBusy(RuntimeError):
+    """A command was refused because the heater is mid-ignition or
+    mid-cooldown. Its own type so the API can answer 409 rather than a
+    generic failure: "not now" is a different answer from "broken"."""
 
-    Layout, from the reverse-engineered protocol:
-        [0:20]  header
-        [20]    state
-        [21]    mode
-        [22]    setting
-        [23]    unknown
-        [24]    padding
-        [25]    voltage, tenths
-        [26]    padding
-        [27:29] body temperature, tenths, big-endian
-        [29]    padding
-        [30:32] ambient temperature, tenths, big-endian
 
-    Returns None on anything too short to trust rather than raising:
-    a truncated BLE notification is a routine event, not a fault, and it
-    should cost one poll rather than the plugin.
-    """
-    if len(data) < MIN_FRAME_LENGTH:
-        return None
-
-    state_byte = data[20]
-    mode_byte = data[21]
-    setting = data[22]
-    voltage_raw = data[25]
-    body_raw = struct.unpack(">H", data[27:29])[0]
-    ambient_raw = struct.unpack(">H", data[30:32])[0]
-
-    return {
-        # Unknown codes are reported as their raw number rather than
-        # guessed at or hidden. A state we have never seen is more
-        # useful shown as "unknown (137)" than silently mapped to
-        # something plausible.
-        "state": HEATER_STATES.get(state_byte, f"unknown ({state_byte})"),
-        "mode": HEATER_MODES.get(mode_byte, f"unknown ({mode_byte})"),
-        "setting": setting,
-        "voltage": round(voltage_raw / 10.0, 1),
-        "body_temperature_c": round(body_raw / 10.0, 1),
-        "ambient_temperature_c": round(ambient_raw / 10.0, 1),
-        "running": state_byte in {128, 129, 131, 133, 135},
-        "uninterruptible": state_byte in UNINTERRUPTIBLE,
-        "error": state_byte == 255 or mode_byte == 8,
-    }
+class HeaterUnavailable(RuntimeError):
+    """No connection to the heater."""
 
 
 class HcaloryHeaterPlugin(Plugin):
     name = "hcalory_heater"
     display_name = "Diesel Heater"
-    version = "0.1.0"
+    version = "0.2.0"
 
     def __init__(self, bus: TelemetryBus) -> None:
         super().__init__(bus)
         self._task: asyncio.Task | None = None
         self._mac: str = ""
+        self._pin: int = DEFAULT_PIN
         self._poll_seconds: float = DEFAULT_POLL_SECONDS
-        self._queue: asyncio.Queue[bytearray] = asyncio.Queue()
-        self._last_frame: bytes | None = None
+        self._client: Any = None
+        self._protocol: Any = None
+        self._replies: asyncio.Queue[bytes] = asyncio.Queue()
+        self._latest: dict[str, Any] = {}
+        # Serialises commands against the poll loop. Two writes racing on
+        # one characteristic is how these controllers get confused.
+        self._lock = asyncio.Lock()
 
     def configure(self, config: dict[str, Any]) -> None:
         super().configure(config)
         self._mac = str(config.get("mac") or "").strip()
+        try:
+            self._pin = int(config.get("pin", DEFAULT_PIN))
+        except (TypeError, ValueError):
+            self._pin = DEFAULT_PIN
         try:
             self._poll_seconds = max(5.0, float(config.get("poll_seconds", DEFAULT_POLL_SECONDS)))
         except (TypeError, ValueError):
@@ -177,15 +136,10 @@ class HcaloryHeaterPlugin(Plugin):
 
     async def start(self) -> None:
         if not self._mac:
-            # No MAC means nothing to connect to. Reported as an error
-            # with a usable instruction rather than sitting in "starting"
-            # forever - finding this address is the awkward part of the
-            # setup and the message should say how.
             self.status = PluginStatus.ERROR
             self.last_error = (
-                "No heater MAC address configured. Scan for it with "
-                "`bluetoothctl scan on` (the heater advertises as HCALORY, "
-                "AirHeater or TY) with the phone app closed, then set it in config."
+                "No heater MAC configured. Find it with "
+                "`python3 tools/heater_probe.py`, then set hcalory_heater.mac."
             )
             logger.warning(self.last_error)
             return
@@ -201,40 +155,120 @@ class HcaloryHeaterPlugin(Plugin):
             except asyncio.CancelledError:
                 pass
             self._task = None
+        self._client = None
         self.status = PluginStatus.STOPPED
+
+    # ------------------------------------------------------------ state
+
+    @property
+    def latest(self) -> dict[str, Any]:
+        return dict(self._latest)
+
+    @property
+    def connected(self) -> bool:
+        return bool(self._client and self._client.is_connected)
+
+    # ---------------------------------------------------------- control
+
+    async def set_power(self, on: bool) -> dict[str, Any]:
+        step = self._latest.get("running_step")
+
+        if not on and step == STEP_IGNITION:
+            raise HeaterBusy(
+                "The heater is igniting. Stopping now would leave unburnt fuel in the "
+                "burner. Wait until it is running, then stop it."
+            )
+
+        if on and step == STEP_COOLDOWN:
+            raise HeaterBusy(
+                "The heater is cooling down and must finish its purge. It will accept "
+                "a start once that completes."
+            )
+
+        return await self._command(CMD_POWER, 1 if on else 0)
+
+    async def set_target_temperature(self, celsius: int) -> dict[str, Any]:
+        # The library's documented range for this protocol.
+        if not 0 <= celsius <= 40:
+            raise ValueError("Target temperature must be between 0 and 40 C")
+        return await self._command(CMD_SET_TEMPERATURE, celsius)
+
+    async def set_level(self, level: int) -> dict[str, Any]:
+        if not 1 <= level <= 10:
+            raise ValueError("Level must be between 1 and 10")
+        return await self._command(CMD_SET_LEVEL, level)
+
+    async def set_mode(self, mode: str) -> dict[str, Any]:
+        if mode not in ("level", "temperature"):
+            raise ValueError("Mode must be 'level' or 'temperature'")
+        return await self._command(CMD_SET_MODE, 2 if mode == "temperature" else 1)
+
+    async def toggle_auto_start_stop(self) -> dict[str, Any]:
+        # The protocol offers a toggle only - there is no way to command
+        # it to a specific state, so the UI must read back rather than
+        # assume it landed where it wanted.
+        if not self.connected or self._protocol is None:
+            raise HeaterUnavailable("Not connected to the heater.")
+        return await self._write_and_refresh(self._protocol.toggle_auto_start_stop())
+
+    async def _command(self, command: int, argument: int) -> dict[str, Any]:
+        if not self.connected or self._protocol is None:
+            raise HeaterUnavailable("Not connected to the heater.")
+        return await self._write_and_refresh(self._protocol.build_command(command, argument, self._pin))
+
+    async def _write_and_refresh(self, raw: bytearray) -> dict[str, Any]:
+        async with self._lock:
+            await self._client.write_gatt_char(MVP2_WRITE, raw, response=False)
+            # The heater takes a moment to act. Querying immediately
+            # returns the old state, which would make the UI look like
+            # the command was ignored.
+            await asyncio.sleep(1.5)
+            return await self._query_locked()
+
+    # -------------------------------------------------------- transport
 
     async def _run(self) -> None:
         backoff = 5.0
 
         while True:
             try:
-                await self._poll_forever()
+                await self._connect_and_poll()
                 backoff = 5.0
             except asyncio.CancelledError:
                 raise
-            except Exception as e:  # noqa: BLE001 - the radio fails constantly; that is normal
+            except Exception as e:  # noqa: BLE001 - BLE fails routinely here; that is normal
+                self._client = None
                 self.status = PluginStatus.ERROR
                 self.last_error = str(e)
-                logger.warning("Heater connection lost (%s). Retrying in %.0fs", e, backoff)
+                logger.warning("Heater link lost (%s). Retry in %.0fs", e, backoff)
                 await asyncio.sleep(backoff)
-                # Backs off rather than hammering: the usual reason for a
-                # failed connect is the phone app holding the heater, and
-                # retrying every second neither helps nor ends sooner.
                 backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
 
-    async def _poll_forever(self) -> None:
-        from bleak import BleakClient, BleakScanner
+    async def _connect_and_poll(self) -> None:
+        from bleak import BleakClient
+        from diesel_heater_ble.protocol import ProtocolHcalory
 
-        device = await BleakScanner.find_device_by_address(self._mac, timeout=CONNECT_TIMEOUT)
+        protocol = ProtocolHcalory()
+        protocol.set_mvp_version(True)
 
-        if device is None:
-            raise RuntimeError(
-                f"Heater {self._mac} not found. It may be powered down, out of range, "
-                "or already connected to the phone app."
-            )
+        # Connecting by address without scanning first: BlueZ discovery
+        # running alongside a connect is a documented source of
+        # flakiness, and this address is already known.
+        async with BleakClient(self._mac, timeout=CONNECT_TIMEOUT) as client:
+            self._client = client
+            self._protocol = protocol
 
-        async with BleakClient(device, timeout=CONNECT_TIMEOUT) as client:
-            await client.start_notify(READ_CHARACTERISTIC, self._on_notify)
+            await client.start_notify(MVP2_NOTIFY, self._on_notify)
+
+            # Handshake first. Everything else is ignored until it lands,
+            # and the heater drops the link if it never comes.
+            async with self._lock:
+                await client.write_gatt_char(
+                    MVP2_WRITE, protocol.build_password_handshake(self._pin), response=False
+                )
+                protocol.mark_password_sent()
+                await self._drain_one(timeout=5.0)
+
             self.status = PluginStatus.RUNNING
             self.last_error = None
             logger.info("Connected to heater %s", self._mac)
@@ -243,37 +277,40 @@ class HcaloryHeaterPlugin(Plugin):
                 if not client.is_connected:
                     raise RuntimeError("Heater disconnected")
 
-                await self._poll_once(client)
+                async with self._lock:
+                    await self._query_locked()
+
                 await asyncio.sleep(self._poll_seconds)
 
-    async def _poll_once(self, client) -> None:
-        # Drain anything queued from a previous cycle so a late reply
-        # can't be read as the answer to this request.
-        while not self._queue.empty():
-            self._queue.get_nowait()
+    async def _query_locked(self) -> dict[str, Any]:
+        """Send a status query and publish the reply.
 
-        await client.write_gatt_char(WRITE_CHARACTERISTIC, CMD_PUMP_DATA, response=False)
+        Caller holds the lock: a write and the notification it provokes
+        must not interleave with another command's, or the wrong reply
+        gets read as the answer.
+        """
+        while not self._replies.empty():
+            self._replies.get_nowait()
 
-        try:
-            raw = await asyncio.wait_for(self._queue.get(), timeout=RESPONSE_TIMEOUT)
-        except asyncio.TimeoutError:
-            # A missed reply is not a disconnect. Skip this cycle and let
-            # the next poll try again; the connection is usually fine.
-            logger.debug("No response from heater this cycle")
-            return
+        raw = self._protocol.build_command(CMD_STATUS, 0, self._pin)
+        await self._client.write_gatt_char(MVP2_WRITE, raw, response=False)
 
-        self._last_frame = bytes(raw)
-        payload = parse_frame(self._last_frame)
+        reply = await self._drain_one(timeout=REPLY_TIMEOUT)
 
-        if payload is None:
-            logger.debug("Short frame from heater (%d bytes), ignoring", len(raw))
-            return
+        if reply is None:
+            # A missed reply is not a disconnect. Keep the last known
+            # state and let the next poll try again.
+            logger.debug("No reply from heater this cycle")
+            return self._latest
 
-        # The raw frame is carried so a diagnostics view can show it.
-        # Two of the bytes in this protocol are still unidentified, and
-        # this van will be the thing that identifies them.
-        payload["raw"] = self._last_frame.hex()
+        parsed = self._protocol.parse(bytearray(reply))
 
+        if not parsed:
+            logger.debug("Unparseable frame (%d bytes)", len(reply))
+            return self._latest
+
+        payload = self._shape(parsed)
+        self._latest = payload
         self.last_heartbeat = time.time()
 
         await self.bus.publish(
@@ -285,5 +322,43 @@ class HcaloryHeaterPlugin(Plugin):
             )
         )
 
-    async def _on_notify(self, _characteristic, data: bytearray) -> None:
-        await self._queue.put(data)
+        return payload
+
+    async def _drain_one(self, timeout: float) -> bytes | None:
+        try:
+            return await asyncio.wait_for(self._replies.get(), timeout=timeout)
+        except asyncio.TimeoutError:
+            return None
+
+    async def _on_notify(self, _char, data: bytearray) -> None:
+        await self._replies.put(bytes(data))
+
+    # ---------------------------------------------------------- shaping
+
+    @staticmethod
+    def _shape(parsed: dict[str, Any]) -> dict[str, Any]:
+        """Map the library's fields onto the names VanOS uses.
+
+        An explicit mapping rather than passing the raw dict through, so
+        an upstream rename shows up here as a missing key instead of
+        silently emptying a card in the UI.
+        """
+        step = parsed.get("running_step")
+
+        return {
+            "connected": True,
+            "state": parsed.get("running_state"),
+            "running_step": step,
+            "mode": parsed.get("running_mode"),
+            "target": None if parsed.get("hcalory_set_value_none") else parsed.get("hcalory_set_value"),
+            "auto_start_stop": bool(parsed.get("auto_start_stop")),
+            "voltage": parsed.get("supply_voltage"),
+            "body_temperature_c": parsed.get("case_temperature"),
+            "cabin_temperature_c": parsed.get("cab_temperature"),
+            "error_code": parsed.get("error_code"),
+            # Surfaced so the UI can disable controls the heater will
+            # refuse anyway, rather than letting someone press them and
+            # watch nothing happen.
+            "igniting": step == STEP_IGNITION,
+            "cooling_down": step == STEP_COOLDOWN,
+        }

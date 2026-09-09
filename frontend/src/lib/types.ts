@@ -483,3 +483,40 @@ export interface RelayEvent {
   detail: string | null;
   source: string;
 }
+
+
+/**
+ * Hcalory diesel heater (MVP2 over BLE). Everything here is what the
+ * heater itself reports, not what we last commanded - the two diverge
+ * during ignition and cooldown, which is exactly when it matters.
+ */
+export interface HeaterState {
+  connected?: boolean;
+  /** Heater's own run state code. */
+  state?: number | null;
+  /** Finer-grained step within that state - what the guards key off. */
+  running_step?: number | null;
+  /** 1 = level/gear, 2 = temperature. */
+  mode?: number | null;
+  /** Target temperature in temperature mode, or gear in level mode.
+   *  Null when the heater is off and reports no setpoint at all. */
+  target?: number | null;
+  auto_start_stop?: boolean;
+  voltage?: number | null;
+  /** Heat exchanger body temperature. The number that tells you whether
+   *  it is genuinely burning: a healthy 2kW unit reaches 150-200C. */
+  body_temperature_c?: number | null;
+  cabin_temperature_c?: number | null;
+  error_code?: number | null;
+  /** Uninterruptible: a stop during ignition leaves unburnt fuel in the
+   *  burner, and a start during cooldown is refused by the heater. */
+  igniting?: boolean;
+  cooling_down?: boolean;
+}
+
+export interface HeaterResponse {
+  available: boolean;
+  status: string;
+  error: string | null;
+  state: HeaterState;
+}

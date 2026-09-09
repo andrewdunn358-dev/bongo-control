@@ -16,6 +16,7 @@ import { Home } from '@/screens/Home';
 import { Power } from '@/screens/Power';
 import { Weather } from '@/screens/Weather';
 import { Switches } from '@/screens/Switches';
+import { Heater } from '@/screens/Heater';
 import { Roof } from '@/screens/Roof';
 import { CameraView } from '@/screens/Camera';
 import { Settings } from '@/screens/Settings';
@@ -68,6 +69,7 @@ export function App() {
               <Route path="/coverage" element={<Coverage />} />
               <Route path="/switches" element={<Switches />} />
               <Route path="/roof" element={<Roof />} />
+              <Route path="/heater" element={<Heater />} />
               <Route path="/camera" element={<CameraView />} />
               <Route path="/history" element={<HistoryScreen />} />
               <Route path="/trips" element={<Trips />} />
