@@ -17,7 +17,7 @@ User=andrew
 Environment=HEATER_MAC=20:25:05:19:0D:33
 Environment=HEATER_PIN=0
 Environment=HEATER_AGENT_PORT=8091
-Environment=HEATER_POLL_SECONDS=10
+Environment=HEATER_POLL_SECONDS=1
 
 [Install]
 WantedBy=multi-user.target

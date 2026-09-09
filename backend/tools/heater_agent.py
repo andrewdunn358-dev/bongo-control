@@ -57,14 +57,23 @@ logger = logging.getLogger("heater-agent")
 MAC = os.environ.get("HEATER_MAC", "20:25:05:19:0D:33")
 PIN = int(os.environ.get("HEATER_PIN", "0"))
 PORT = int(os.environ.get("HEATER_AGENT_PORT", "8091"))
-POLL_SECONDS = float(os.environ.get("HEATER_POLL_SECONDS", "10"))
+# 1 second, matching the official app. Not a guess about efficiency:
+# at 10s the link was observed dropping after ~11s twice - one poll
+# cycle plus a moment - which points at an idle timeout on the heater.
+# The app never goes quiet, and neither should this.
+POLL_SECONDS = float(os.environ.get("HEATER_POLL_SECONDS", "1"))
 
 MVP2_WRITE = "0000bdf7-0000-1000-8000-00805f9b34fb"
 MVP2_NOTIFY = "0000bdf8-0000-1000-8000-00805f9b34fb"
 
 CONNECT_TIMEOUT = 45.0
 REPLY_TIMEOUT = 12.0
-MAX_BACKOFF = 120.0
+# Deliberately low. Connecting to this heater is intermittent - roughly
+# one attempt in several succeeds regardless of settings - so the right
+# response to a failure is to try again shortly, not to sulk. A 120s
+# ceiling meant a device that reconnects readily sat unreachable for two
+# minutes at a time, and made the failure look worse than it was.
+MAX_BACKOFF = 15.0
 
 CMD_STATUS, CMD_SET_MODE, CMD_POWER, CMD_SET_TEMPERATURE, CMD_SET_LEVEL = 1, 2, 3, 4, 5
 STEP_IGNITION, STEP_COOLDOWN = 0x3, 0x4
@@ -81,6 +90,11 @@ class Heater:
         self._replies: asyncio.Queue = asyncio.Queue()
         self._lock = asyncio.Lock()
         self.loop: asyncio.AbstractEventLoop | None = None
+        # Counted so /state can report how flaky the link actually is,
+        # rather than leaving it to be guessed from the journal.
+        self._attempts = 0
+        self._last_failure: str | None = None
+        self.connects = 0
 
     # ------------------------------------------------------- commands
 
@@ -149,9 +163,23 @@ class Heater:
                 self.connected = False
                 self.error = str(e)
                 self._client = None
-                logger.warning("Link lost (%s). Retry in %.0fs", e, backoff)
+                self._attempts += 1
+                self._last_failure = str(e)
+
+                # Logged at info for the first few, then debug: an
+                # intermittent radio produces a lot of these and burying
+                # the journal makes the real events harder to find.
+                # Every tenth is logged regardless so a permanently
+                # broken link is still visible.
+                if self._attempts <= 3 or self._attempts % 10 == 0:
+                    logger.warning(
+                        "Link lost (%s). Attempt %d, retry in %.0fs", e, self._attempts, backoff
+                    )
+                else:
+                    logger.debug("Link lost (%s). Retry in %.0fs", e, backoff)
+
                 await asyncio.sleep(backoff)
-                backoff = min(backoff * 2, MAX_BACKOFF)
+                backoff = min(backoff * 1.5, MAX_BACKOFF)
 
     async def _connect_and_poll(self) -> None:
         from bleak import BleakClient
@@ -178,7 +206,12 @@ class Heater:
 
             self.connected = True
             self.error = None
-            logger.info("Connected to heater %s", MAC)
+            self.connects += 1
+            logger.info(
+                "Connected to heater %s (connection #%d after %d failed attempts)",
+                MAC, self.connects, self._attempts,
+            )
+            self._attempts = 0
 
             while True:
                 if not client.is_connected:
@@ -285,6 +318,11 @@ class Handler(BaseHTTPRequestHandler):
             "connected": heater.connected,
             "error": heater.error,
             "updated_at": heater.updated_at,
+            # Surfaced so link quality is visible without reading the
+            # journal - this heater is genuinely intermittent and that
+            # is worth being able to see.
+            "connects": heater.connects,
+            "failed_attempts": heater._attempts,
             "state": heater.state,
         })
 
