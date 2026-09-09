@@ -101,10 +101,60 @@ unburnt fuel in the exhaust — on this van that fouled the old heater
 badly enough that the replacement had to burn through the residue before
 it would light. Anything that later adds control must respect this flag.
 
+## IMPORTANT — the protocol may be wrong
+
+**Do the probe before trusting this plugin.**
+
+`Spettacolo83/homeassistant-diesel-heater` (197 commits, 213 tests,
+actively maintained, and the most thorough of the three projects found)
+documents **two incompatible Hcalory variants**:
+
+| Variant | Service | Write | Notify |
+|---|---|---|---|
+| MVP1 | `FFF0` | `FFF2` | `FFF1` |
+| MVP2 | `BD39` | `BDF7` | `BDF8` |
+
+This plugin implements **MVP1**, taken from `evanfoster/hcalory-control`
+which was written against a W1. Their state codes also disagree
+completely — evanfoster's frame uses 0=off, 133=running, 135=heating,
+while the newer library's Hcalory protocol uses 0x00=standby,
+0x01=heating temp auto, 0x02=heating manual gear, 0xFF=fault. Both
+cannot be right for the same device.
+
+This van's heater was bought September 2026, so MVP2 is a real
+possibility — in which case this plugin will not find its
+characteristics and will never connect.
+
+**Run `backend/tools/heater_probe.py` and let the heater answer**, rather
+than guessing and making a trip to the van per guess:
+
+    python3 backend/tools/heater_probe.py                     # scan
+    python3 backend/tools/heater_probe.py AA:BB:CC:DD:EE:FF   # connect and enumerate
+
+If it reports MVP2, the sensible move is to drop this hand-rolled parser
+and depend on `diesel-heater-ble` from PyPI, which handles six protocol
+variants with auto-detection and is far better tested than one van's
+worth of guesswork.
+
+## Other things worth knowing, from that project
+
+- **Unpair from the phone first.** Their number-one support issue. A
+  backgrounded app still holds the connection.
+- **Raspberry Pi internal Bluetooth is unreliable for BLE.** They
+  recommend a USB Bluetooth 5.0 dongle or an ESP32 proxy near the
+  heater. Given the heater is under the driver's seat behind metal and
+  the Pi is elsewhere in the van, this may matter here.
+- Some protocols use a **PIN, default 1234**.
+- Write with `response=False` — some setups return "insufficient
+  authorization" otherwise. This plugin already does.
+
 ## Status
 
 Parser tested — 39 assertions, cross-checked against a real reading
 taken from the phone app (150.0 °C body, 22.0 °C ambient, 12.0 V,
-running, thermostat, set 21). **The BLE connection itself is untested**;
-it cannot be exercised without the heater. Expect one round of "what
-does this show" against the real device.
+running, thermostat, set 21). Those numbers are consistent with the MVP1
+layout, which is mild evidence for it — but the app displays the same
+figures whatever the wire format, so it is not proof.
+
+**The BLE connection itself is untested** and cannot be exercised
+without the heater.
