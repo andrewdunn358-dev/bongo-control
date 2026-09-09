@@ -48,12 +48,22 @@ RUN pip install --no-cache-dir \
 # station without restarting the process), and has built-in reconnect
 # handling for a stream that drops on a flaky mobile connection - all
 # things a subprocess-per-clip aplay call doesn't give you.
+# bluez - NOT for the daemon (that runs on the host and is reached over
+# D-Bus); purely so `bluetoothctl` exists for bleak to read the BlueZ
+# version from. Without it bleak logs "Could not determine BlueZ
+# version, bluetoothctl not available, assuming 5.51+" and picks a
+# service-discovery path that fails against the host's actual daemon:
+# every GATT connect to the diesel heater died with "failed to discover
+# services, device disconnected", while the identical script on the
+# host connected first time. The Victron plugins never hit this because
+# they only listen to advertisements and never connect.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     network-manager \
     ffmpeg \
     libportaudio2 \
     alsa-utils \
     mpv \
+    bluez \
     && rm -rf /var/lib/apt/lists/*
 
 # liblgpio.so.1 - the native C library the `lgpio` pip package is only
