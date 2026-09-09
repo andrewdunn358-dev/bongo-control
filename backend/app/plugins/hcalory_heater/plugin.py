@@ -67,6 +67,7 @@ import time
 from typing import Any
 
 from app.plugins.base import Plugin, PluginStatus
+from app.plugins.ble_scanner import shared_ble_scanner
 from app.telemetry.bus import TelemetryBus
 from app.telemetry.models import TelemetryDomain, TelemetryMessage, TelemetrySource
 
@@ -251,10 +252,31 @@ class HcaloryHeaterPlugin(Plugin):
         protocol = ProtocolHcalory()
         protocol.set_mvp_version(True)
 
-        # Connecting by address without scanning first: BlueZ discovery
-        # running alongside a connect is a documented source of
-        # flakiness, and this address is already known.
-        async with BleakClient(self._mac, timeout=CONNECT_TIMEOUT) as client:
+        # BlueZ permits ONE active discovery session per adapter, and
+        # the Victron plugins keep the shared scan running continuously
+        # (see ble_scanner.py). Connecting into that collides, and once
+        # it has, BlueZ stays wedged: every retry then fails with
+        # "[org.bluez.Error.InProgress] Operation already in progress"
+        # rather than recovering.
+        #
+        # So the scan is stopped for the duration of the connect, then
+        # restored. Holding a GATT connection alongside a scan is fine -
+        # it is only the connect itself that conflicts - so the Victron
+        # plugins lose a couple of seconds of advertisements per
+        # reconnect and nothing more. Their own staleness supervisors
+        # tolerate far longer gaps than that.
+        await shared_ble_scanner.restart()
+        await asyncio.sleep(1.0)  # let BlueZ settle before connecting
+
+        try:
+            client_cm = BleakClient(self._mac, timeout=CONNECT_TIMEOUT)
+            client = await client_cm.__aenter__()
+        finally:
+            # Restored whether or not the connect worked. A failed
+            # connect must not leave the Victron plugins deaf.
+            await shared_ble_scanner.ensure_running()
+
+        async with _Closing(client_cm):
             self._client = client
             self._protocol = protocol
 
@@ -362,3 +384,25 @@ class HcaloryHeaterPlugin(Plugin):
             "igniting": step == STEP_IGNITION,
             "cooling_down": step == STEP_COOLDOWN,
         }
+
+
+class _Closing:
+    """Closes a BleakClient context that was entered manually.
+
+    The connect has to happen with the shared BLE scan stopped, and the
+    scan has to come back whether or not it succeeded - which means
+    entering the client outside `async with`. This puts the exit back.
+    """
+
+    def __init__(self, cm) -> None:
+        self._cm = cm
+
+    async def __aenter__(self):
+        return self._cm
+
+    async def __aexit__(self, exc_type, exc, tb):
+        try:
+            await self._cm.__aexit__(exc_type, exc, tb)
+        except Exception as e:  # noqa: BLE001 - best-effort cleanup
+            logger.debug("Error closing heater connection (ignored): %s", e)
+        return False
