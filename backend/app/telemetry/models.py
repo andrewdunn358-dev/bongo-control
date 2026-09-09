@@ -34,6 +34,12 @@ class TelemetryDomain(str, Enum):
     SOLAR = "solar"
     ENVIRONMENT = "environment"
     CONNECTIVITY = "connectivity"
+    # The diesel air heater. Its own domain rather than folded into
+    # ENVIRONMENT: environment is what the van's air is doing, heating
+    # is a machine with a state, a mode and its own faults. Merging them
+    # would mean one temperature reading could not be distinguished from
+    # the other, and a heater lockout would look like a sensor drop.
+    HEATING = "heating"
     SYSTEM = "system"
     NOTIFICATION = "notification"
     WEATHER = "weather"
@@ -51,6 +57,7 @@ class TelemetrySource(str, Enum):
     ONEWIRE_TEMP = "onewire_temp"
     RENOGY_MPPT = "renogy_mppt"
     VICTRON_SHUNT = "victron_shunt"
+    HCALORY_HEATER = "hcalory_heater"
     # Not a plugin and not hardware: values the app computes from other
     # sources' measurements. Currently the state of charge corrected for
     # the real connected bank capacity - see battery_bank_service.py.

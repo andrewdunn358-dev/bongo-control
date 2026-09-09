@@ -100,6 +100,12 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # it off by default.
     "plugins": {
         "simulation": {"enabled": True},
+        # Diesel air heater over BLE. Disabled until a MAC is set,
+        # because there is nothing to connect to without one and the
+        # address has to be discovered by scanning - see the plugin
+        # docstring. Read-only: this reports the heater's state and
+        # does not control it.
+        "hcalory_heater": {"enabled": False, "mac": "", "poll_seconds": 15},
         "victron_mppt": {"enabled": False},
         "victron_shunt": {"enabled": False},
         "weather": {"enabled": True},
