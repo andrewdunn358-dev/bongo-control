@@ -115,6 +115,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends patchelf \
 
 COPY backend/app ./app
 
+# Diagnostic scripts. Below the pip layer, so adding one is a cheap
+# rebuild rather than an expensive one. This was missing, which meant a
+# ~30 minute Pi rebuild produced an image without the tool it was
+# rebuilt for - the file was in git and simply never copied in.
+COPY backend/tools ./tools
+
 RUN mkdir -p /app/data
 
 # Cheap and change-prone: keep last so it can never invalidate anything

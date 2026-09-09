@@ -10,6 +10,10 @@ httpx==0.27.2
 
 # Victron MPPT Bluetooth plugin
 bleak==0.22.3
+# Hcalory / Vevor diesel heater BLE protocol (packet build + parse only;
+# the BLE transport is ours). Handles six protocol variants including
+# Hcalory MVP2, which this van's heater turned out to be.
+diesel-heater-ble==0.3.3
 victron-ble==0.9.3
 
 # Relay control via GPIO. gpiozero + lgpio is the current supported
