@@ -76,6 +76,47 @@ High Plateau is present but disabled — it only matters above 3000 m and
 this van is at sea level, so wiring it up would be pretend
 functionality.
 
+## ARCHITECTURE — the Bluetooth link is on the HOST
+
+The backend container runs a continuous BLE discovery scan for the
+Victron MPPT and SmartShunt. **BlueZ permits one discovery session per
+adapter**, so a GATT connect from the same process collides:
+
+    [org.bluez.Error.InProgress] Operation already in progress
+
+Worse, once it collides BlueZ stays wedged and every retry fails the
+same way. Pausing the shared scan around the connect was tried and made
+it worse still — BlueZ then reported "No Bluetooth adapters found",
+putting the Victron plugins at risk.
+
+**Battery and solar monitoring matter more than the heater**, so the
+heater moved out rather than the other way round.
+
+    tools/heater_agent.py     systemd service on the Pi host, owns BLE,
+                              serves HTTP on 127.0.0.1:8091
+    the plugin                polls that over HTTP, no BLE code at all
+    the API routes            proxy commands to it
+
+Nothing the heater does can now disturb the Victron plugins. If the
+agent dies, the heater reports unavailable and nothing else changes.
+
+The host was also the arrangement that demonstrably worked: the
+standalone test connected first time from there, repeatedly, while the
+container never managed it once.
+
+Safety guards live in the **agent**, since it is the only process that
+can reach the heater and knows its live state.
+
+## Installing the agent
+
+    sudo pip3 install bleak diesel-heater-ble --break-system-packages
+    sudo cp backend/tools/vanos-heater-agent.service /etc/systemd/system/
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now vanos-heater-agent
+    curl 127.0.0.1:8091/state
+
+MAC and PIN are set in the service file, not in VanOS config.
+
 ## Enabling it
 
 Config `hcalory_heater`: MAC and PIN are already seeded. Set

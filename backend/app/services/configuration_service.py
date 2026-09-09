@@ -105,14 +105,12 @@ DEFAULT_CONFIG: dict[str, Any] = {
         # address has to be discovered by scanning - see the plugin
         # docstring. Read-only: this reports the heater's state and
         # does not control it.
-        # MAC and PIN found by tools/heater_probe.py on 9 Sep 2026:
-        # advertises as "Heater5579" on service BD39 (MVP2), PIN 0000.
-        "hcalory_heater": {
-            "enabled": False,
-            "mac": "20:25:05:19:0D:33",
-            "pin": 0,
-            "poll_seconds": 10,
-        },
+        # The Bluetooth link lives in tools/heater_agent.py, a systemd
+        # service on the Pi HOST - the container's BLE scan for the
+        # Victron devices collides with a GATT connect. MAC and PIN are
+        # configured there, not here; this plugin only needs to know
+        # where to poll.
+        "hcalory_heater": {"enabled": False, "agent_url": "http://127.0.0.1:8091", "poll_seconds": 10},
         "victron_mppt": {"enabled": False},
         "victron_shunt": {"enabled": False},
         "weather": {"enabled": True},

@@ -1,0 +1,23 @@
+[Unit]
+Description=VanOS diesel heater BLE agent
+# Bluetooth must be up first, or the first connect always fails and the
+# agent spends its first minute backing off for no reason.
+After=bluetooth.target network.target
+Wants=bluetooth.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/andrew/bongo-control/backend/tools/heater_agent.py
+Restart=always
+RestartSec=10
+User=andrew
+
+# Set these here rather than in the script so the MAC can change
+# without editing code.
+Environment=HEATER_MAC=20:25:05:19:0D:33
+Environment=HEATER_PIN=0
+Environment=HEATER_AGENT_PORT=8091
+Environment=HEATER_POLL_SECONDS=10
+
+[Install]
+WantedBy=multi-user.target
