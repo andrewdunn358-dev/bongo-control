@@ -6,6 +6,36 @@ Owns the Bluetooth link to the Hcalory heater and exposes it over plain
 HTTP on 127.0.0.1, so the VanOS backend never touches Bluetooth for the
 heater at all.
 
+USE A SEPARATE ADAPTER (HEATER_ADAPTER, default hci1)
+This is the fix that finally worked, and the reason is worth recording
+because everything before it was treating symptoms.
+
+An HCI capture (btmon) showed the real failure. The connection to the
+heater succeeded fine - handle assigned, 15ms interval, features read.
+What failed was a BlueZ management command, Start Service Discovery,
+returning Authentication Failed - and moments later the adapter itself
+was removed and re-added.
+
+The container's side explained why:
+
+    No Victron advertisement in 61s, restarting BLE scan
+
+The Victron plugin has a watchdog. Our connection disturbed its scan
+enough that advertisements stopped arriving, so after 61 seconds it
+tore the scan down and restarted it - which killed our connection. We
+reconnected, Victron went quiet again, and round it went. That is the
+~1 minute rhythm seen all along, and why a standalone script worked
+while the agent never could.
+
+Moving this agent out of the container was necessary but not
+sufficient: host and container still shared one radio. Two BLE
+consumers on one adapter is the whole problem. So the heater gets its
+own adapter and the Victron scan keeps hci0 undisturbed - which is what
+both upstream projects recommend, for exactly this reason.
+
+If the dongle is ever removed, this fails cleanly rather than stealing
+hci0 back and taking battery monitoring down with it.
+
 WHY IT LIVES OUT HERE
 The backend container already runs a continuous BLE discovery scan for
 the Victron MPPT and SmartShunt. BlueZ permits one discovery session
@@ -57,6 +87,8 @@ logger = logging.getLogger("heater-agent")
 MAC = os.environ.get("HEATER_MAC", "20:25:05:19:0D:33")
 PIN = int(os.environ.get("HEATER_PIN", "0"))
 PORT = int(os.environ.get("HEATER_AGENT_PORT", "8091"))
+# Which Bluetooth adapter to use. THIS MATTERS - see the note below.
+ADAPTER = os.environ.get("HEATER_ADAPTER", "hci1")
 # 1 second, matching the official app. Not a guess about efficiency:
 # at 10s the link was observed dropping after ~11s twice - one poll
 # cycle plus a moment - which points at an idle timeout on the heater.
@@ -185,8 +217,8 @@ class Heater:
         from bleak_retry_connector import (
             BleakClientWithServiceCache,
             establish_connection,
-            get_device,
         )
+        from bleak_retry_connector.bluez import get_device_by_adapter
         from diesel_heater_ble.protocol import ProtocolHcalory
 
         protocol = ProtocolHcalory()
@@ -229,12 +261,17 @@ class Heater:
         # late.
         await self._force_disconnect()
 
-        device = await get_device(MAC)
+        # Scoped to our own adapter. get_device() searches every
+        # adapter, which would happily hand back the device as seen by
+        # hci0 - putting us straight back on the radio the Victron scan
+        # owns, and undoing the whole point of the dongle.
+        device = await get_device_by_adapter(MAC, ADAPTER)
 
         if device is None:
             raise RuntimeError(
-                f"{MAC} is not known to BlueZ. It may be powered down, out of range, "
-                "or already connected to the phone app."
+                f"{MAC} is not known to BlueZ on {ADAPTER}. It may be powered down, "
+                f"out of range, already connected to the phone app, or {ADAPTER} may "
+                "not exist - check `hciconfig -a`."
             )
 
         client = await establish_connection(
@@ -244,6 +281,10 @@ class Heater:
             max_attempts=4,
             # See the note above - caching services broke start_notify.
             use_services_cache=False,
+            # Pinned again here: establish_connection creates its own
+            # client, and without this bleak would fall back to the
+            # default adapter.
+            adapter=ADAPTER,
         )
 
         try:

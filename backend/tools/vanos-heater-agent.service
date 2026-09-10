@@ -7,10 +7,15 @@ Wants=bluetooth.target
 
 [Service]
 Type=simple
+# The dongle comes up soft-blocked by rfkill after a reboot, so the
+# agent would start against an adapter that is down. Unblocking is
+# idempotent and harmless if it is already clear.
+ExecStartPre=/bin/sh -c 'rfkill unblock bluetooth; hciconfig hci1 up || true'
 ExecStart=/usr/bin/python3 /home/andrew/bongo-control/backend/tools/heater_agent.py
 Restart=always
 RestartSec=10
-User=andrew
+# root, because ExecStartPre needs rfkill and hciconfig.
+User=root
 
 # Set these here rather than in the script so the MAC can change
 # without editing code.
@@ -18,6 +23,11 @@ Environment=HEATER_MAC=20:25:05:19:0D:33
 Environment=HEATER_PIN=0
 Environment=HEATER_AGENT_PORT=8091
 Environment=HEATER_POLL_SECONDS=1
+# The USB dongle, NOT hci0. hci0 belongs to the container's Victron
+# scan; sharing one adapter is what caused every connection failure -
+# the Victron watchdog restarted the scan every 61s and killed our
+# link. See the agent docstring.
+Environment=HEATER_ADAPTER=hci1
 
 [Install]
 WantedBy=multi-user.target

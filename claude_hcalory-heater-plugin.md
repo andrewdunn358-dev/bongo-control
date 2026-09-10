@@ -195,3 +195,51 @@ scan, the very thing this agent exists to avoid.
 manager, so the disconnect is explicit in a `finally`. Without it a
 failed poll leaves BlueZ holding a half-open connection, which makes
 the next attempt worse.
+
+
+## THE ACTUAL CAUSE — one radio, two consumers
+
+Everything before this was treating symptoms. An HCI capture settled it:
+
+```
+sudo btmon -w /tmp/heater.btsnoop &
+```
+
+The connection to the heater **succeeded** — handle assigned, 15ms
+interval, 3s supervision timeout, remote features read. What failed was
+a BlueZ management command, `Start Service Discovery`, returning
+`Authentication Failed (0x05)`. Moments later the adapter itself was
+removed and re-added (`Index Removed`, `Delete Index`).
+
+The container's log explained why:
+
+```
+No Victron advertisement in 61s, restarting BLE scan
+```
+
+**The Victron plugin has a watchdog.** Our connection disturbed its scan
+enough that advertisements stopped arriving, so after 61 seconds it tore
+the scan down and restarted it — killing our connection. We reconnected,
+Victron went quiet again, and round it went. That is the ~1 minute
+rhythm seen throughout, and why a standalone script worked while the
+agent never could: the script ran when nothing else was competing.
+
+Moving the agent out of the container was necessary but **not
+sufficient** — host and container still shared one radio.
+
+**Fix: a second Bluetooth adapter.** A USB dongle on `hci1` for the
+heater, `hci0` left entirely to the Victron scan. Both upstream projects
+recommend exactly this. Pinned in two places, because
+`establish_connection` creates its own client and would otherwise fall
+back to the default adapter:
+
+- `get_device_by_adapter(MAC, "hci1")` rather than `get_device()`, which
+  searches every adapter and would hand back the device as seen by hci0
+- `adapter="hci1"` on `establish_connection`
+
+If the dongle is ever removed this fails cleanly rather than stealing
+hci0 back and taking battery monitoring down with it.
+
+**The dongle comes up soft-blocked by rfkill after a reboot**, so the
+service has an `ExecStartPre` that unblocks it and brings `hci1` up.
+That needs root, hence `User=root`.
