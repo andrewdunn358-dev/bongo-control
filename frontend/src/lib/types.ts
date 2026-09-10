@@ -512,6 +512,11 @@ export interface HeaterState {
    *  burner, and a start during cooldown is refused by the heater. */
   igniting?: boolean;
   cooling_down?: boolean;
+  /** Unix seconds when the agent last got a reading. This heater drops
+   *  the BLE link every few seconds and the agent reconnects, so the
+   *  UI shows the reading's age rather than treating every gap as an
+   *  error. */
+  updated_at?: number | null;
 }
 
 export interface HeaterResponse {

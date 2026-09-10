@@ -51,9 +51,18 @@ DEFAULT_POLL_SECONDS = 10.0
 # Short: the agent is on loopback. A slow answer means it is wedged,
 # and waiting longer will not improve the reading.
 REQUEST_TIMEOUT = 8.0
-# Past this the agent's own reading is stale enough that reporting it
-# as live would be a lie.
-STALE_AFTER = 120.0
+# Past this the agent's reading is old enough that reporting it as live
+# would be a lie.
+#
+# Generous on purpose. This heater terminates the connection roughly
+# every 6-19 seconds and the agent reconnects; `updated_at` only moves
+# when a connection lands, so a threshold near the poll interval marks
+# perfectly good data "stale" during every gap. At 120s it was firing
+# constantly while a fresh reading was seconds away.
+#
+# 300s means: if nothing has been read in five minutes, something is
+# genuinely wrong - not merely mid-reconnect.
+STALE_AFTER = 300.0
 
 
 class HcaloryHeaterPlugin(Plugin):
@@ -137,11 +146,26 @@ class HcaloryHeaterPlugin(Plugin):
 
         if not self._connected:
             self.status = PluginStatus.ERROR
-            self.last_error = (
-                "The heater agent is running but its readings are stale."
-                if stale
-                else data.get("error") or "The agent is running but not connected to the heater."
-            )
+
+            # The agent's own error is the accurate one. Prefer it over
+            # anything invented here - it knows whether the heater hung
+            # up, whether the adapter is missing, or whether it simply
+            # has not reached it yet.
+            agent_error = data.get("error")
+
+            if stale:
+                age = int(time.time() - updated)
+                self.last_error = (
+                    f"No reading from the heater for {age // 60} minutes. "
+                    + (agent_error or "The agent is running but not reaching it.")
+                )
+            else:
+                self.last_error = agent_error or "Connecting to the heater."
+
+            # Reconnecting is normal for this heater, so the last known
+            # values stay available rather than the UI blanking every
+            # few seconds. The page labels them with their age.
+            self._latest = {**self._latest, "connected": False, "updated_at": updated}
             return
 
         self.status = PluginStatus.RUNNING
@@ -150,6 +174,7 @@ class HcaloryHeaterPlugin(Plugin):
 
         payload = dict(data.get("state") or {})
         payload["connected"] = True
+        payload["updated_at"] = updated
         self._latest = payload
 
         await self.bus.publish(

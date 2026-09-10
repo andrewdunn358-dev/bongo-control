@@ -227,11 +227,12 @@ agent never could: the script ran when nothing else was competing.
 Moving the agent out of the container was necessary but **not
 sufficient** — host and container still shared one radio.
 
-**Fix: a second Bluetooth adapter.** A USB dongle on `hci1` for the
-heater, `hci0` left entirely to the Victron scan. Both upstream projects
-recommend exactly this. Pinned in two places, because
-`establish_connection` creates its own client and would otherwise fall
-back to the default adapter:
+**Attempted fix: a second Bluetooth adapter** — a USB dongle on `hci1`
+for the heater, `hci0` left to the Victron scan. This is what both
+upstream projects recommend, and it **did not turn out to be the
+answer**: see "Where it actually landed" below. Pinned in two places,
+because `establish_connection` creates its own client and would
+otherwise fall back to the default adapter:
 
 - `get_device_by_adapter(MAC, "hci1")` rather than `get_device()`, which
   searches every adapter and would hand back the device as seen by hci0
@@ -243,3 +244,48 @@ hci0 back and taking battery monitoring down with it.
 **The dongle comes up soft-blocked by rfkill after a reboot**, so the
 service has an `ExecStartPre` that unblocks it and brings `hci1` up.
 That needs root, hence `User=root`.
+
+
+## Where it actually landed
+
+The adapter split did not fix it, and the write-up above should be read
+with that in mind.
+
+What happened when the dongle went in:
+
+- On `hci1` the heater connected **reliably, first attempt** — a real
+  improvement over the shared-adapter mess. But it still dropped after
+  6–19 seconds.
+- Moving to `hci0` produced constant `Client is already connected`.
+- `hci1` then wedged (`Can't init device hci1: Connection timed out`)
+  and would not come back from software, surviving a full reboot. **It
+  needs a physical unplug** to re-enumerate on USB.
+- Settled on `hci0`, sharing with the Victron scan, which works.
+
+**The remaining fault: `Reason: Remote User Terminated Connection
+(0x13)`.** The heater deliberately hangs up after a few seconds. Not a
+timeout, not interference, not a stale cache — it chooses to. Confirmed
+in an HCI capture.
+
+Ruled out along the way: the phone app holding the link (Bluetooth off
+on the phone, same behaviour), an idle timeout (polling at 1s to match
+the app made no difference), and BlueZ's stored connection parameters
+(cleared, no change).
+
+**Not solved.** The phone app connects in two seconds and holds
+indefinitely, so it does something at connect time we don't. Finding
+out needs a btsnoop capture from the phone — and the Honor handset does
+not write the standard log file (`btsnoop.file.create` stays false even
+after enabling the developer option and rebooting), so that route is
+closed on this phone.
+
+**What works today:** the agent reconnects automatically, so a fresh
+reading arrives roughly every 20 seconds. For heater state that is
+usable. Commands land if the link happens to be up, and return 503 with
+"try again" if not.
+
+## Known outstanding
+
+- `hci1` needs a physical unplug/replug at the van.
+- Control commands are still **untested against the real heater**.
+- The reconnect cycle is cosmetically noisy in the journal.
