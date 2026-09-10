@@ -5,7 +5,7 @@ heater. Nothing here has been fixed — this is the to-do, with enough
 instruction that a fresh session can act on each item without
 re-diagnosing it._
 
-## 1. Stale docstring in the heater agent — WRONG, will mislead
+## 1. Stale docstring in the heater agent — FIXED
 
 `backend/tools/heater_agent.py` line 9 still opens with:
 
@@ -22,7 +22,7 @@ with the Victron scan, that a dongle on `hci1` was tried and is not
 needed, and point at `_query()` for the real cause. Same class of error
 as the stale hardware comments the August handover warned about.
 
-## 2. Two diagnostic tools now demonstrate the wrong approach
+## 2. Two diagnostic tools now demonstrate the wrong approach — FIXED
 
 `backend/tools/heater_probe.py` and `backend/tools/heater_mvp2_test.py`
 both connect with raw `BleakClient`, and `heater_mvp2_test.py` polls
@@ -37,7 +37,7 @@ is the working reference now) and keep only the probe for discovery.
 The probe is still useful for finding a MAC and identifying MVP1 vs
 MVP2; just note it does not demonstrate a working connection.
 
-## 3. `diesel-heater-ble` is pinned in the container's requirements but unused there
+## 3. `diesel-heater-ble` pinned in the container but unused there — FIXED
 
 Added when the plugin did BLE in-container. The plugin is now a plain
 HTTP client; nothing under `backend/app/` imports `diesel_heater_ble`.
@@ -49,7 +49,7 @@ pip. Keep the comment above it or move it to DEPLOY notes. Removing it
 invalidates the pip layer once — do it alongside any other dependency
 change to avoid a second slow rebuild.
 
-## 4. No test covers the heater agent
+## 4. No test covers the heater agent — FIXED
 
 The agent has real logic — the handshake sequence, the plain-vs-timesync
 query choice, three safety guards, the state shaping. The only checks
@@ -116,7 +116,7 @@ ignore it. The service file's `ExecStartPre` still runs `rfkill unblock`
 and `hciconfig hci0 up`, which is harmless either way. Don't switch back
 to `hci1` without a specific reason.
 
-## 9. The Settings page has no fields for the heater
+## 9. The Settings page has no fields for BLE devices — FIXED
 
 MAC and PIN live in the systemd unit as environment variables, and the
 plugin's `agent_url` is in `config.json` with no UI. Same gap the Victron
@@ -216,3 +216,43 @@ Order I'd do them in: **1, 4, 3** (all cheap, all about not repeating
 the last two days), then **7** the next time the heater's on, then
 **5** whenever the weather thing annoys you, then **9** as a proper
 job. **2, 6, 8** are housekeeping.
+
+
+---
+
+# Done in this pass
+
+**1, 2, 3, 4, 9, 10, 11, 12** are complete. What's left:
+
+- **5** weather plugin's blank error message (one-line change, do it
+  when it annoys you)
+- **6** websocket OFFLINE pill
+- **7** heater controls beyond blowing/target still unexercised against
+  the real unit
+- **8** the wedged `hci1` dongle — needs a physical unplug, or just
+  leave it
+
+Notes on the two bigger ones:
+
+**Item 4 — the test.** `backend/test_heater_agent.py`, 33 assertions.
+Verified it actually catches both historical bugs by reintroducing them:
+polling via `build_command(1)` fails three assertions, and the raw step
+values fail three more including "stop ALLOWED while running". A suite
+that has never failed proves nothing, so this was checked rather than
+assumed. Shaping was extracted from `_query()` into a module-level
+`shape_state()` so the test exercises the real function rather than a
+copy of it — the first draft tested a copy, which is worthless.
+
+**Item 9 — the Settings fields.** The backend routes existed all along
+(`GET`/`PUT /plugins/{name}/config`, with secret redaction and
+empty-means-unchanged already handled), plus a `/scan` endpoint. Only
+the UI was missing, so configuring a Victron device meant typing a curl
+into a van. There are now cards for the SmartShunt and the MPPT with
+MAC, encryption key and a Scan button that fills in the strongest
+nearby device.
+
+The heater's card is deliberately different: its MAC and PIN are in the
+systemd unit, because the agent runs outside the container and cannot
+read this config. An editable field would be a control that silently
+does nothing, so the card shows the agent URL (which is app config) and
+states plainly where the rest lives, with the commands to change it.

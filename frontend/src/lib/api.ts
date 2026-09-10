@@ -313,6 +313,18 @@ export const api = {
     }),
 
   plugins: () => request<PluginInfo[]>('/plugins'),
+  pluginConfig: (name: string) =>
+    request<Record<string, unknown>>(`/plugins/${encodeURIComponent(name)}/config`),
+  updatePluginConfig: (name: string, config: Record<string, unknown>) =>
+    request<Record<string, unknown>>(`/plugins/${encodeURIComponent(name)}/config`, {
+      method: 'PUT',
+      body: JSON.stringify({ config }),
+    }),
+  scanPlugin: (name: string, duration = 10) =>
+    request<Array<{ address: string; name?: string | null; rssi?: number | null }>>(
+      `/plugins/${encodeURIComponent(name)}/scan?duration=${duration}`,
+      { method: 'POST' },
+    ),
   enablePlugin: (name: string) => request<{ name: string; enabled: boolean }>(`/plugins/${encodeURIComponent(name)}/enable`, { method: 'POST' }),
   disablePlugin: (name: string) => request<{ name: string; enabled: boolean }>(`/plugins/${encodeURIComponent(name)}/disable`, { method: 'POST' }),
 

@@ -2,6 +2,12 @@
 """
 Identify which BLE protocol this heater actually speaks.
 
+STILL USEFUL for discovery - finding a MAC, telling MVP1 from MVP2.
+It does NOT demonstrate a working connection: it uses a raw BleakClient,
+and the agent (tools/heater_agent.py) is the reference for how to hold
+a link to this heater. A companion script that polled with the
+time-sync command was deleted rather than left as a misleading example.
+
 Run on the Pi, in the van, with the Hcalory PHONE APP FULLY CLOSED and
 the phone's Bluetooth OFF. These heaters accept exactly one connection,
 so while the app holds it nothing else can see or reach the heater.

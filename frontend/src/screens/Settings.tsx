@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Wifi, WifiOff, Lock, Loader2, Radio, Sun, Moon, Mail, KeyRound, Sparkles, MapPin, Globe, Download, Upload, SignalHigh, Map, Trash2, Navigation, Volume2, ChevronDown, Play, Pause, Square, BellRing, BatteryWarning } from 'lucide-react';
 import { GlassCard, CardHeader } from '@/components/primitives/GlassCard';
+import { BleDeviceCard } from '@/components/BleDeviceCard';
 import { GpsSatellitesCard } from '@/components/GpsSatellites';
 import { RelayEventLog } from '@/components/RelayEventLog';
 import { StatusPill } from '@/components/primitives/StatusPill';
@@ -812,6 +813,81 @@ function VoiceControlCard() {
  * by name, so the string IS the credential. Anyone who knows it can
  * subscribe to the van's battery alerts.
  */
+/**
+ * The heater is not like the Victron devices: its Bluetooth link lives
+ * in a systemd service on the Pi host, not in the container, so its MAC
+ * and PIN are environment variables in the unit file rather than config
+ * this app can write. Pretending otherwise with an editable field would
+ * be a control that silently does nothing.
+ *
+ * So this shows the agent URL (which IS app config) and tells you
+ * plainly where the rest lives and how to change it.
+ */
+function HeaterAgentCard() {
+  const qc = useQueryClient();
+  const cfg = useQuery({
+    queryKey: ['plugin-config', 'hcalory_heater'],
+    queryFn: () => api.pluginConfig('hcalory_heater'),
+    retry: false,
+  });
+
+  const [url, setUrl] = useState('');
+  const [seeded, setSeeded] = useState(false);
+
+  useEffect(() => {
+    if (cfg.data && !seeded) {
+      setUrl(String((cfg.data.agent_url ?? 'http://127.0.0.1:8091') as string));
+      setSeeded(true);
+    }
+  }, [cfg.data, seeded]);
+
+  const save = useMutation({
+    mutationFn: () => api.updatePluginConfig('hcalory_heater', { agent_url: url.trim() }),
+    onSuccess: () => {
+      toast.success('Saved. Disable and re-enable the plugin to apply.');
+      qc.invalidateQueries({ queryKey: ['plugin-config', 'hcalory_heater'] });
+    },
+    onError: () => toast.error('Could not save'),
+  });
+
+  if (cfg.isLoading) return null;
+
+  return (
+    <GlassCard className="col-span-12 md:col-span-6 p-6">
+      <CardHeader label="Diesel Heater" hint="via host agent" />
+
+      <label className="text-[11px] uppercase tracking-widest text-ink-muted">Agent URL</label>
+      <input
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        placeholder="http://127.0.0.1:8091"
+        className="mt-1 w-full rounded-xl bg-ink/[0.04] ring-1 ring-inset ring-ink/10 px-3 py-2 text-sm num outline-none focus:ring-aurora-teal/50"
+      />
+      <div className="text-[11px] text-ink-faint mt-1">
+        Where the backend reads heater state from. The agent runs on the Pi itself, not in Docker.
+      </div>
+
+      <div className="mt-4 rounded-xl bg-ink/[0.03] ring-1 ring-ink/10 px-4 py-3 text-[12px] text-ink-faint">
+        The heater&apos;s MAC address and PIN live in the systemd unit, not here — the agent runs
+        outside the container and can&apos;t read this config. To change them:
+        <div className="num mt-2 text-[11px] text-ink-muted break-all">
+          sudo nano /etc/systemd/system/vanos-heater-agent.service<br />
+          sudo systemctl daemon-reload &amp;&amp; sudo systemctl restart vanos-heater-agent
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => save.mutate()}
+        disabled={save.isPending}
+        className="mt-4 rounded-full px-4 py-2 text-sm bg-aurora-teal text-navy-900 font-semibold hover:brightness-110 disabled:opacity-40"
+      >
+        {save.isPending ? 'Saving…' : 'Save'}
+      </button>
+    </GlassCard>
+  );
+}
+
 function BatteryAlarmsCard() {
   const qc = useQueryClient();
   const cfg = useQuery({ queryKey: ['config-alarms'], queryFn: () => api.getConfig('alarms') });
@@ -1488,6 +1564,27 @@ export function Settings() {
           </div>
         </GlassCard>
 
+        {/* Bluetooth device setup. These fields did not exist until now:
+            the backend routes were always there, but configuring a
+            Victron device meant reading a handover note and typing a
+            curl into a van. */}
+        <BleDeviceCard
+          plugin="victron_shunt"
+          title="Victron SmartShunt"
+          hint="battery monitor"
+          hasKey
+          canScan
+          macHelp="Leave blank to auto-detect the first SmartShunt seen."
+        />
+        <BleDeviceCard
+          plugin="victron_mppt"
+          title="Victron SmartSolar MPPT"
+          hint="solar charger"
+          hasKey
+          canScan
+          macHelp="Leave blank to auto-detect the first MPPT seen."
+        />
+        <HeaterAgentCard />
         <VoiceControlCard />
         <BatteryAlarmsCard />
         <InternetRadioCard />

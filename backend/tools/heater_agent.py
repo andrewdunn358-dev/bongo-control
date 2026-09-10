@@ -6,35 +6,35 @@ Owns the Bluetooth link to the Hcalory heater and exposes it over plain
 HTTP on 127.0.0.1, so the VanOS backend never touches Bluetooth for the
 heater at all.
 
-USE A SEPARATE ADAPTER (HEATER_ADAPTER, default hci1)
-This is the fix that finally worked, and the reason is worth recording
-because everything before it was treating symptoms.
+THE BUG THAT COST TWO DAYS: POLL WITH THE STATUS QUERY, NOT THE CLOCK
+The heater used to terminate the connection every 6-19 seconds. HCI
+reason 0x13, Remote User Terminated - it was deliberately hanging up.
 
-An HCI capture (btmon) showed the real failure. The connection to the
-heater succeeded fine - handle assigned, 15ms interval, features read.
-What failed was a BlueZ management command, Start Service Discovery,
-returning Authentication Failed - and moments later the adapter itself
-was removed and re-added.
+`diesel-heater-ble`'s `build_command(1, ...)` on an MVP2 device returns
+the `0A0A` packet, and that is the TIME-SYNC command: it carries
+HH:MM:SS and the heater sets its clock from it. We were polling with it
+once a second. Every second, telling the heater to reset its clock. It
+put up with that for a few seconds and then hung up.
 
-The container's side explained why:
+See `_query()` below - it builds the plain `0E04` status request
+directly instead. The time sync is sent once, on connect, which is what
+the working Home Assistant integration does.
 
-    No Victron advertisement in 61s, restarting BLE scan
+Everything else investigated along the way was a red herring or a minor
+real issue that was not the cause: the shared BLE scan, an idle
+timeout, BleakClient's service cache, a second Bluetooth adapter,
+BlueZ's stored connection parameters. Recorded in
+claude_hcalory-heater-plugin.md so nobody re-treads them.
 
-The Victron plugin has a watchdog. Our connection disturbed its scan
-enough that advertisements stopped arriving, so after 61 seconds it
-tore the scan down and restarted it - which killed our connection. We
-reconnected, Victron went quiet again, and round it went. That is the
-~1 minute rhythm seen all along, and why a standalone script worked
-while the agent never could.
+WHICH ADAPTER (HEATER_ADAPTER, default hci0)
+`hci0`, shared with the container's Victron scan. That works, now the
+poll command is right.
 
-Moving this agent out of the container was necessary but not
-sufficient: host and container still shared one radio. Two BLE
-consumers on one adapter is the whole problem. So the heater gets its
-own adapter and the Victron scan keeps hci0 undisturbed - which is what
-both upstream projects recommend, for exactly this reason.
-
-If the dongle is ever removed, this fails cleanly rather than stealing
-hci0 back and taking battery monitoring down with it.
+A USB dongle on `hci1` was tried while the poll bug was still present.
+It connected more reliably but still dropped, then wedged and needed a
+physical unplug to recover - it survived a reboot in that state. It was
+never the fix and is not needed. Change this only if there is a
+specific reason and the dongle is confirmed healthy with `hciconfig -a`.
 
 WHY IT LIVES OUT HERE
 The backend container already runs a continuous BLE discovery scan for
@@ -121,6 +121,52 @@ STEP_IGNITION, STEP_RUNNING, STEP_COOLDOWN, STEP_VENTILATION = 2, 3, 4, 6
 # hcalory_status - the high nibble of the state byte. What the heater
 # is actually doing, as opposed to running_state which is just 0/1.
 STATUS_OFF, STATUS_TURNING_OFF, STATUS_HEATING, STATUS_VENTILATION, STATUS_ERROR = 0x0, 0x4, 0x8, 0xC, 0xF
+
+
+def shape_state(parsed: dict) -> dict:
+    """Map the library's parse output onto the fields VanOS uses.
+
+    Module-level and pure so it can be tested without a heater. It was
+    previously inline in _query(), which meant the only way to test it
+    was to copy it into the test - and a test of a copy proves nothing
+    about the code that runs.
+    """
+    step = parsed.get("running_step")
+    mode = parsed.get("running_mode")
+
+    # Target lives in set_temp or set_level depending on mode, and is
+    # absent entirely while the heater is off (the library sets
+    # hcalory_set_value_none rather than inventing one). An earlier
+    # version read a key that does not exist, so the target always
+    # showed as dashes.
+    if parsed.get("hcalory_set_value_none"):
+        target = None
+    elif mode == 2:  # temperature
+        target = parsed.get("set_temp")
+    else:
+        target = parsed.get("set_level")
+
+    status = parsed.get("hcalory_status")
+
+    return {
+        # hcalory_status: 0x0 off, 0x4 turning off, 0x8 heating,
+        # 0xC ventilation, 0xF error. NOT running_state, which is only
+        # ever 0 or 1 - reporting that was why the screen once said
+        # "State 1".
+        "state": status,
+        "on": bool(parsed.get("running_state")),
+        "running_step": step,
+        "mode": mode,
+        "target": target,
+        "auto_start_stop": bool(parsed.get("auto_start_stop")),
+        "voltage": parsed.get("supply_voltage"),
+        "body_temperature_c": parsed.get("case_temperature"),
+        "cabin_temperature_c": parsed.get("cab_temperature"),
+        "error_code": parsed.get("error_code"),
+        "igniting": step == STEP_IGNITION,
+        "cooling_down": step == STEP_COOLDOWN,
+        "ventilating": step == STEP_VENTILATION or status == STATUS_VENTILATION,
+    }
 
 
 class Heater:
@@ -417,40 +463,7 @@ class Heater:
         if not parsed:
             return self.state
 
-        step = parsed.get("running_step")
-        mode = parsed.get("running_mode")
-
-        # Target lives in set_temp or set_level depending on mode, and
-        # is absent entirely while the heater is off (the library sets
-        # hcalory_set_value_none rather than inventing one). The first
-        # version read a field that does not exist, which is why the
-        # target always showed as dashes.
-        if parsed.get("hcalory_set_value_none"):
-            target = None
-        elif mode == 2:  # temperature
-            target = parsed.get("set_temp")
-        else:
-            target = parsed.get("set_level")
-
-        self.state = {
-            # hcalory_status: 0x0 off, 0x4 turning off, 0x8 heating,
-            # 0xC ventilation, 0xF error. NOT running_state, which is
-            # only ever 0 or 1 and was what the first version reported -
-            # hence "State 1" on the screen.
-            "state": parsed.get("hcalory_status"),
-            "on": bool(parsed.get("running_state")),
-            "running_step": step,
-            "mode": mode,
-            "target": target,
-            "auto_start_stop": bool(parsed.get("auto_start_stop")),
-            "voltage": parsed.get("supply_voltage"),
-            "body_temperature_c": parsed.get("case_temperature"),
-            "cabin_temperature_c": parsed.get("cab_temperature"),
-            "error_code": parsed.get("error_code"),
-            "igniting": step == STEP_IGNITION,
-            "cooling_down": step == STEP_COOLDOWN,
-            "ventilating": step == STEP_VENTILATION or parsed.get("hcalory_status") == STATUS_VENTILATION,
-        }
+        self.state = shape_state(parsed)
         self.updated_at = time.time()
         return self.state
 
