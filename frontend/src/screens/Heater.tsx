@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Flame, Minus, Plus, Mountain, CircleGauge, ArrowLeftRight, Loader2, Wind } from 'lucide-react';
@@ -103,12 +104,23 @@ export function Heater() {
   });
 
   const busy = act.isPending;
-  const target = s.target ?? null;
+
+  // The heater reports no setpoint while it is off, but the app lets
+  // you set a target before starting - so should this. What the heater
+  // reports wins whenever it reports one; otherwise the last value it
+  // gave us, or a sensible default, is the number the buttons work from.
+  const [pendingTarget, setPendingTarget] = useState<number>(20);
+  useEffect(() => {
+    if (s.target != null) setPendingTarget(s.target);
+  }, [s.target]);
+  const target = s.target ?? pendingTarget;
+  const targetIsLive = s.target != null;
 
   const nudge = (delta: number) => {
-    if (target == null) return;
     const next = Math.max(MIN_TEMP, Math.min(MAX_TEMP, target + delta));
-    if (next !== target) act.mutate(() => api.heaterTemperature(next));
+    if (next === target) return;
+    setPendingTarget(next);
+    act.mutate(() => api.heaterTemperature(next));
   };
 
   if (isLoading) {
@@ -162,23 +174,29 @@ export function Heater() {
           </div>
         ) : null}
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 30, marginTop: 34 }}>
-          <button type="button" onClick={() => nudge(-1)} disabled={busy || target == null || !canCommand}
+        {/* Sizes are clamp()ed so this fits a phone. Fixed widths here
+            pushed the buttons off the edge of the panel on mobile. */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      gap: 'clamp(10px, 4vw, 30px)', marginTop: 34 }}>
+          <button type="button" onClick={() => nudge(-1)} disabled={busy || !canCommand}
             aria-label="Lower target" style={round}>
             <Minus size={24} />
           </button>
 
-          <div style={{ minWidth: 190, textAlign: 'center' }}>
-            <span className="num" style={{ fontSize: 76, fontWeight: 600, lineHeight: 1 }}>
-              {/* Off, the heater reports no setpoint at all. A dash is
-                  honest; showing the last known one would imply it is
-                  still targeting something. */}
-              {target != null ? target : '\u2013\u2013'}
+          <div style={{ flex: '0 1 auto', minWidth: 0, textAlign: 'center' }}>
+            <span className="num" style={{ fontSize: 'clamp(52px, 17vw, 76px)', fontWeight: 600, lineHeight: 1,
+                                            // Dimmed while the heater is off and this is the value it
+                                            // WILL be told, not the one it is currently holding.
+                                            color: targetIsLive ? 'var(--paper)' : 'var(--grey)' }}>
+              {target}
             </span>
-            <span className="num" style={{ fontSize: 30, color: 'var(--grey)', marginLeft: 4 }}>&deg;C</span>
+            <span className="num" style={{ fontSize: 'clamp(22px, 7vw, 30px)', color: 'var(--grey)', marginLeft: 4 }}>&deg;C</span>
+            {!targetIsLive && (
+              <div style={{ fontSize: 11, color: 'var(--grey-dim)', marginTop: 4 }}>set for next start</div>
+            )}
           </div>
 
-          <button type="button" onClick={() => nudge(1)} disabled={busy || target == null || !canCommand}
+          <button type="button" onClick={() => nudge(1)} disabled={busy || !canCommand}
             aria-label="Raise target" style={round}>
             <Plus size={24} />
           </button>
@@ -267,14 +285,16 @@ export function Heater() {
 }
 
 const page: React.CSSProperties = {
-  minHeight: '100%', padding: '34px 20px 90px', display: 'flex', justifyContent: 'center',
+  minHeight: '100%', padding: 'clamp(16px, 4vw, 34px) clamp(8px, 3vw, 20px) 90px',
+  display: 'flex', justifyContent: 'center',
 };
 
 // Near-solid, not glass. The app's screen is a dark panel and these
 // numbers have to be readable in a cold van at night.
 const panel: React.CSSProperties = {
   width: '100%', maxWidth: 520, background: 'rgba(9,13,18,.93)',
-  border: '1px solid rgba(238,241,240,.10)', borderRadius: 20, padding: '28px 26px 32px',
+  border: '1px solid rgba(238,241,240,.10)', borderRadius: 20,
+  padding: 'clamp(18px, 5vw, 28px) clamp(14px, 4vw, 26px) 32px',
 };
 
 const notice: React.CSSProperties = {
@@ -283,7 +303,8 @@ const notice: React.CSSProperties = {
 };
 
 const round: React.CSSProperties = {
-  width: 68, height: 68, borderRadius: 18, border: 0, cursor: 'pointer',
+  width: 'clamp(52px, 15vw, 68px)', height: 'clamp(52px, 15vw, 68px)', flex: '0 0 auto',
+  borderRadius: 18, border: 0, cursor: 'pointer',
   background: 'rgba(238,241,240,.08)', color: 'var(--paper)',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
 };
