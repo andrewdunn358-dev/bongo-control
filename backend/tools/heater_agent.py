@@ -34,7 +34,7 @@ a password handshake immediately after connecting or the heater drops
 the link. Packets built and parsed by diesel-heater-ble.
 
 INSTALL
-    sudo pip3 install bleak diesel-heater-ble --break-system-packages
+    sudo pip3 install bleak bleak-retry-connector diesel-heater-ble --break-system-packages
     sudo cp backend/tools/vanos-heater-agent.service /etc/systemd/system/
     sudo systemctl enable --now vanos-heater-agent
 
@@ -182,13 +182,56 @@ class Heater:
                 backoff = min(backoff * 1.5, MAX_BACKOFF)
 
     async def _connect_and_poll(self) -> None:
-        from bleak import BleakClient
+        from bleak_retry_connector import (
+            BleakClientWithServiceCache,
+            establish_connection,
+            get_device,
+        )
         from diesel_heater_ble.protocol import ProtocolHcalory
 
         protocol = ProtocolHcalory()
         protocol.set_mvp_version(True)
 
-        async with BleakClient(MAC, timeout=CONNECT_TIMEOUT) as client:
+        # bleak_retry_connector, not raw bleak. This is the difference
+        # between the projects that work and our first attempt.
+        #
+        # Our failure was always the same: "failed to discover services,
+        # device disconnected", succeeding maybe one attempt in three.
+        # BlueZ caches a device's GATT services on disk, and when that
+        # cache goes stale, discovery fails against it repeatedly. Raw
+        # bleak has no idea; it just reports a disconnect. This library
+        # catches exactly that case, calls clear_cache(), waits, and
+        # retries - and with use_services_cache it can skip the
+        # discovery step altogether on a reconnect, which is the step
+        # that keeps failing.
+        #
+        # It also classifies BlueZ's transient errors and backs off per
+        # error type rather than uniformly, which is why the phone app
+        # appears to "just connect" while we were flailing.
+        #
+        # get_device() reads BlueZ's D-Bus properties directly rather
+        # than starting a discovery scan. That matters: the backend
+        # container keeps a scan running for the Victron devices, and
+        # BlueZ allows only one discovery session per adapter. Scanning
+        # here would collide with it - which is the whole reason this
+        # agent lives outside the container.
+        device = await get_device(MAC)
+
+        if device is None:
+            raise RuntimeError(
+                f"{MAC} is not known to BlueZ. It may be powered down, out of range, "
+                "or already connected to the phone app."
+            )
+
+        client = await establish_connection(
+            BleakClientWithServiceCache,
+            device,
+            "hcalory-heater",
+            max_attempts=4,
+            use_services_cache=True,
+        )
+
+        try:
             self._client = client
             self._protocol = protocol
 
@@ -219,6 +262,16 @@ class Heater:
                 async with self._lock:
                     await self._query()
                 await asyncio.sleep(POLL_SECONDS)
+        finally:
+            # establish_connection returns a live client rather than a
+            # context manager, so the disconnect is ours to do - and it
+            # must happen even when the poll loop raises, or BlueZ is
+            # left holding a half-open connection that makes the next
+            # attempt worse.
+            try:
+                await client.disconnect()
+            except Exception as e:  # noqa: BLE001 - best-effort cleanup
+                logger.debug("Error disconnecting (ignored): %s", e)
 
     async def _query(self) -> dict:
         while not self._replies.empty():
