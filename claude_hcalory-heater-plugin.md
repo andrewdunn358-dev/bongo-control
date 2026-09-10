@@ -289,3 +289,45 @@ usable. Commands land if the link happens to be up, and return 503 with
 - `hci1` needs a physical unplug/replug at the van.
 - Control commands are still **untested against the real heater**.
 - The reconnect cycle is cosmetically noisy in the journal.
+
+
+## SOLVED — it was the poll command
+
+Re-reading everything from the start, and then reading the working Home
+Assistant integration's *coordinator* rather than just its protocol
+library, found it.
+
+`diesel-heater-ble` 0.3.3's `build_command(1)` on an MVP2 device returns
+the **`0A0A` packet — which is the time-sync command**, carrying
+HH:MM:SS for the heater to set its clock from. The library's own
+comments say so; I'd read them and not joined the dots. We were polling
+with it once a second. So every second we told the heater to set its
+clock, and after a few seconds of that it terminated the connection —
+`0x13 Remote User Terminated`, the reason code the capture showed.
+
+The working integration stopped doing this: *"The library now defaults
+to MVP1 query since Acropolis9064 proves it works"*, falling back to
+`0A0A` only if the plain query gets no reply. That change isn't in the
+PyPI release yet, which is why following the library faithfully
+reproduced the bug.
+
+The plain query is `0E04` with a `POWER_QUERY` byte, and its payload
+ends in **`000d`** — byte-for-byte the "pump data" command in
+`evanfoster/hcalory-control`, the very first library read for this
+project, on day one. The characteristics changed between MVP1 and MVP2.
+The status query did not. It was in the first plugin I wrote and I threw
+it away when switching libraries.
+
+**Now:** handshake → one `0A0A` time sync on connect (as the integration
+does) → poll with the plain `0E04` query.
+
+Everything else chased along the way — the scan collision, the idle
+timeout, the service cache, the second adapter, stored connection
+parameters — was real in its own small way or a red herring, but none of
+it was the cause. The lesson is the one the handover already states:
+**measure before theorising.** The decisive evidence was reading the
+code that works rather than the library it wraps, and that took ten
+minutes once it was the thing being done.
+
+Service file defaulted back to `hci0`; the dongle on `hci1` is not
+needed for this and is currently wedged anyway.

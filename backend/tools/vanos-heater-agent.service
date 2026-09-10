@@ -10,7 +10,7 @@ Type=simple
 # The dongle comes up soft-blocked by rfkill after a reboot, so the
 # agent would start against an adapter that is down. Unblocking is
 # idempotent and harmless if it is already clear.
-ExecStartPre=/bin/sh -c 'rfkill unblock bluetooth; hciconfig hci1 up || true'
+ExecStartPre=/bin/sh -c 'rfkill unblock bluetooth; hciconfig hci0 up || true'
 ExecStart=/usr/bin/python3 /home/andrew/bongo-control/backend/tools/heater_agent.py
 Restart=always
 RestartSec=10
@@ -23,11 +23,13 @@ Environment=HEATER_MAC=20:25:05:19:0D:33
 Environment=HEATER_PIN=0
 Environment=HEATER_AGENT_PORT=8091
 Environment=HEATER_POLL_SECONDS=1
-# The USB dongle, NOT hci0. hci0 belongs to the container's Victron
-# scan; sharing one adapter is what caused every connection failure -
-# the Victron watchdog restarted the scan every 61s and killed our
-# link. See the agent docstring.
-Environment=HEATER_ADAPTER=hci1
+# hci0, shared with the container's Victron scan. A second adapter on
+# hci1 was tried: it connected more reliably but still dropped, then
+# wedged and needed a physical unplug. The real cause of the drops
+# turned out to be the poll command, not the radio - see the agent's
+# _query(). Sharing hci0 works; change this only if a dongle is fitted
+# AND confirmed healthy with `hciconfig -a`.
+Environment=HEATER_ADAPTER=hci0
 
 [Install]
 WantedBy=multi-user.target

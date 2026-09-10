@@ -88,7 +88,7 @@ MAC = os.environ.get("HEATER_MAC", "20:25:05:19:0D:33")
 PIN = int(os.environ.get("HEATER_PIN", "0"))
 PORT = int(os.environ.get("HEATER_AGENT_PORT", "8091"))
 # Which Bluetooth adapter to use. THIS MATTERS - see the note below.
-ADAPTER = os.environ.get("HEATER_ADAPTER", "hci1")
+ADAPTER = os.environ.get("HEATER_ADAPTER", "hci0")
 # 1 second, matching the official app. Not a guess about efficiency:
 # at 10s the link was observed dropping after ~11s twice - one poll
 # cycle plus a moment - which points at an idle timeout on the heater.
@@ -323,6 +323,19 @@ class Heater:
                 protocol.mark_password_sent()
                 await self._drain(5.0)
 
+                # Time sync, ONCE, on connect - the working Home Assistant
+                # integration does exactly this. The 0A0A packet the
+                # library builds for a "status query" on MVP2 is in fact
+                # the time-sync command; it carries HH:MM:SS and the
+                # heater sets its clock from it. That is fine once. Sent
+                # every second as a poll it is the thing that was making
+                # the heater hang up on us after a few seconds - see
+                # _query() below.
+                await client.write_gatt_char(
+                    MVP2_WRITE, protocol.build_command(CMD_STATUS, 0, PIN), response=False
+                )
+                await self._drain(3.0)
+
             self.connected = True
             self.error = None
             self.connects += 1
@@ -353,9 +366,23 @@ class Heater:
         while not self._replies.empty():
             self._replies.get_nowait()
 
-        await self._client.write_gatt_char(
-            MVP2_WRITE, self._protocol.build_command(CMD_STATUS, 0, PIN), response=False
-        )
+        # THE PLAIN STATUS QUERY, NOT THE LIBRARY'S DEFAULT.
+        #
+        # diesel-heater-ble 0.3.3's build_command(1) on MVP2 returns the
+        # 0A0A time-sync packet. Polling with that every second means
+        # telling the heater to set its clock every second, and the
+        # heater responds by terminating the connection (HCI reason
+        # 0x13, Remote User Terminated) after a few seconds. That was the
+        # entire "drops after 6-19s" mystery.
+        #
+        # The working Home Assistant integration moved to the plain
+        # 0E04 query for exactly this reason ("prefer_mvp1_query ...
+        # Acropolis9064 proves it works"). Its payload ends in 000d -
+        # which is byte-for-byte the "pump data" command in the very
+        # first Hcalory library read for this project. The service
+        # characteristics changed between MVP1 and MVP2; the status
+        # query did not.
+        await self._client.write_gatt_char(MVP2_WRITE, self._plain_query(), response=False)
 
         reply = await self._drain(REPLY_TIMEOUT)
 
@@ -404,6 +431,16 @@ class Heater:
             await close_stale_connections_by_address(MAC)
         except Exception as e:  # noqa: BLE001 - older versions may not have it
             logger.debug("close_stale_connections unavailable (ignored): %s", e)
+
+    def _plain_query(self) -> bytearray:
+        """The 0E04 status request. Built directly rather than via
+        build_command(), which on MVP2 would hand back the time-sync
+        packet instead."""
+        from diesel_heater_ble.const import HCALORY_CMD_POWER, HCALORY_POWER_QUERY
+
+        return self._protocol._build_hcalory_cmd(
+            HCALORY_CMD_POWER, bytes([0, 0, 0, 0, 0, 0, 0, 0, HCALORY_POWER_QUERY])
+        )
 
     async def _drain(self, timeout: float):
         try:
