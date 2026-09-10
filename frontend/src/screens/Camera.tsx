@@ -46,25 +46,24 @@ const POLL_MS = 2000;
 // anyone over. A run of them in a row is the "stuck on Waiting for
 // first frame with zero explanation" failure mode this is fixing.
 const CONSECUTIVE_FAILURES_BEFORE_SHOWING_ERROR = 3;
-/**
- * How long to wait after stopping the stream before snapshot polling
- * resumes. Reported: hitting "Stop stream" returned a 503.
+/*
+ * REMOVED: a STREAM_STOP_SETTLE_MS / pollGateAt delay that held snapshot
+ * polling for 1.5s after a stream stopped, so ffmpeg could release
+ * /dev/video0 and the first poll would not hit a busy device.
  *
- * Not a real failure - a race. Stopping the stream unmounts the <img>,
- * which aborts the HTTP connection, and the backend only kills ffmpeg
- * once that abort propagates into the generator's finally block. Until
- * it does, ffmpeg still holds /dev/video0. Polling resumed on the same
- * tick as the toggle, so the very first snapshot hit a busy device and
- * the route turned that into a 503.
+ * It never actually ran - the gate was read but never set, so it was
+ * always 0. And it is no longer needed: streaming now goes exclusively
+ * through uStreamer (camera_service.stream_via_ustreamer raises if
+ * CAMERA_USTREAMER_URL is unset rather than falling back), and
+ * uStreamer holds the device permanently as a systemd service on the
+ * host. Stopping a stream releases nothing, so there is nothing to wait
+ * for.
  *
- * Note the backend's device lock does NOT cover this: capture_snapshot()
- * takes it, but the stream's open() never does, so a snapshot can
- * acquire the lock happily and still find the device in use. Making the
- * stream hold the lock for its whole duration would fix it more deeply,
- * but would also block the Home screen's camera card for as long as a
- * stream is open - a worse trade than waiting a moment here.
+ * If ffmpeg ever becomes the streaming path again, the race it
+ * described comes back: the backend's device lock does not cover it,
+ * because capture_snapshot() takes the lock and the stream's open()
+ * does not.
  */
-const STREAM_STOP_SETTLE_MS = 1500;
 
 export function CameraView() {
   const qc = useQueryClient();
@@ -102,9 +101,6 @@ export function CameraView() {
     staleTime: 60_000,
   });
   const liveAvailable = camStatus?.ustreamer?.reachable === true;
-  // Timestamp before which snapshot polling must not fire - set when a
-  // stream is stopped, so ffmpeg has time to release the device.
-  const [pollGateAt, setPollGateAt] = useState(0);
   const streaming = streamMode && !showDemoVideo;
   const imgRef = useRef<HTMLImageElement | null>(null);
 
@@ -157,11 +153,6 @@ export function CameraView() {
     let cancelled = false;
     let lastObjectUrl: string | null = null;
     let consecutiveFailures = 0;
-    // Wait out any settle window left over from a just-stopped stream
-    // before the first request, rather than firing one immediately and
-    // relying on it failing quietly.
-    const waitMs = Math.max(0, pollGateAt - Date.now());
-
     const tick = async () => {
       try {
         const res = await fetch(api.cameraSnapshotUrl(Date.now()));
@@ -207,14 +198,17 @@ export function CameraView() {
       if (cancelled) return;
       timer = setTimeout(loop, POLL_MS);
     };
-    const startTimer = setTimeout(loop, waitMs);
+    // Fires immediately - the settle gate this used to wait out is gone
+    // (see the note at the top of the file). Still a timeout rather than
+    // a direct call so the cleanup below can cancel it.
+    const startTimer = setTimeout(loop, 0);
     return () => {
       cancelled = true;
       clearTimeout(startTimer);
       if (timer) clearTimeout(timer);
       if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
     };
-  }, [unlocked, token, showDemoVideo, streaming, pollGateAt]);
+  }, [unlocked, token, showDemoVideo, streaming]);
 
   const lock = () => {
     clearToken();

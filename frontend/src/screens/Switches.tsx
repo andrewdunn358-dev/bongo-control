@@ -5,7 +5,6 @@ import { Power, PlugZap, Unplug } from 'lucide-react';
 import { GlassCard } from '@/components/primitives/GlassCard';
 import { api, ApiError } from '@/lib/api';
 import { SWITCH } from '@/constants/testIds';
-import { fmtUnixTime } from '@/lib/format';
 import { pinLabel } from '@/lib/pins';
 
 export function Switches() {

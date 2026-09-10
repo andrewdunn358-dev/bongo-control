@@ -19,7 +19,6 @@ import type {
   PluginInfo,
   PoiResponse,
   RadioStation,
-  Relay,
   RelayEvent,
   HeaterResponse,
   HeaterState,

@@ -25,7 +25,6 @@ type Props = {
 
 export function HeaterGraphic({ mode, size = 220 }: Props) {
   const fanSpins = mode === 'blowing' || mode === 'igniting' || mode === 'heating' || mode === 'cooldown';
-  const glow = mode === 'heating' || mode === 'igniting' || mode === 'cooldown';
   const fault = mode === 'fault';
 
   const glowOpacity = mode === 'heating' ? 1 : mode === 'igniting' ? 0.7 : mode === 'cooldown' ? 0.35 : 0;

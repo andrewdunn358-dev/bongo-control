@@ -154,7 +154,7 @@ only remaining delay. Worst case ~3s instead of ~20s.
 The plugin's own 10s poll is left alone - it exists to publish
 telemetry and history, which does not need to be faster.
 
-## 11. Camera: the post-stream settle gate is dead code
+## 11. Camera: the post-stream settle gate is dead code — FIXED
 
 `frontend/src/screens/Camera.tsx` defines `STREAM_STOP_SETTLE_MS = 1500`
 and a `pollGateAt` state with the comment *"set when a stream is
@@ -169,21 +169,28 @@ contends for the camera. The 31 Aug handover says µStreamer now owns
 was solving a problem that has since moved - and the right fix is to
 delete both the constant and the state, not wire them up.
 
-**Do:** confirm µStreamer is the live path. If yes, remove
-`STREAM_STOP_SETTLE_MS`, `pollGateAt`, `setPollGateAt` and the
-`waitMs` logic at line 163, and the comment with them. If ffmpeg is
-still in play, call `setPollGateAt(Date.now() + STREAM_STOP_SETTLE_MS)`
-where the stream is stopped.
+**Done — removed.** Confirmed µStreamer is the only streaming path:
+`camera_service.stream_via_ustreamer()` raises if `CAMERA_USTREAMER_URL`
+is unset rather than falling back to ffmpeg, and µStreamer holds the
+device permanently as a host systemd service. Stopping a stream
+releases nothing, so there is nothing to wait for.
 
-## 12. Small dead code, from `tsc --noUnusedLocals`
+A comment in its place records what was removed and notes that the race
+returns if ffmpeg ever becomes the streaming path again — the backend's
+device lock does not cover it, because `capture_snapshot()` takes the
+lock and the stream's `open()` does not.
+
+## 12. Small dead code, from `tsc --noUnusedLocals` — FIXED
 
 - `HeaterGraphic.tsx:28` - `glow` computed, never read. Delete it.
 - `api.ts:22` - `Relay` type imported, unused. Delete the import.
 - `Switches.tsx:8` - `fmtUnixTime` imported, unused. Delete the import.
 - `Camera.tsx:67` - `STREAM_STOP_SETTLE_MS` (see item 11).
 
-Worth enabling `noUnusedLocals` in `tsconfig.json` afterwards so these
-fail the build instead of accumulating.
+**Done.** All four removed, and `noUnusedLocals` / `noUnusedParameters`
+turned on in `tsconfig.json` so they fail the build rather than
+accumulating. Verified the setting actually bites by adding an unused
+const and watching `tsc` reject it.
 
 ## 13. Backend lint, wider net
 
