@@ -129,7 +129,70 @@ heater's would write to the systemd unit or, better, move MAC/PIN into
 covers both. Worth doing for all three at once since it's the same
 pattern.
 
-## 10. Lint is clean; the four existing suites pass
+## 10. The 20-second round trip on heater controls
+
+Press a button, wait ~20s to see the result. The chain:
+
+    heater -> agent polls every 1s
+           -> container plugin polls the agent every 10s   <-- bottleneck
+           -> page polls the backend every 5s
+
+Worst case is 10 + 5 = 15s plus the heater's own delay. The container
+plugin's 10s poll is the problem; the agent already has fresh state
+within a second.
+
+**Do:** in `backend/app/api/routes/heater.py`, make `GET /api/heater`
+proxy straight to the agent's `/state` on every request rather than
+returning `plugin.latest` (the cached copy from the last 10s poll).
+The agent is on loopback and answers in milliseconds. That takes the
+chain to agent-poll (1s) + page-poll (5s) = ~6s worst case, and the
+page's `refetchInterval` could then drop to 2s for ~3s worst case.
+Leave the plugin's 10s poll as-is - it only feeds telemetry/history,
+which doesn't need to be faster.
+
+## 11. Camera: the post-stream settle gate is dead code
+
+`frontend/src/screens/Camera.tsx` defines `STREAM_STOP_SETTLE_MS = 1500`
+and a `pollGateAt` state with the comment *"set when a stream is
+stopped, so ffmpeg has time to release the device."* It is checked
+(line 163) but **never set** - `setPollGateAt` is never called, so the
+gate is always 0 and snapshot polling resumes instantly after a stream
+stops. The mechanism the comment describes does not exist.
+
+Whether this matters depends on whether snapshot-after-stream still
+contends for the camera. The 31 Aug handover says µStreamer now owns
+`/dev/video0` and ffmpeg is a fallback only, in which case the gate
+was solving a problem that has since moved - and the right fix is to
+delete both the constant and the state, not wire them up.
+
+**Do:** confirm µStreamer is the live path. If yes, remove
+`STREAM_STOP_SETTLE_MS`, `pollGateAt`, `setPollGateAt` and the
+`waitMs` logic at line 163, and the comment with them. If ffmpeg is
+still in play, call `setPollGateAt(Date.now() + STREAM_STOP_SETTLE_MS)`
+where the stream is stopped.
+
+## 12. Small dead code, from `tsc --noUnusedLocals`
+
+- `HeaterGraphic.tsx:28` - `glow` computed, never read. Delete it.
+- `api.ts:22` - `Relay` type imported, unused. Delete the import.
+- `Switches.tsx:8` - `fmtUnixTime` imported, unused. Delete the import.
+- `Camera.tsx:67` - `STREAM_STOP_SETTLE_MS` (see item 11).
+
+Worth enabling `noUnusedLocals` in `tsconfig.json` afterwards so these
+fail the build instead of accumulating.
+
+## 13. Backend lint, wider net
+
+`ruff --select E,F,B,ARG,SIM` finds 759, but almost all are style:
+698 are line-too-long (the codebase writes long comments deliberately),
+30 are `raise ... from` inside except (B904 - harmless, hides chained
+tracebacks), 19 are try/except/pass that could be `contextlib.suppress`.
+None are bugs. Not worth a pass.
+
+The one real category, B008 (function call in a default argument),
+came back empty when checked directly - the summary count was stale.
+
+## 14. Lint is clean on the bug classes; the four existing suites pass
 
 `ruff` (F401, F841, F811, E722) — no findings. `test_battery_alarms`,
 `test_battery_bank`, `test_energy_balance`, `test_roof_safety` — all
