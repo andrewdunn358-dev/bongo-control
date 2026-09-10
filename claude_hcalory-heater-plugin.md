@@ -174,6 +174,18 @@ failing.
 It also classifies BlueZ's transient errors and backs off per error
 type rather than uniformly.
 
+**Service caching is OFF.** It was tried (`use_services_cache=True`) and
+made things worse: skipping discovery meant BlueZ handed back a cached
+characteristic it could no longer resolve, and `start_notify` failed
+with `[org.freedesktop.DBus.Error.UnknownObject] Method "StartNotify"
+... doesn't exist`. A slow rediscovery that works beats a fast one that
+returns a stale handle.
+
+**Stale connections are cleared BEFORE each attempt**, not only after a
+failure. `establish_connection` retries internally, so a client left up
+by a previous attempt produced `Client is already connected` and burned
+all four retries without ever reaching the heater.
+
 `get_device()` is used rather than `BleakScanner.find_device_by_address`
 because it reads BlueZ's D-Bus properties directly instead of starting
 a discovery scan — which would collide with the container's Victron

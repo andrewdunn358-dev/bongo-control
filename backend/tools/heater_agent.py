@@ -201,13 +201,19 @@ class Heater:
         # cache goes stale, discovery fails against it repeatedly. Raw
         # bleak has no idea; it just reports a disconnect. This library
         # catches exactly that case, calls clear_cache(), waits, and
-        # retries - and with use_services_cache it can skip the
-        # discovery step altogether on a reconnect, which is the step
-        # that keeps failing.
+        # retries.
         #
         # It also classifies BlueZ's transient errors and backs off per
-        # error type rather than uniformly, which is why the phone app
-        # appears to "just connect" while we were flailing.
+        # error type rather than uniformly.
+        #
+        # SERVICE CACHING IS OFF, deliberately. It was tried and made
+        # things worse: skipping discovery meant BlueZ handed back a
+        # cached characteristic it could no longer resolve, and
+        # start_notify failed with
+        #   [org.freedesktop.DBus.Error.UnknownObject] Method
+        #   "StartNotify" ... doesn't exist
+        # A slow rediscovery that works beats a fast one that hands back
+        # a stale handle.
         #
         # get_device() reads BlueZ's D-Bus properties directly rather
         # than starting a discovery scan. That matters: the backend
@@ -215,6 +221,14 @@ class Heater:
         # BlueZ allows only one discovery session per adapter. Scanning
         # here would collide with it - which is the whole reason this
         # agent lives outside the container.
+        # Clear anything BlueZ is still holding from a previous attempt
+        # BEFORE connecting. establish_connection retries internally, so
+        # a client left up by an earlier attempt produced "Client is
+        # already connected" and burned all four retries without ever
+        # reaching the heater. Cleaning up only in `finally` was too
+        # late.
+        await self._force_disconnect()
+
         device = await get_device(MAC)
 
         if device is None:
@@ -228,7 +242,8 @@ class Heater:
             device,
             "hcalory-heater",
             max_attempts=4,
-            use_services_cache=True,
+            # See the note above - caching services broke start_notify.
+            use_services_cache=False,
         )
 
         try:
@@ -309,6 +324,25 @@ class Heater:
         }
         self.updated_at = time.time()
         return self.state
+
+    async def _force_disconnect(self) -> None:
+        """Drop any lingering client and ask BlueZ to let go of the
+        device. Best-effort throughout: every failure here is something
+        that was already broken, and raising would only mask the real
+        error from the connect that follows."""
+        if self._client is not None:
+            try:
+                await self._client.disconnect()
+            except Exception as e:  # noqa: BLE001
+                logger.debug("Stale client would not disconnect (ignored): %s", e)
+            self._client = None
+
+        try:
+            from bleak_retry_connector import close_stale_connections_by_address
+
+            await close_stale_connections_by_address(MAC)
+        except Exception as e:  # noqa: BLE001 - older versions may not have it
+            logger.debug("close_stale_connections unavailable (ignored): %s", e)
 
     async def _drain(self, timeout: float):
         try:
