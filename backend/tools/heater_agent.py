@@ -108,7 +108,19 @@ REPLY_TIMEOUT = 12.0
 MAX_BACKOFF = 15.0
 
 CMD_STATUS, CMD_SET_MODE, CMD_POWER, CMD_SET_TEMPERATURE, CMD_SET_LEVEL = 1, 2, 3, 4, 5
-STEP_IGNITION, STEP_COOLDOWN = 0x3, 0x4
+
+# The library maps the heater's raw running_step onto its own standard
+# set: 0 standby, 2 ignition, 3 running, 4 cooldown, 6 ventilation.
+# The first version of this file used the RAW values (ignition 0x3,
+# cooldown 0x4) - but 3 in the mapped set is RUNNING, so the ignition
+# guard would have refused to stop a running heater and offered no
+# protection during actual ignition. Exactly backwards. These are the
+# mapped values, checked against the library's step_mapping.
+STEP_IGNITION, STEP_RUNNING, STEP_COOLDOWN, STEP_VENTILATION = 2, 3, 4, 6
+
+# hcalory_status - the high nibble of the state byte. What the heater
+# is actually doing, as opposed to running_state which is just 0/1.
+STATUS_OFF, STATUS_TURNING_OFF, STATUS_HEATING, STATUS_VENTILATION, STATUS_ERROR = 0x0, 0x4, 0x8, 0xC, 0xF
 
 
 class Heater:
@@ -173,7 +185,7 @@ class Heater:
         """
         state = self.state.get("state")
 
-        if state not in (None, 0):
+        if state not in (None, STATUS_OFF):
             raise Busy(
                 "Ventilation only works from standby. Stop the heater first, let it "
                 "finish its cool-down, then start ventilation."
@@ -397,11 +409,30 @@ class Heater:
             return self.state
 
         step = parsed.get("running_step")
+        mode = parsed.get("running_mode")
+
+        # Target lives in set_temp or set_level depending on mode, and
+        # is absent entirely while the heater is off (the library sets
+        # hcalory_set_value_none rather than inventing one). The first
+        # version read a field that does not exist, which is why the
+        # target always showed as dashes.
+        if parsed.get("hcalory_set_value_none"):
+            target = None
+        elif mode == 2:  # temperature
+            target = parsed.get("set_temp")
+        else:
+            target = parsed.get("set_level")
+
         self.state = {
-            "state": parsed.get("running_state"),
+            # hcalory_status: 0x0 off, 0x4 turning off, 0x8 heating,
+            # 0xC ventilation, 0xF error. NOT running_state, which is
+            # only ever 0 or 1 and was what the first version reported -
+            # hence "State 1" on the screen.
+            "state": parsed.get("hcalory_status"),
+            "on": bool(parsed.get("running_state")),
             "running_step": step,
-            "mode": parsed.get("running_mode"),
-            "target": None if parsed.get("hcalory_set_value_none") else parsed.get("hcalory_set_value"),
+            "mode": mode,
+            "target": target,
             "auto_start_stop": bool(parsed.get("auto_start_stop")),
             "voltage": parsed.get("supply_voltage"),
             "body_temperature_c": parsed.get("case_temperature"),
@@ -409,6 +440,7 @@ class Heater:
             "error_code": parsed.get("error_code"),
             "igniting": step == STEP_IGNITION,
             "cooling_down": step == STEP_COOLDOWN,
+            "ventilating": step == STEP_VENTILATION or parsed.get("hcalory_status") == STATUS_VENTILATION,
         }
         self.updated_at = time.time()
         return self.state

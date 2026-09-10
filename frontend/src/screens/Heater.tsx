@@ -34,17 +34,23 @@ const MAX_TEMP = 36;
  *  reconnect cycle, so normal operation stays quiet. */
 const AGE_WARN_SECONDS = 180;
 
+// hcalory_status codes, from the library's constants. The first version
+// read running_state instead, which is only ever 0 or 1 - hence
+// "State 1" on the screen after the first command.
 function stateLabel(s: {
-  state?: number | null; igniting?: boolean; cooling_down?: boolean; connected?: boolean;
+  state?: number | null; igniting?: boolean; cooling_down?: boolean;
+  ventilating?: boolean; connected?: boolean;
 }) {
   if (!s.connected && s.state == null) return { text: 'No signal', tone: 'idle' as const };
   if (s.igniting) return { text: 'Igniting', tone: 'warm' as const };
   if (s.cooling_down) return { text: 'Cooling down', tone: 'warm' as const };
+  if (s.ventilating) return { text: 'Blowing', tone: 'good' as const };
 
   switch (s.state) {
-    case 0: return { text: 'Off', tone: 'idle' as const };
-    case 8: return { text: 'Running', tone: 'good' as const };
-    case 0xc: return { text: 'Ventilating', tone: 'good' as const };
+    case 0x0: return { text: 'Off', tone: 'idle' as const };
+    case 0x4: return { text: 'Turning off', tone: 'warm' as const };
+    case 0x8: return { text: 'Heating', tone: 'good' as const };
+    case 0xc: return { text: 'Blowing', tone: 'good' as const };
     case 0xf: return { text: 'Fault', tone: 'bad' as const };
     default: return { text: s.state == null ? 'Unknown' : `State ${s.state}`, tone: 'idle' as const };
   }
@@ -70,13 +76,14 @@ export function Heater() {
 
   const s = data?.state ?? {};
   const label = stateLabel(s);
-  const running = s.state === 8 || s.state === 0xc || s.igniting;
+  const ventilating = Boolean(s.ventilating) || s.state === 0xc;
+  const heating = s.state === 0x8 || Boolean(s.igniting);
+  const running = heating || ventilating;
   const locked = Boolean(s.igniting || s.cooling_down);
   const hasReadings = s.voltage != null || s.body_temperature_c != null;
   const age = ageText(s.updated_at);
   const old = Boolean(s.updated_at && Date.now() / 1000 - s.updated_at > AGE_WARN_SECONDS);
   const canCommand = Boolean(data?.available) && !locked;
-  const ventilating = s.state === 0xc;
   // Ventilation only works from standby - the heater silently ignores
   // it otherwise, so the button says so rather than doing nothing.
   const canVentilate = canCommand && !running;
@@ -196,18 +203,19 @@ export function Heater() {
             title="Switch between targeting a temperature and a fixed power level." />
         </div>
 
-        <button type="button" onClick={() => act.mutate(() => api.heaterPower(!running))}
-          disabled={busy || !canCommand}
+        <button type="button" onClick={() => act.mutate(() => api.heaterPower(!heating))}
+          disabled={busy || !canCommand || ventilating}
+          title={ventilating ? 'Stop blowing first.' : undefined}
           style={{
             marginTop: 30, width: '100%', padding: '18px 20px', borderRadius: 14, border: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
             font: 'inherit', fontSize: 18, fontWeight: 600,
             cursor: canCommand ? 'pointer' : 'not-allowed',
-            background: running ? '#D93A3A' : 'var(--lime)', color: '#fff',
+            background: heating ? '#D93A3A' : 'var(--lime)', color: '#fff',
             opacity: busy || !canCommand ? 0.45 : 1,
           }}>
           {busy ? <Loader2 size={20} className="spin" /> : <Flame size={20} />}
-          {running && !ventilating ? 'Stop heating' : 'Start heating'}
+          {heating ? 'Stop heating' : 'Start heating'}
         </button>
 
         {/* Fan only, no burn - clearing fumes or shifting warm air

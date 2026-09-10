@@ -492,10 +492,15 @@ export interface RelayEvent {
  */
 export interface HeaterState {
   connected?: boolean;
-  /** Heater's own run state code. */
+  /** hcalory_status: 0x0 off, 0x4 turning off, 0x8 heating,
+   *  0xC ventilation, 0xF error. What the heater is doing. */
   state?: number | null;
-  /** Finer-grained step within that state - what the guards key off. */
+  /** Plain on/off. */
+  on?: boolean;
+  /** 0 standby, 2 ignition, 3 running, 4 cooldown, 6 ventilation.
+   *  What the guards key off. */
   running_step?: number | null;
+  ventilating?: boolean;
   /** 1 = level/gear, 2 = temperature. */
   mode?: number | null;
   /** Target temperature in temperature mode, or gear in level mode.
