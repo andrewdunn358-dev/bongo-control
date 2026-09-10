@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Flame, Minus, Plus, Mountain, CircleGauge, ArrowLeftRight, Loader2, Wind } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
+import { HeaterGraphic } from '@/components/HeaterGraphic';
 
 /**
  * Diesel heater control, laid out like the Hcalory phone app - big
@@ -85,6 +86,14 @@ export function Heater() {
   const age = ageText(s.updated_at);
   const old = Boolean(s.updated_at && Date.now() / 1000 - s.updated_at > AGE_WARN_SECONDS);
   const canCommand = Boolean(data?.available) && !locked;
+
+  const graphicMode: 'off' | 'blowing' | 'igniting' | 'heating' | 'cooldown' | 'fault' =
+    s.error_code ? 'fault'
+    : s.igniting ? 'igniting'
+    : s.cooling_down ? 'cooldown'
+    : heating ? 'heating'
+    : ventilating ? 'blowing'
+    : 'off';
   // Ventilation only works from standby - the heater silently ignores
   // it otherwise, so the button says so rather than doing nothing.
   const canVentilate = canCommand && !running;
@@ -179,6 +188,12 @@ export function Heater() {
             Heater fault E-{String(s.error_code).padStart(2, '0')}.
           </div>
         ) : null}
+
+        {/* Where the app puts its heater picture. Tells you off / blowing /
+            heating at a glance without reading the pill. */}
+        <div style={{ marginTop: 22 }}>
+          <HeaterGraphic mode={graphicMode} size={Math.min(240, 320)} />
+        </div>
 
         {/* Sizes are clamp()ed so this fits a phone. Fixed widths here
             pushed the buttons off the edge of the panel on mobile. */}
