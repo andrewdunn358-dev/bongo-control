@@ -129,7 +129,7 @@ heater's would write to the systemd unit or, better, move MAC/PIN into
 covers both. Worth doing for all three at once since it's the same
 pattern.
 
-## 10. The 20-second round trip on heater controls
+## 10. The 20-second round trip on heater controls — FIXED
 
 Press a button, wait ~20s to see the result. The chain:
 
@@ -141,14 +141,18 @@ Worst case is 10 + 5 = 15s plus the heater's own delay. The container
 plugin's 10s poll is the problem; the agent already has fresh state
 within a second.
 
-**Do:** in `backend/app/api/routes/heater.py`, make `GET /api/heater`
-proxy straight to the agent's `/state` on every request rather than
-returning `plugin.latest` (the cached copy from the last 10s poll).
-The agent is on loopback and answers in milliseconds. That takes the
-chain to agent-poll (1s) + page-poll (5s) = ~6s worst case, and the
-page's `refetchInterval` could then drop to 2s for ~3s worst case.
-Leave the plugin's 10s poll as-is - it only feeds telemetry/history,
-which doesn't need to be faster.
+**Done.** `GET /api/heater` now reads the agent's `/state` on every
+request instead of returning `plugin.latest`. 2s timeout - the agent is
+on loopback and answers in milliseconds; if it is slow it is wedged and
+waiting will not help. Falls back to the cached copy if the agent does
+not answer, so a wedged agent degrades to slightly stale numbers rather
+than an error page.
+
+The page's `refetchInterval` dropped from 5s to 2s, which is now the
+only remaining delay. Worst case ~3s instead of ~20s.
+
+The plugin's own 10s poll is left alone - it exists to publish
+telemetry and history, which does not need to be faster.
 
 ## 11. Camera: the post-stream settle gate is dead code
 

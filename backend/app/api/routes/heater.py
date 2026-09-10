@@ -29,6 +29,11 @@ router = APIRouter(prefix="/api/heater", tags=["heater"], dependencies=[Depends(
 # and the agent deliberately pauses to avoid returning a stale state.
 COMMAND_TIMEOUT = 45.0
 
+# Short. The agent is on loopback and answers in milliseconds; if it is
+# slow it is wedged, and waiting will not improve the answer - falling
+# back to the plugin's cached copy is better than making the page hang.
+STATE_TIMEOUT = 2.0
+
 AGENT_UNREACHABLE = (
     "Can't reach the heater agent. It runs on the Pi host, not in Docker - "
     "check `sudo systemctl status vanos-heater-agent`."
@@ -86,12 +91,49 @@ class ModeRequest(BaseModel):
 
 @router.get("")
 async def get_heater() -> dict:
+    """Live heater state, read straight from the agent.
+
+    Deliberately NOT the plugin's cached copy. The plugin polls the
+    agent every 10s to feed telemetry and history, and returning that
+    cache meant pressing a button and waiting up to 15s to see it take
+    effect - 10s of plugin poll plus 5s of page poll, on top of the
+    heater's own delay. The agent already has state within a second of
+    the heater producing it.
+
+    The plugin's own 10s poll is left alone: it exists to publish
+    telemetry, which does not need to be faster.
+
+    Falls back to the cached copy if the agent does not answer, so a
+    wedged agent degrades to slightly stale numbers rather than an
+    error page.
+    """
     plugin = _plugin()
+
+    try:
+        async with httpx.AsyncClient(timeout=STATE_TIMEOUT) as client:
+            response = await client.get(f"{plugin.agent_url}/state")
+            response.raise_for_status()
+            data = response.json()
+    except (httpx.HTTPError, ValueError):
+        return {
+            "available": plugin.connected,
+            "status": plugin.status.value,
+            "error": plugin.last_error or AGENT_UNREACHABLE,
+            "state": plugin.latest,
+        }
+
+    state = dict(data.get("state") or {})
+    connected = bool(data.get("connected"))
+    state["connected"] = connected
+    # The page shows the reading's age, so it needs the agent's own
+    # timestamp rather than the moment this request happened.
+    state["updated_at"] = data.get("updated_at")
+
     return {
-        "available": plugin.connected,
+        "available": connected,
         "status": plugin.status.value,
-        "error": plugin.last_error,
-        "state": plugin.latest,
+        "error": data.get("error"),
+        "state": state,
     }
 
 

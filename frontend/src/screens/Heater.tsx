@@ -72,7 +72,10 @@ export function Heater() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['heater'],
     queryFn: api.heater,
-    refetchInterval: 5_000,
+    // 2s: the backend now reads the agent directly on every request,
+    // so this is the only remaining delay between pressing a button and
+    // seeing it take effect.
+    refetchInterval: 2_000,
     retry: (count, e) => !(e instanceof ApiError && e.status === 401) && count < 2,
   });
 
