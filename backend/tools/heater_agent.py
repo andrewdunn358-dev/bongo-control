@@ -207,12 +207,21 @@ class Heater:
             raise Unavailable("Not connected to the heater.")
 
     async def _write(self, raw) -> dict:
+        """Send a command and return. Deliberately does NOT read back.
+
+        The first version wrote, slept 1.5s, then queried and waited up
+        to 12s for a reply - and after a set-temperature the heater is
+        slow to answer, so every button press locked the UI for ~16s.
+
+        The poll loop runs every second regardless. The new state shows
+        up on its own within a second or two; blocking the caller on a
+        readback bought nothing but latency. What is returned here is
+        the last known state, which the UI already displays
+        optimistically anyway.
+        """
         async with self._lock:
             await self._client.write_gatt_char(MVP2_WRITE, raw, response=False)
-            # The heater takes a moment to act; querying immediately
-            # returns the old state and looks like nothing happened.
-            await asyncio.sleep(1.5)
-            return await self._query()
+        return self.state
 
     # ------------------------------------------------------ connection
 

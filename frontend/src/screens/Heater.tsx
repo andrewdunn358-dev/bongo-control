@@ -116,11 +116,17 @@ export function Heater() {
   const target = s.target ?? pendingTarget;
   const targetIsLive = s.target != null;
 
+  // Rapid presses coalesce: the number moves instantly on screen, and
+  // one command carrying the final value is sent once the presses stop.
+  // Sending on every press would queue a command per degree on a link
+  // that is slow to acknowledge sets, and they would land out of order.
+  const [debounce, setDebounce] = useState<ReturnType<typeof setTimeout> | null>(null);
   const nudge = (delta: number) => {
     const next = Math.max(MIN_TEMP, Math.min(MAX_TEMP, target + delta));
     if (next === target) return;
     setPendingTarget(next);
-    act.mutate(() => api.heaterTemperature(next));
+    if (debounce) clearTimeout(debounce);
+    setDebounce(setTimeout(() => act.mutate(() => api.heaterTemperature(next)), 600));
   };
 
   if (isLoading) {
@@ -178,7 +184,7 @@ export function Heater() {
             pushed the buttons off the edge of the panel on mobile. */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
                       gap: 'clamp(10px, 4vw, 30px)', marginTop: 34 }}>
-          <button type="button" onClick={() => nudge(-1)} disabled={busy || !canCommand}
+          <button type="button" onClick={() => nudge(-1)} disabled={!canCommand}
             aria-label="Lower target" style={round}>
             <Minus size={24} />
           </button>
@@ -196,7 +202,7 @@ export function Heater() {
             )}
           </div>
 
-          <button type="button" onClick={() => nudge(1)} disabled={busy || !canCommand}
+          <button type="button" onClick={() => nudge(1)} disabled={!canCommand}
             aria-label="Raise target" style={round}>
             <Plus size={24} />
           </button>
