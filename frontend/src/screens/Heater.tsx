@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Flame, Minus, Plus, Mountain, CircleGauge, ArrowLeftRight, Loader2 } from 'lucide-react';
+import { Flame, Minus, Plus, Mountain, CircleGauge, ArrowLeftRight, Loader2, Wind } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 
 /**
@@ -76,6 +76,10 @@ export function Heater() {
   const age = ageText(s.updated_at);
   const old = Boolean(s.updated_at && Date.now() / 1000 - s.updated_at > AGE_WARN_SECONDS);
   const canCommand = Boolean(data?.available) && !locked;
+  const ventilating = s.state === 0xc;
+  // Ventilation only works from standby - the heater silently ignores
+  // it otherwise, so the button says so rather than doing nothing.
+  const canVentilate = canCommand && !running;
 
   const act = useMutation({
     mutationFn: (fn: () => Promise<unknown>) => fn(),
@@ -203,8 +207,38 @@ export function Heater() {
             opacity: busy || !canCommand ? 0.45 : 1,
           }}>
           {busy ? <Loader2 size={20} className="spin" /> : <Flame size={20} />}
-          {running ? 'Stop heating' : 'Start heating'}
+          {running && !ventilating ? 'Stop heating' : 'Start heating'}
         </button>
+
+        {/* Fan only, no burn - clearing fumes or shifting warm air
+            without lighting it. Secondary styling because it is the
+            less-used action, and disabled while running because the
+            heater only accepts it from standby. */}
+        <button type="button"
+          onClick={() => act.mutate(() => ventilating ? api.heaterPower(false) : api.heaterVentilate())}
+          disabled={busy || (ventilating ? !canCommand : !canVentilate)}
+          title={running && !ventilating
+            ? 'Ventilation only works from standby - stop the heater first.'
+            : 'Runs the fan without burning fuel.'}
+          style={{
+            marginTop: 12, width: '100%', padding: '15px 20px', borderRadius: 14,
+            border: '1px solid rgba(238,241,240,.16)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+            font: 'inherit', fontSize: 16, fontWeight: 600,
+            cursor: (ventilating ? canCommand : canVentilate) ? 'pointer' : 'not-allowed',
+            background: ventilating ? 'rgba(0,180,216,.20)' : 'transparent',
+            color: ventilating ? '#5BC8E8' : 'var(--paper)',
+            opacity: busy || (ventilating ? !canCommand : !canVentilate) ? 0.4 : 1,
+          }}>
+          <Wind size={18} />
+          {ventilating ? 'Stop blowing' : 'Start blowing'}
+        </button>
+
+        {running && !ventilating && (
+          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--grey-dim)', textAlign: 'center' }}>
+            Ventilation only works from standby.
+          </div>
+        )}
 
         {locked && (
           <div style={{ marginTop: 14, fontSize: 13, color: 'var(--grey)', textAlign: 'center' }}>

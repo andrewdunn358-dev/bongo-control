@@ -162,6 +162,26 @@ class Heater:
             raise BadValue("Mode must be 'level' or 'temperature'")
         return await self._command(CMD_SET_MODE, 2 if name == "temperature" else 1)
 
+    async def ventilate(self) -> dict:
+        """Fan-only, no burn. Useful for clearing fumes or shifting warm
+        air without lighting the heater.
+
+        The library's own note: ventilation only works from standby. So
+        this refuses while the heater is running rather than sending a
+        command the heater will silently ignore - a button that appears
+        to do nothing is worse than one that says why.
+        """
+        state = self.state.get("state")
+
+        if state not in (None, 0):
+            raise Busy(
+                "Ventilation only works from standby. Stop the heater first, let it "
+                "finish its cool-down, then start ventilation."
+            )
+
+        self._require_connection()
+        return await self._write(self._protocol.set_ventilation_mode())
+
     async def auto_start_stop(self) -> dict:
         self._require_connection()
         return await self._write(self._protocol.toggle_auto_start_stop())
@@ -468,6 +488,7 @@ class Handler(BaseHTTPRequestHandler):
             "/level": lambda: heater.level(int(body.get("level", 0))),
             "/mode": lambda: heater.mode(str(body.get("mode", ""))),
             "/auto-start-stop": lambda: heater.auto_start_stop(),
+            "/ventilate": lambda: heater.ventilate(),
         }
 
         handler = routes.get(self.path)

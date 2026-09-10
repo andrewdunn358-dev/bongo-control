@@ -118,3 +118,10 @@ async def set_mode(body: ModeRequest) -> dict:
 @router.post("/auto-start-stop")
 async def toggle_auto() -> dict:
     return await _post("/auto-start-stop", {})
+
+
+@router.post("/ventilate")
+async def ventilate() -> dict:
+    """Fan only, no burn. Refused by the agent unless the heater is in
+    standby - see the note there."""
+    return await _post("/ventilate", {})

@@ -257,6 +257,8 @@ export const api = {
     request<HeaterState>('/heater/level', { method: 'POST', body: JSON.stringify({ level }) }),
   heaterMode: (mode: 'level' | 'temperature') =>
     request<HeaterState>('/heater/mode', { method: 'POST', body: JSON.stringify({ mode }) }),
+  heaterVentilate: () =>
+    request<HeaterState>('/heater/ventilate', { method: 'POST', body: '{}' }),
   heaterAutoStartStop: () =>
     request<HeaterState>('/heater/auto-start-stop', { method: 'POST', body: '{}' }),
   setRelayInUse: (id: number, in_use: boolean) =>
