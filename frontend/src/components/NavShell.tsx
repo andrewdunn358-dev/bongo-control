@@ -30,6 +30,7 @@ import {
   Flame,
 } from 'lucide-react';
 import { StatusPill } from '@/components/primitives/StatusPill';
+import { getTelemetryCloseReason } from '@/lib/telemetry';
 import { NAV } from '@/constants/testIds';
 import { cn } from '@/lib/utils';
 import { isDemo } from '@/lib/demo';
@@ -180,7 +181,13 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
               <StatusPill tone="purple" data-testid={NAV.wsIndicator}>DEMO · view source</StatusPill>
             </a>
           ) : (
-            <StatusPill tone={wsConnected ? 'teal' : 'red'} data-testid={NAV.wsIndicator}>{wsConnected ? 'LIVE' : 'OFFLINE'}</StatusPill>
+            <StatusPill
+              tone={wsConnected ? 'teal' : 'red'}
+              data-testid={NAV.wsIndicator}
+              // Hovering the pill says WHY, rather than making someone
+              // open the console to find out.
+              title={wsConnected ? 'Live telemetry connected' : getTelemetryCloseReason() ?? 'Connecting…'}
+            >{wsConnected ? 'LIVE' : 'OFFLINE'}</StatusPill>
           )}
         </div>
       </header>

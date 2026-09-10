@@ -68,7 +68,7 @@ as `test_battery_alarms.py`. It should at minimum assert:
 The agent module loads without hardware (tested during the session via
 `importlib`), so this needs no BLE.
 
-## 5. Weather plugin: "Failed to fetch weather:" with nothing after it
+## 5. Weather plugin: blank error message — FIXED
 
 Seen on the Plugin Health page. `backend/app/plugins/weather/plugin.py`
 line 154 formats `f"Failed to fetch weather: {e}"` — and `{e}` is
@@ -76,22 +76,50 @@ empty, which means the exception's `str()` is blank. Almost certainly an
 `httpx` timeout or connect error whose message is empty on this
 version.
 
-**Do:** change it to `f"Failed to fetch weather: {type(e).__name__}: {e}"`
-so the class name is always shown. Then it'll say `ConnectTimeout` or
-`ConnectError` and you'll know whether it's the van's internet or
-Open-Meteo. Not a heater problem; noted because it's on the same page.
+**Done.** Now includes the exception class. Confirmed the premise
+rather than assuming it: `httpx.ConnectTimeout`, `ConnectError` and
+`ReadTimeout` all stringify to `''`, so the old message really did
+render as "Failed to fetch weather:" with nothing after it. It will now
+name which of the three it is — no signal, DNS/routing, or Open-Meteo
+rejecting the request.
 
-## 6. Websocket showing OFFLINE on the Power page
+**On switching to AccuWeather:** the arithmetic does not work. The
+plugin polls every 30 minutes, which is 48 calls a day, and
+AccuWeather's free tier is 50 a day — one container restart puts you
+over. It also needs an API key, where Open-Meteo needs nothing, which
+matters on a van that is often on patchy signal. Open-Meteo's UK data
+comes from the same national models the Met Office publishes. Staying
+put.
+
+## 6. Websocket showing OFFLINE — DIAGNOSABLE NOW, cause still unknown
 
 Top-right pill read `OFFL` during the session while the page's data was
 clearly live (it was polling over HTTP fine). That means the websocket
 isn't connecting but REST is — likely through the Cloudflare tunnel,
 which needs websocket upgrade to be allowed for the hostname.
 
-**Do:** check `docker compose logs backend | grep -i websocket` and
-the browser console for the WS URL it's trying. If it's `wss://` through
-the tunnel, confirm the tunnel config permits websockets. Low priority
-— the app works without it, it just polls instead of pushing.
+Checked what could be checked from the code: nginx has the upgrade
+headers and a 24-hour read timeout, the frontend path and the backend
+route match, and REST auth demonstrably works (the page had data). So
+the obvious culprits are all ruled out and the cause is not visible
+from here.
+
+**Done: made it diagnosable rather than guessed at.** The close code is
+the only thing that separates the possible reasons, and it was being
+thrown away. Now captured and reported:
+
+| Code | Meaning |
+|---|---|
+| 4401 | Token rejected |
+| 4403 | Origin does not match Host |
+| 1006 | Never connected — proxy not upgrading, or network |
+
+Hovering the LIVE/OFFLINE pill shows it in words, and it is logged once
+per distinct reason rather than on every retry.
+
+**Do next:** hover the pill when it says OFFLINE and read what it says.
+That single sentence decides the fix — and it needs no further
+investigation to obtain.
 
 ## 7. Heater controls are still only lightly tested against the real unit
 

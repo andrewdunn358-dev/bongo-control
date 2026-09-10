@@ -73,6 +73,14 @@ const ingest = (msg: TelemetryMessage) => {
 let ws: WebSocket | null = null;
 let retry = 0;
 let closed = false;
+/** Why the socket last closed, in words. Exposed so the UI can say more
+ *  than "OFFLINE" - the reasons need different fixes. */
+let lastCloseReason: string | null = null;
+let loggedCloseReason: string | null = null;
+
+export function getTelemetryCloseReason(): string | null {
+  return lastCloseReason;
+}
 
 function connect() {
   // The backend gates the socket with the same token as the REST routes;
@@ -88,6 +96,8 @@ function connect() {
   }
   ws.onopen = () => {
     retry = 0;
+    lastCloseReason = null;
+    loggedCloseReason = null;
     setConnected(true);
   };
   ws.onmessage = (ev) => {
@@ -100,9 +110,30 @@ function connect() {
       /* ignore malformed */
     }
   };
-  ws.onclose = () => {
+  ws.onclose = (ev) => {
     setConnected(false);
-    if (!closed) scheduleRetry();
+    // The close code is the only thing that distinguishes the reasons
+    // this socket fails, and it was being thrown away - leaving an
+    // OFFLINE pill with no way to tell an auth rejection from a proxy
+    // that will not upgrade. The backend closes 4401 for a bad token
+    // and 4403 when the Origin does not match the Host; 1006 means the
+    // connection never established at all, which is a proxy or network
+    // problem rather than anything this app did.
+    lastCloseReason =
+      ev.code === 4401 ? 'Not authorised — the app token was rejected.'
+      : ev.code === 4403 ? 'Origin rejected — the page host and the server host disagree.'
+      : ev.code === 1006 ? 'Connection failed — the proxy may not be upgrading websockets.'
+      : ev.reason ? `Closed (${ev.code}): ${ev.reason}`
+      : `Closed (${ev.code}).`;
+    if (!closed) {
+      // Logged once per distinct reason rather than on every retry, or
+      // the console fills with the same line every few seconds.
+      if (lastCloseReason !== loggedCloseReason) {
+        loggedCloseReason = lastCloseReason;
+        console.warn(`[telemetry] websocket ${lastCloseReason}`);
+      }
+      scheduleRetry();
+    }
   };
   ws.onerror = () => {
     try { ws?.close(); } catch { /* ignore */ }

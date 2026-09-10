@@ -151,7 +151,15 @@ class WeatherPlugin(Plugin):
                 response.raise_for_status()
                 data = response.json()
         except Exception as e:
-            self.record_error(f"Failed to fetch weather: {e}")
+            # The exception CLASS, not just str(e). httpx's connect and
+            # timeout errors stringify to an empty message, so this used
+            # to render as "Failed to fetch weather:" with nothing after
+            # it - which told you it failed and nothing about why.
+            # ConnectTimeout vs ConnectError vs HTTPStatusError are
+            # three different problems: no signal, DNS or routing, and
+            # Open-Meteo rejecting the request.
+            detail = str(e).strip() or "no detail"
+            self.record_error(f"Failed to fetch weather: {type(e).__name__}: {detail}")
             return
 
         current = data.get("current", {})
