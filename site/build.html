@@ -66,6 +66,7 @@
       <a href="#relays">Relays</a>
       <a href="#camera">Camera</a>
       <a href="#voice">Voice control</a>
+      <a href="#heater">Diesel heater</a>
       <a href="#remote">Remote access</a>
       <a href="#update">Updating</a>
     </div>
@@ -130,6 +131,15 @@ docker compose up -d --build</code></pre>
     <h2 id="voice">Voice control</h2>
     <p>Plug in a USB microphone and a speaker (the Pi's own headphone jack is usually too quiet for a moving vehicle — a small USB DAC into your existing amp or a mini Class D amp board works much better). Say a wake word, then a command: a short, fixed set of physical actions ("turn the heater on") switches a real relay directly, and anything else is handed to Ron. No account or key needed for the wake-word listening itself — it runs entirely locally via <a href="https://alphacephei.com/vosk/" target="_blank" rel="noreferrer">Vosk</a>, free and offline. Understanding what was said and speaking a reply needs a connection, via a free <a href="https://console.groq.com" target="_blank" rel="noreferrer">Groq</a> API key added in Settings.</p>
     <div class="note">The roof is <strong>never</strong> reachable by voice, under any phrasing — it's structurally excluded from the set of things voice control can even attempt to match against, the same safety boundary the roof's dedicated hold-to-run screen already enforces.</div>
+
+    <h2 id="heater">Diesel heater (Bluetooth)</h2>
+    <p>VanOS can fully control a Bluetooth-enabled diesel air heater (built and tested against an Hcalory 2kW unit) — target temperature, level mode, auto start-stop, and an estimated fuel-use readout. Ignition and cooldown are genuine hardware safety states: starting refuses mid-purge and stopping refuses mid-ignition (unburnt fuel fouls the exhaust otherwise), exactly like the heater's own wired controller.</p>
+    <div class="note">The Bluetooth link runs as its own systemd service directly on the Pi <strong>host</strong>, not inside the Docker container — a container-side BLE scan for Victron devices and a heater GATT connect on the same adapter collide, so the heater agent gets its own process and its own BlueZ session instead.</div>
+    <pre><code>sudo pip3 install bleak bleak-retry-connector diesel-heater-ble --break-system-packages
+sudo cp backend/tools/vanos-heater-agent.service /etc/systemd/system/
+sudo systemctl enable --now vanos-heater-agent</code></pre>
+    <p>Set the heater's MAC address and BLE PIN as environment variables in the systemd unit before enabling it (<code>HEATER_MAC</code>, <code>HEATER_PIN</code> — both default to the reference Hcalory unit's values, so change them for a different heater). The container-side backend talks to the agent over plain HTTP on loopback, and the Heater page appears automatically once the plugin sees it answering.</p>
+    <div class="warn">Not every diesel-heater Bluetooth protocol is identical — this was built and tested against an Hcalory MVP2 controller (service <code>BD39</code>). A different make or firmware may need its own protocol tweaks in <code>heater_agent.py</code>.</div>
 
     <h2 id="remote">Remote access (Cloudflare Tunnel)</h2>
     <p>To reach the dashboard from anywhere over HTTPS — no port forwarding, works behind CGNAT — run the optional Cloudflare Tunnel. Put your tunnel token in <code>.env</code> and bring it up with the profile:</p>

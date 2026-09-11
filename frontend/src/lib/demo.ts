@@ -13,6 +13,7 @@
  * "nothing fabricated" honesty even in a showcase.
  */
 import type { TelemetryMessage } from '@/lib/types';
+import { ApiError } from '@/lib/api';
 
 export const isDemo = import.meta.env.VITE_DEMO === 'true';
 
@@ -201,6 +202,133 @@ function roofStatus() {
     max_run_seconds: 30,
     last_stopped_reason: roofSim.lastStoppedReason,
     position_is_unknown: true,
+  };
+}
+
+// --- Diesel heater (Hcalory) simulation ---
+// Mirrors backend/tools/heater_agent.py's shape_state() output closely
+// enough that the real Heater.tsx screen renders identically to the
+// live app — same status/step codes, same field names, and (unlike the
+// roof sim above) the same safety guards actually enforced: stop
+// refused during ignition, ventilate refused unless from standby. The
+// heater is a real fire risk on the actual van, which is exactly why
+// those guards were worth demonstrating rather than skipping.
+const HTR_STATUS_OFF = 0x0;
+const HTR_STATUS_TURNING_OFF = 0x4;
+const HTR_STATUS_HEATING = 0x8;
+const HTR_STATUS_VENTILATION = 0xc;
+const HTR_STEP_IGNITION = 2;
+const HTR_STEP_RUNNING = 3;
+const HTR_STEP_COOLDOWN = 4;
+const HTR_STEP_VENTILATION = 6;
+const HTR_IGNITION_SECONDS = 14;
+const HTR_COOLDOWN_SECONDS = 18;
+const HTR_AMBIENT_BODY_C = 16;
+const HTR_AMBIENT_CABIN_C = 13;
+
+const heaterSim: {
+  step: number | null; // null = idle/standby, otherwise one of the HTR_STEP_* values
+  phaseStartedAt: number; // Date.now()/1000 when the current step began
+  lastTick: number;
+  mode: 1 | 2; // 1 = level, 2 = temperature — matches shape_state()'s `mode`
+  target: number; // temperature-mode setpoint, °C
+  level: number; // level-mode setpoint, 1–10
+  autoStartStop: boolean;
+  bodyTemp: number;
+  cabinTemp: number;
+} = {
+  step: null,
+  phaseStartedAt: 0,
+  lastTick: Date.now() / 1000,
+  mode: 2,
+  target: 22,
+  level: 4,
+  autoStartStop: false,
+  bodyTemp: HTR_AMBIENT_BODY_C,
+  cabinTemp: HTR_AMBIENT_CABIN_C,
+};
+
+/** Moves `current` toward `target` at `ratePerSecond`, over `dtSeconds` —
+ * a simple exponential approach, not a real thermal model, just enough
+ * to make the two temperature readings move plausibly. */
+function approach(current: number, target: number, ratePerSecond: number, dtSeconds: number): number {
+  return current + (target - current) * Math.min(1, ratePerSecond * dtSeconds);
+}
+
+function heaterStatusCode(): number {
+  if (heaterSim.step === HTR_STEP_IGNITION || heaterSim.step === HTR_STEP_RUNNING) return HTR_STATUS_HEATING;
+  if (heaterSim.step === HTR_STEP_COOLDOWN) return HTR_STATUS_TURNING_OFF;
+  if (heaterSim.step === HTR_STEP_VENTILATION) return HTR_STATUS_VENTILATION;
+  return HTR_STATUS_OFF;
+}
+
+/** Advances the ignition -> running -> cooldown -> idle step machine
+ * against real elapsed time, and moves the two temperature readings to
+ * match. Called at the top of every heater GET/POST so the simulated
+ * heater behaves correctly regardless of how often the page polls (the
+ * real Heater screen polls every 2s, same as here). */
+function advanceHeaterSim(): void {
+  const now = Date.now() / 1000;
+  // Capped so a backgrounded tab reawakening after an hour doesn't
+  // instantly fast-forward a whole burn cycle.
+  const dt = Math.min(30, now - heaterSim.lastTick);
+  heaterSim.lastTick = now;
+
+  const elapsed = now - heaterSim.phaseStartedAt;
+  if (heaterSim.step === HTR_STEP_IGNITION && elapsed >= HTR_IGNITION_SECONDS) {
+    heaterSim.step = HTR_STEP_RUNNING;
+    heaterSim.phaseStartedAt = now;
+  } else if (heaterSim.step === HTR_STEP_COOLDOWN && elapsed >= HTR_COOLDOWN_SECONDS) {
+    heaterSim.step = null;
+    heaterSim.phaseStartedAt = now;
+  }
+
+  // A light-touch thermostat for auto start-stop — cycles the burn to
+  // hold roughly the target rather than reproducing the real feature's
+  // exact hysteresis band.
+  if (heaterSim.autoStartStop && heaterSim.mode === 2) {
+    if (heaterSim.step === null && heaterSim.cabinTemp < heaterSim.target - 1.5) {
+      heaterSim.step = HTR_STEP_IGNITION;
+      heaterSim.phaseStartedAt = now;
+    } else if (heaterSim.step === HTR_STEP_RUNNING && heaterSim.cabinTemp > heaterSim.target + 1.5) {
+      heaterSim.step = HTR_STEP_COOLDOWN;
+      heaterSim.phaseStartedAt = now;
+    }
+  }
+
+  const running = heaterSim.step === HTR_STEP_IGNITION || heaterSim.step === HTR_STEP_RUNNING;
+  heaterSim.bodyTemp = running
+    ? approach(heaterSim.bodyTemp, 178, 0.05, dt)
+    : approach(heaterSim.bodyTemp, HTR_AMBIENT_BODY_C, heaterSim.step === HTR_STEP_COOLDOWN ? 0.08 : 0.02, dt);
+  heaterSim.cabinTemp =
+    heaterSim.step === HTR_STEP_RUNNING
+      ? approach(heaterSim.cabinTemp, heaterSim.target + 2, 0.01, dt)
+      : heaterSim.step === HTR_STEP_VENTILATION
+        ? heaterSim.cabinTemp
+        : approach(heaterSim.cabinTemp, HTR_AMBIENT_CABIN_C, 0.003, dt);
+}
+
+function heaterState(): Record<string, unknown> {
+  advanceHeaterSim();
+  const step = heaterSim.step;
+  return {
+    state: heaterStatusCode(),
+    on: step === HTR_STEP_IGNITION || step === HTR_STEP_RUNNING,
+    running_step: step,
+    mode: heaterSim.mode,
+    target: heaterSim.mode === 2 ? heaterSim.target : heaterSim.level,
+    auto_start_stop: heaterSim.autoStartStop,
+    // Same battery model the rest of the demo uses, so this reading
+    // doesn't drift independently of what the Battery screen shows.
+    voltage: Math.round((12.0 + (sim.soc / 100) * 1.55) * 100) / 100,
+    body_temperature_c: Math.round(heaterSim.bodyTemp),
+    cabin_temperature_c: Math.round(heaterSim.cabinTemp),
+    error_code: null,
+    igniting: step === HTR_STEP_IGNITION,
+    cooling_down: step === HTR_STEP_COOLDOWN,
+    ventilating: step === HTR_STEP_VENTILATION,
+    connected: true,
+    updated_at: Date.now() / 1000,
   };
 }
 
@@ -734,6 +862,94 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
     if (roofSim.active) roofSim.lastStoppedReason = 'released';
     roofSim.active = null;
     return R(roofStatus());
+  }
+
+  if (p === '/heater') return R({ available: true, status: 'running', error: null, state: heaterState() });
+  if (p === '/heater/power') {
+    advanceHeaterSim();
+    if (body.on) {
+      if (heaterSim.step === null) {
+        heaterSim.step = HTR_STEP_IGNITION;
+        heaterSim.phaseStartedAt = Date.now() / 1000;
+      }
+      // already igniting/running/cooling down: no-op, same "absolute
+      // state, not a toggle" behaviour as the real agent.
+    } else {
+      if (heaterSim.step === HTR_STEP_IGNITION) {
+        throw new ApiError(
+          409,
+          "Can't stop yet — it's still igniting. Unburnt fuel would foul the exhaust; wait for it to reach Heating first.",
+        );
+      }
+      if (heaterSim.step === HTR_STEP_RUNNING) {
+        heaterSim.step = HTR_STEP_COOLDOWN;
+        heaterSim.phaseStartedAt = Date.now() / 1000;
+      } else if (heaterSim.step === HTR_STEP_VENTILATION) {
+        heaterSim.step = null;
+        heaterSim.phaseStartedAt = Date.now() / 1000;
+      }
+      // already cooling down or off: no-op
+    }
+    return R(heaterState());
+  }
+  if (p === '/heater/temperature') {
+    heaterSim.mode = 2;
+    const celsius = Number(body.celsius);
+    if (Number.isFinite(celsius)) heaterSim.target = Math.max(8, Math.min(36, celsius));
+    return R(heaterState());
+  }
+  if (p === '/heater/level') {
+    heaterSim.mode = 1;
+    const level = Number(body.level);
+    if (Number.isFinite(level)) heaterSim.level = Math.max(1, Math.min(10, level));
+    return R(heaterState());
+  }
+  if (p === '/heater/mode') {
+    heaterSim.mode = body.mode === 'level' ? 1 : 2;
+    return R(heaterState());
+  }
+  if (p === '/heater/auto-start-stop') {
+    heaterSim.autoStartStop = !heaterSim.autoStartStop;
+    return R(heaterState());
+  }
+  if (p === '/heater/ventilate') {
+    advanceHeaterSim();
+    if (heaterSim.step !== null) {
+      throw new ApiError(409, 'Ventilation only works from standby.');
+    }
+    heaterSim.step = HTR_STEP_VENTILATION;
+    heaterSim.phaseStartedAt = Date.now() / 1000;
+    return R(heaterState());
+  }
+  if (p === '/heater/fuel') {
+    const daily: Record<string, number> = {};
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      daily[d.toISOString().slice(0, 10)] = Math.round((0.22 + 0.14 * Math.sin(i)) * 100) / 100;
+    }
+    return R({
+      estimated: true,
+      today_litres: 0.34,
+      since_fill_litres: 1.86,
+      tank_filled_at: Date.now() / 1000 - 4 * 86400,
+      tank_litres: 10,
+      tank_remaining_litres: 8.14,
+      typical_day_litres: 0.29,
+      daily,
+    });
+  }
+  if (p === '/heater/fuel/filled') {
+    return R({
+      estimated: true,
+      today_litres: 0,
+      since_fill_litres: 0,
+      tank_filled_at: Date.now() / 1000,
+      tank_litres: 10,
+      tank_remaining_litres: 10,
+      typical_day_litres: 0.29,
+      daily: {},
+    });
   }
 
   if (p === '/relays') return R({ available: true, reason: null, state_is_commanded_only: true, channels: relays });

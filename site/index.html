@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>VanOS — open-source campervan dashboard OS</title>
-<meta name="description" content="VanOS is an open-source, plugin-based dashboard operating system for campervans — live battery, solar, weather, nearby places, camera and mission intelligence, running on a Raspberry Pi." />
+<meta name="description" content="VanOS is an open-source, plugin-based dashboard operating system for campervans — live battery, solar, weather, nearby places, camera, diesel heater and mission intelligence, running on a Raspberry Pi." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
@@ -71,7 +71,7 @@
     <section class="hero">
       <div class="pill" style="margin-bottom:20px"><span class="dot"></span> Live demo running on simulated data</div>
       <h1>Your van's <span>mission control</span></h1>
-      <p>VanOS is an open-source, plugin-based dashboard operating system for campervans. Live battery, solar, weather, nearby places, camera and mission intelligence — all on a Raspberry Pi, all in one calm aurora cockpit.</p>
+      <p>VanOS is an open-source, plugin-based dashboard operating system for campervans. Live battery, solar, weather, nearby places, camera, diesel heater and mission intelligence — all on a Raspberry Pi, all in one calm aurora cockpit.</p>
       <div class="cta">
         <a class="btn primary" href="app.html" target="_blank" rel="noopener"><span class="dot" style="background:#052027;box-shadow:none"></span> Launch the live demo</a>
         <a class="btn ghost" href="build.html">Build your own →</a>
@@ -89,6 +89,7 @@
         <div class="card"><div class="ic" style="background:rgba(56,189,248,.14)">📷</div><h3>Camera & switches</h3><p>Live USB-webcam view with snapshots saved on the Pi, and GPIO relay control wired in parallel with the van's manual switches.</p></div>
         <div class="card"><div class="ic" style="background:rgba(168,85,247,.14)">🔼</div><h3>Roof control</h3><p>Press-and-hold buttons for the elevating roof, wired in parallel with the physical switch. A safety watchdog drops the relay the instant you let go — wifi or not.</p></div>
         <div class="card"><div class="ic" style="background:rgba(52,211,153,.14)">🧭</div><h3>Trips & Memories</h3><p>Every journey leaves a breadcrumb trail on an offline map — distance, days on the road, and the start of a travel journal for the places you stop.</p></div>
+        <div class="card"><div class="ic" style="background:rgba(249,115,22,.14)">🔥</div><h3>Diesel heater</h3><p>Full control over a Bluetooth diesel air heater — target temperature, level mode, auto start-stop, estimated fuel use. Ignition and cooldown are hardware safety states: the app refuses to stop mid-ignition or restart mid-purge, exactly like the heater's own controller does.</p></div>
         <div class="card"><div class="ic" style="background:rgba(236,72,153,.14)">🎙️</div><h3>Voice control</h3><p>Say a wake word, then a command — "turn the lights on" flips a real relay, anything else goes to Ron. Wake-word listening runs entirely locally and free; understanding and replying goes through Groq.</p></div>
         <div class="card"><div class="ic" style="background:rgba(244,114,182,.14)">📻</div><h3>Internet radio</h3><p>Browse and play UK stations through the van's speaker, DAB-set style — search by name or genre, one tap to play. Pauses itself automatically the moment you use a voice command, then picks back up.</p></div>
         <div class="card"><div class="ic" style="background:rgba(129,140,248,.14)">💬</div><h3>Ron, the van AI</h3><p>A grounded companion who actually knows what's going on — battery, weather, location — rather than a generic chatbot guessing. Talk to him by typing or, now, out loud.</p></div>
