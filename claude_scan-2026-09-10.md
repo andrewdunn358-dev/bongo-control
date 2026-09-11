@@ -505,3 +505,52 @@ parameter anywhere in `backend/app/`.
 into a chat. It is a TTS key, so the worst case is someone burning the
 character quota rather than anything serious - but it should be replaced
 from the Google Cloud console when convenient.
+
+
+---
+
+# 18. The heater agent cannot find the heater after an idle period
+
+Seen 11 Sep after a container rebuild:
+
+    20:25:05:19:0D:33 is not known to BlueZ on hci0
+
+`get_device()` reads BlueZ's cached device list rather than scanning -
+deliberately, because scanning would collide with the container's
+Victron discovery. But nothing else scans either, so after a reboot or
+a long idle the heater simply is not in the cache and the agent can
+never find a device it otherwise connects to fine.
+
+Workaround each time:
+
+    timeout 15 bluetoothctl scan on > /dev/null 2>&1
+
+**Do:** when `get_device()` returns None, have the agent run one short
+scan itself before giving up - `BleakScanner.discover(timeout=8)` - then
+retry the lookup. It must stay brief and only happen on a miss, or it
+reintroduces the scan collision that moved this agent onto the host in
+the first place. Log when it does it, so a van that needs a scan every
+cycle is visible rather than silently slow.
+
+# 19. "Client is already connected" needs a manual disconnect
+
+Also 11 Sep, and seen repeatedly. After the agent is stopped and
+restarted, BlueZ can hold a connection nothing owns, and
+`establish_connection` burns all four of its attempts on it:
+
+    Failed to connect after 4 attempt(s): Client is already connected
+
+Cleared by hand with `bluetoothctl disconnect <mac>`.
+
+`_force_disconnect()` already calls `close_stale_connections_by_address`
+before connecting, so either that is not covering this case or it is
+running too late. **Do:** reproduce by stopping and restarting the
+agent, then check whether the stale-connection call is reached at all -
+it is wrapped in a broad `except` that logs at DEBUG, so a failure there
+is currently invisible. Raising that to a warning would be a one-line
+start.
+
+Both of these are "the agent should sort itself out" rather than
+faults - it does recover eventually via backoff. They cost a manual
+command each time the Pi or the container restarts, which is often
+enough to be worth fixing.
