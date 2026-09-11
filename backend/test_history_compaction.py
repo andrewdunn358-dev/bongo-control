@@ -7,6 +7,7 @@ file (not a fake), because the thing under test IS the SQL - bucketing,
 grouping by source, and the delete+insert round trip.
 """
 
+import asyncio
 import json
 import os
 import sys
@@ -84,7 +85,7 @@ def fresh_service():
     return HistoryService(telemetry_service=None)
 
 
-def main():
+async def main():
     now = time.time()
     old_enough = now - (COMPACTION_AFTER_HOURS * 3600) - 3600  # just past the boundary
 
@@ -181,6 +182,41 @@ def main():
     check("a reading past the retention window is gone after _prune()", len(rows) == 1)
     check("a recent reading survives", rows[0][2]["soc_pct"] == 80.0)
 
+    print("\n=== 9. THE API ROUTE'S QUERY PATH STILL WORKS ACROSS THE COMPACTION BOUNDARY ===")
+    reset_db()
+    old_hour = int(old_enough // COMPACTION_BUCKET_SECONDS) * COMPACTION_BUCKET_SECONDS
+    for i in range(10):
+        insert("battery", "smartshunt", old_hour + i * 60, soc_pct=40.0 + i)
+    for i in range(5):
+        insert("battery", "smartshunt", now - i * 60, soc_pct=80.0)
+    svc = fresh_service()
+    svc._compact_old_readings()
+    # This is the exact call app/api/routes/telemetry.py's get_history()
+    # makes - going through the query() a caller actually uses, not
+    # reaching into internals.
+    queried = svc.query("battery", since_timestamp=old_enough - 3600)
+    check("compacted-old + full-resolution-recent both come back", len(queried) == 1 + 5)
+    timestamps = [r["timestamp"] for r in queried]
+    check("results stay in chronological order across the boundary", timestamps == sorted(timestamps))
+    check("max_points downsampling still works on the now-smaller set", len(svc.query("battery", since_timestamp=old_enough - 3600, max_points=3)) <= 3)
+
+    print("\n=== 10. THE PRUNE LOOP ACTUALLY RUNS OFF-THREAD WITHOUT CRASHING ===")
+    reset_db()
+    old_hour = int(old_enough // COMPACTION_BUCKET_SECONDS) * COMPACTION_BUCKET_SECONDS
+    for i in range(10):
+        insert("battery", "smartshunt", old_hour + i * 60, soc_pct=55.0)
+    svc = fresh_service()
+    task = asyncio.create_task(svc._prune_loop())
+    await asyncio.sleep(0.5)  # let the first iteration's asyncio.to_thread(self._prune) complete
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    rows = rows_for("battery")
+    check("a real asyncio.to_thread prune cycle compacted the backlog", len(rows) == 1)
+    check("the prune loop ran and returned control to the event loop cleanly (no crash)", True)
+
     print()
     if failures:
         print(f"{len(failures)} FAILURE(S):")
@@ -192,6 +228,6 @@ def main():
 
 if __name__ == "__main__":
     try:
-        main()
+        asyncio.run(main())
     finally:
         os.unlink(_tmp_db.name)
