@@ -327,10 +327,32 @@ fixed, so voice may keep up unaided.
   to stop it was to delete the key - which also breaks transcription
   and has to be typed back in from the console.
 
-**Still open:** whether Vosk keeps up now the CPU is free. Watch the
-log for the drop warning; if it appears steadily, the Pi genuinely
-cannot process speech in real time and the next step is downsampling
-before the wake-word stage.
+**CONFIRMED, 11 Sep: Vosk keeps up perfectly.** With the intelligence
+engine fixed, the log reads:
+
+    still listening, 0 chunks queued (~0.0s behind real time if any)
+
+Zero, consistently. It was never too heavy for this Pi - it was starved
+of CPU by item 15b re-reading eight days of history every 30 seconds.
+The backlog cap should now never fire; it stays as a safety net.
+
+**This also explains the Groq quota.** Once voice was 900s behind it was
+detecting wake words in stale audio and firing a transcription call for
+speech from fifteen minutes earlier - burning quota on commands nobody
+had given. The quota was a symptom, not a limit being reached honestly.
+
+**All three of the day's complaints were one root cause.** The camera
+was not slow, voice was not too heavy for the hardware, and Groq was not
+being overused by design. One JSON-decoding loop was eating the Pi.
+
+**The remote speaker test has a real limitation**, worth knowing before
+trusting it: it plays the command out of the headphone jack and relies
+on the mic hearing it. Measured RMS 124-232 against a threshold of 150 -
+barely at the trigger point, so Groq receives near-silence and
+transcribes `'.'`. The pipeline is fine; the levels are not. Turn the
+van's volume up before using it, or judge from a real spoken command
+instead. Note the threshold is already at 150 where the help text
+suggests 2500 is typical, which hints the mic runs quiet generally.
 
 ## 15b. The intelligence engine re-reading eight days, every 30s — FIXED
 
