@@ -20,6 +20,7 @@ import type {
   PoiResponse,
   RadioStation,
   RelayEvent,
+  HeaterFuel,
   HeaterResponse,
   HeaterState,
   RelayResponse,
@@ -256,6 +257,8 @@ export const api = {
     request<HeaterState>('/heater/level', { method: 'POST', body: JSON.stringify({ level }) }),
   heaterMode: (mode: 'level' | 'temperature') =>
     request<HeaterState>('/heater/mode', { method: 'POST', body: JSON.stringify({ mode }) }),
+  heaterFuel: () => request<HeaterFuel>('/heater/fuel'),
+  heaterFuelFilled: () => request<HeaterFuel>('/heater/fuel/filled', { method: 'POST', body: '{}' }),
   heaterVentilate: () =>
     request<HeaterState>('/heater/ventilate', { method: 'POST', body: '{}' }),
   heaterAutoStartStop: () =>

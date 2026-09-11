@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Flame, Minus, Plus, Mountain, CircleGauge, ArrowLeftRight, Loader2, Wind } from 'lucide-react';
+import { Flame, Minus, Plus, Mountain, CircleGauge, ArrowLeftRight, Loader2, Wind, Fuel } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { HeaterGraphic } from '@/components/HeaterGraphic';
 
@@ -64,6 +64,98 @@ function ageText(updatedAt?: number | null): string | null {
   if (seconds < 30) return null; // fresh enough not to mention
   if (seconds < 90) return `${seconds}s ago`;
   return `${Math.round(seconds / 60)} min ago`;
+}
+
+/**
+ * Estimated fuel use.
+ *
+ * Shown at all because this heater runs off the VEHICLE tank - what it
+ * burns overnight comes off driving range, which is not true of a
+ * separate-tank install and is the reason this is worth screen space.
+ *
+ * Labelled "estimated" prominently and deliberately. The heater does
+ * not report consumption; this is integrated from a gear-to-litres
+ * table, and in temperature mode - the common case - the running gear
+ * cannot be read, so the rate is assumed mid-range. Presenting a
+ * modelled number as a fuel gauge would be exactly the kind of invented
+ * precision this project avoids elsewhere.
+ */
+function FuelCard() {
+  const qc = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ['heater-fuel'],
+    queryFn: api.heaterFuel,
+    refetchInterval: 60_000,
+    retry: false,
+  });
+
+  const fill = useMutation({
+    mutationFn: () => api.heaterFuelFilled(),
+    onSuccess: () => {
+      toast.success('Tank marked as filled.');
+      qc.invalidateQueries({ queryKey: ['heater-fuel'] });
+    },
+    onError: () => toast.error('Could not save'),
+  });
+
+  if (!data) return null;
+
+  const nothingYet = !data.today_litres && !data.since_fill_litres;
+
+  return (
+    <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid rgba(238,241,240,.08)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
+        <Fuel size={13} color="var(--grey)" />
+        <span style={{ fontSize: 12, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--grey)' }}>
+          Fuel &middot; estimated
+        </span>
+      </div>
+
+      {nothingYet ? (
+        <div style={{ fontSize: 13, color: 'var(--grey-dim)' }}>
+          Nothing burned yet. Figures appear once the heater has run.
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
+          <Reading value={`${data.today_litres.toFixed(2)}L`} label="Today" />
+          <Reading
+            value={data.since_fill_litres != null ? `${data.since_fill_litres.toFixed(1)}L` : '\u2014'}
+            label="Since fill"
+          />
+          <Reading
+            value={data.typical_day_litres != null ? `${data.typical_day_litres.toFixed(1)}L` : '\u2014'}
+            label="Typical day"
+          />
+        </div>
+      )}
+
+      {data.tank_remaining_litres != null && (
+        <div style={{ marginTop: 12, fontSize: 13, color: 'var(--grey)' }}>
+          Roughly <strong style={{ color: 'var(--paper)' }}>{data.tank_remaining_litres}L</strong> of the
+          tank left, if nothing else used it.
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => fill.mutate()}
+        disabled={fill.isPending}
+        style={{
+          marginTop: 14, padding: '8px 14px', borderRadius: 10,
+          border: '1px solid rgba(238,241,240,.16)', background: 'transparent',
+          color: 'var(--grey)', font: 'inherit', fontSize: 13, cursor: 'pointer',
+        }}
+      >
+        {fill.isPending ? 'Saving\u2026' : 'I filled the tank'}
+      </button>
+
+      <div style={{ marginTop: 10, fontSize: 11, color: 'var(--grey-dim)', lineHeight: 1.5 }}>
+        Worked out from the heater&apos;s power level, not measured &mdash; it doesn&apos;t report fuel
+        use. In temperature mode it picks its own level and doesn&apos;t say which, so those runs are
+        the roughest. Treat it as an indication.
+      </div>
+    </div>
+  );
 }
 
 export function Heater() {
@@ -303,6 +395,8 @@ export function Heater() {
             Reconnecting - this heater drops the link every few seconds. Readings above are the last received.
           </div>
         )}
+
+        <FuelCard />
       </div>
     </div>
   );

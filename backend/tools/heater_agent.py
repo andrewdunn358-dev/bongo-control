@@ -118,9 +118,57 @@ CMD_STATUS, CMD_SET_MODE, CMD_POWER, CMD_SET_TEMPERATURE, CMD_SET_LEVEL = 1, 2, 
 # mapped values, checked against the library's step_mapping.
 STEP_IGNITION, STEP_RUNNING, STEP_COOLDOWN, STEP_VENTILATION = 2, 3, 4, 6
 
+# Litres per hour by gear, 1-10. From the Home Assistant integration's
+# FUEL_CONSUMPTION_TABLE, whose own comment is worth repeating:
+# "computed locally, not protocol-dependent". The heater does NOT report
+# fuel use - this is an estimate from the gear it is running at.
+#
+# It is a reasonable estimate rather than a guess: these pumps are
+# fixed-displacement and the gear sets the pump frequency directly, so
+# consumption really is a function of gear. But it is still modelled,
+# and anything built on it should say so rather than presenting it as
+# a measurement.
+#
+# THIS MATTERS MORE ON THIS VAN THAN MOST. The heater is plumbed into
+# the VEHICLE fuel tank, not a separate one, so what it burns overnight
+# comes straight off driving range.
+FUEL_LITRES_PER_HOUR = {
+    1: 0.16, 2: 0.20, 3: 0.24, 4: 0.28, 5: 0.32,
+    6: 0.36, 7: 0.40, 8: 0.44, 9: 0.48, 10: 0.52,
+}
+
 # hcalory_status - the high nibble of the state byte. What the heater
 # is actually doing, as opposed to running_state which is just 0/1.
 STATUS_OFF, STATUS_TURNING_OFF, STATUS_HEATING, STATUS_VENTILATION, STATUS_ERROR = 0x0, 0x4, 0x8, 0xC, 0xF
+
+
+def fuel_rate_lph(state: dict) -> float | None:
+    """Estimated current burn rate in litres/hour, or None when not
+    burning.
+
+    Returns None rather than 0.0 while ventilating or off: the fan uses
+    no fuel, and a rate of zero would integrate correctly but reads as
+    "we measured zero" rather than "it is not burning".
+
+    In temperature mode the heater picks its own gear, and the reported
+    `set_value` is the TARGET TEMPERATURE, not a gear - feeding that
+    into the table would read 21C as gear 21 and fall off the end of it.
+    Until the running gear can be read directly, temperature mode
+    estimates at mid-range and flags itself as approximate.
+    """
+    status = state.get("state")
+
+    if status != STATUS_HEATING:
+        return None
+
+    mode = state.get("mode")
+    target = state.get("target")
+
+    if mode == 1 and isinstance(target, int) and target in FUEL_LITRES_PER_HOUR:
+        return FUEL_LITRES_PER_HOUR[target]
+
+    # Temperature mode, or a gear we cannot read: mid-table.
+    return FUEL_LITRES_PER_HOUR[5]
 
 
 def shape_state(parsed: dict) -> dict:
@@ -148,7 +196,7 @@ def shape_state(parsed: dict) -> dict:
 
     status = parsed.get("hcalory_status")
 
-    return {
+    shaped = {
         # hcalory_status: 0x0 off, 0x4 turning off, 0x8 heating,
         # 0xC ventilation, 0xF error. NOT running_state, which is only
         # ever 0 or 1 - reporting that was why the screen once said
@@ -167,6 +215,13 @@ def shape_state(parsed: dict) -> dict:
         "cooling_down": step == STEP_COOLDOWN,
         "ventilating": step == STEP_VENTILATION or status == STATUS_VENTILATION,
     }
+
+    # Estimated, not measured - see fuel_rate_lph(). Carried in the
+    # payload so history can integrate it without re-deriving the rule.
+    shaped["fuel_lph"] = fuel_rate_lph(shaped)
+    shaped["fuel_estimated"] = shaped["fuel_lph"] is not None
+
+    return shaped
 
 
 class Heater:

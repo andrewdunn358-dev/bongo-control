@@ -546,3 +546,26 @@ export interface HeaterResponse {
   error: string | null;
   state: HeaterState;
 }
+
+
+/**
+ * Estimated heater fuel use. ESTIMATED is the operative word: the
+ * heater does not report consumption, so this is integrated from a
+ * gear-to-litres table. The `estimated` flag is always true and exists
+ * so the UI cannot accidentally present it as a measurement.
+ *
+ * Matters on this van because the heater runs off the VEHICLE tank -
+ * what it burns overnight comes off driving range.
+ */
+export interface HeaterFuel {
+  estimated: boolean;
+  today_litres: number;
+  since_fill_litres?: number | null;
+  tank_filled_at?: number | null;
+  tank_litres?: number | null;
+  tank_remaining_litres?: number | null;
+  /** Average of complete days, once there are at least three. Null
+   *  below that - an average of one night is not a typical night. */
+  typical_day_litres?: number | null;
+  daily?: Record<string, number>;
+}

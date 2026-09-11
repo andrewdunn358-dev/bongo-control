@@ -44,6 +44,14 @@ PERSISTED_DOMAINS = {
     # half-hourly (see DOMAIN_SAMPLE_INTERVALS); the forecast barely
     # moves between updates so that's ample and keeps the row count tiny.
     TelemetryDomain.WEATHER.value,
+    # The heater. Added late and initially missed, so its readings
+    # reached the screen live and then vanished - no history, no charts,
+    # and nothing for a fuel-consumption figure to integrate against.
+    #
+    # This van's heater runs off the VEHICLE fuel tank, so what it burns
+    # comes out of driving range. Knowing what a night costs is the
+    # whole point of keeping it.
+    TelemetryDomain.HEATING.value,
 }
 
 DEFAULT_SAMPLE_INTERVAL_SECONDS = 60
@@ -66,6 +74,11 @@ DOMAIN_SAMPLE_INTERVALS: dict[str, float] = {
     # Forecast changes slowly; half-hourly is plenty and keeps the
     # (relatively large) weather payload from bloating the DB.
     TelemetryDomain.WEATHER.value: 1800,
+    # The agent polls the heater every second, but its state is
+    # event-shaped: off for hours, then a run. 60s catches the shape of
+    # a burn - ignition, warm-up, settled running, cooldown - without
+    # writing 3,600 near-identical rows an hour while it sits idle.
+    TelemetryDomain.HEATING.value: 60,
 }
 DEFAULT_RETENTION_DAYS = 30
 PRUNE_INTERVAL_SECONDS = 6 * 3600  # every 6 hours is plenty for a daily-scale retention window

@@ -30,6 +30,7 @@ from app.core.logging_config import configure_logging
 from app.db.database import init_db
 from app.intelligence.engine import IntelligenceEngine
 from app.intelligence.daily_cache import DailyAggregateCache
+from app.services.heater_fuel_service import HeaterFuelService
 from app.intelligence.providers.battery_signal import BatterySignalProvider
 from app.intelligence.providers.energy_balance import EnergyBalanceSignalProvider
 from app.intelligence.providers.power_predictions import PowerPredictionProvider
@@ -59,6 +60,10 @@ plugin_manager = PluginManager(bus, configuration_service, notification_service)
 # Separate instances would each keep their own copy of the same
 # completed days - the point is to compute them once.
 daily_cache = DailyAggregateCache(history_service)
+
+# Shares the cache so completed days are integrated once, not on every
+# page load.
+heater_fuel_service = HeaterFuelService(history_service, configuration_service, daily_cache)
 
 intelligence_engine = IntelligenceEngine(
     signal_providers=[

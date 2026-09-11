@@ -162,6 +162,24 @@ async def toggle_auto() -> dict:
     return await _post("/auto-start-stop", {})
 
 
+@router.get("/fuel")
+async def get_fuel() -> dict:
+    """Estimated fuel consumption. Everything here is modelled from the
+    heater's gear, not measured - the payload says so explicitly."""
+    from app.main import heater_fuel_service
+
+    return heater_fuel_service.summary()
+
+
+@router.post("/fuel/filled")
+async def mark_filled() -> dict:
+    """Reset the since-fill total. Stores a timestamp rather than
+    zeroing a counter, so the figure stays derivable from history."""
+    from app.main import heater_fuel_service
+
+    return heater_fuel_service.mark_filled()
+
+
 @router.post("/ventilate")
 async def ventilate() -> dict:
     """Fan only, no burn. Refused by the agent unless the heater is in

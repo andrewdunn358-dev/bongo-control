@@ -162,6 +162,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # and turning it off should not mean deleting the Groq key - which
     # also breaks transcription and has to be typed back in afterwards.
     "voice": {"enabled": True},
+    # Diesel heater fuel tracking. tank_litres is the VEHICLE tank on
+    # this van - the heater is plumbed into it, so its consumption comes
+    # off driving range. Left null until set; without it the app reports
+    # litres used but cannot estimate what is left.
+    "heater_fuel": {"tank_litres": None, "tank_filled_at": None},
     "developer": {},
 }
 
