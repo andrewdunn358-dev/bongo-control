@@ -566,9 +566,20 @@ getting a misleading error for it. The two cleanup failure paths now
 log at WARNING rather than DEBUG — a cleanup that silently never works
 is indistinguishable from one that has nothing to do.
 
-**Still open:** why the heater refuses. It connected and held for 1h21m
-this morning, then stopped, with no change to the agent. Suspect the
-heater gets into a state where it advertises but will not complete a
-GATT connection — the same pattern as 10 Sep, where long refusing
-spells alternated with it working fine. **Try a power cycle at the
-panel** next time you are at the van; that is the test that settles it.
+**RESOLVED: a Pi reboot fixed it.** Not the heater — BlueZ.
+
+After an afternoon of `bluetoothctl disconnect`, `remove`, `hciconfig
+reset` and repeated agent restarts, BlueZ was left in a state where it
+reported `Connected: no` while still refusing to complete service
+discovery. Nothing short of a full restart cleared it: not removing the
+device, not resetting the adapter, not restarting the agent.
+
+**So: reboot the Pi first.** It is faster than the diagnosis and it can
+be done from anywhere, where a heater power cycle needs someone at the
+van. The heater was never at fault, and the power cycle was never
+needed.
+
+Worth remembering the shape of this one. The reported error was
+misleading (item 19), the real error pointed at the heater, and the
+actual cause was accumulated state in BlueZ from our own debugging. The
+more we poked at it, the worse it got.
