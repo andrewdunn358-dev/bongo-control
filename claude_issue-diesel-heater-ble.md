@@ -1,5 +1,7 @@
 # Issue draft — diesel-heater-ble
 
+**POSTED 11 Sep 2026:** https://github.com/Spettacolo83/diesel-heater-ble/issues/2
+
 **Repo:** https://github.com/Spettacolo83/diesel-heater-ble/issues
 **Title:** `PyPI 0.3.3 predates the MVP1-query default — Hcalory MVP2 heater terminates the connection when polled with `build_command(1)``
 
