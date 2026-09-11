@@ -61,7 +61,19 @@ class IntelligenceRunner:
                 if now - self._last_computed_at < RECOMPUTE_MIN_INTERVAL_SECONDS:
                     continue
                 self._last_computed_at = now
-                self._engine.compute()
+                # Off the event loop. compute() is pure sync work -
+                # providers call history_service.query()/daily_cache
+                # (both plain SQLAlchemy) and telemetry_service.latest()
+                # (in-memory), nothing async - and it's known to cost
+                # real time on a Pi 2B: this is the exact code path
+                # py-spy caught at 63% of a core, stuttering the camera,
+                # before daily_cache.py bounded the per-run row count.
+                # That fix (see daily_cache.py) shrank the DATA VOLUME;
+                # it didn't move the work off the loop roof_service's
+                # watchdog shares - still worth doing regardless of how
+                # small the table is, same as the history_service prune
+                # loop already does.
+                await asyncio.to_thread(self._engine.compute)
         except asyncio.CancelledError:
             raise
         finally:
