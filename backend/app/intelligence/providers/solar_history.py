@@ -39,6 +39,7 @@ import statistics
 import time
 from datetime import datetime, timezone
 
+from app.intelligence.daily_cache import DailyAggregateCache
 from app.intelligence.signals import Signal, SignalSeverity
 from app.telemetry.models import TelemetryDomain
 
@@ -89,13 +90,33 @@ def daily_radiation_mj(rows: list[dict]) -> dict[str, float]:
     return by_day
 
 
+def _day_solar_wh(rows: list[dict]) -> float:
+    """One day's harvest. Wraps daily_solar_wh, which buckets by day -
+    given a single day's rows it returns at most one bucket."""
+    by_day = daily_solar_wh(rows)
+    return sum(by_day.values()) if by_day else 0.0
+
+
+def _day_radiation_mj(rows: list[dict]) -> float | None:
+    by_day = daily_radiation_mj(rows)
+    return next(iter(by_day.values())) if by_day else None
+
+
 class SolarHistorySignalProvider:
-    def __init__(self, history_service) -> None:
+    def __init__(self, history_service, cache: DailyAggregateCache | None = None) -> None:
         self._history = history_service
+        # Shared with the other providers where possible, so two of them
+        # reading the same domain do not each keep their own copy.
+        self._cache = cache or DailyAggregateCache(history_service)
 
     def evaluate(self) -> Signal | None:
-        since = time.time() - LOOKBACK_DAYS * 86400
-        daily = daily_solar_wh(self._history.query(TelemetryDomain.SOLAR.value, since))
+        # Completed days come from the cache; only today is re-read. See
+        # app/intelligence/daily_cache.py for why.
+        daily = {
+            d: wh for d, wh in self._cache.series(
+                "solar_wh", TelemetryDomain.SOLAR.value, LOOKBACK_DAYS, _day_solar_wh
+            ).items() if wh
+        }
         if not daily:
             return None  # no solar history yet - nothing to say
 
@@ -110,7 +131,11 @@ class SolarHistorySignalProvider:
             detail["days"] = len(complete)
 
         # --- panel performance (needs weather history to calibrate) ---
-        rad = daily_radiation_mj(self._history.query(TelemetryDomain.WEATHER.value, since))
+        rad = {
+            d: mj for d, mj in self._cache.series(
+                "weather_rad_mj", TelemetryDomain.WEATHER.value, LOOKBACK_DAYS, _day_radiation_mj
+            ).items() if mj is not None
+        }
         ratios = {
             d: complete[d] / rad[d]
             for d in complete

@@ -54,6 +54,7 @@ import statistics
 import time
 from datetime import datetime, timezone
 
+from app.intelligence.daily_cache import DailyAggregateCache
 from app.intelligence.signals import Signal, SignalSeverity
 from app.telemetry.models import TelemetryDomain, TelemetrySource
 
@@ -140,15 +141,32 @@ def daily_battery_energy(rows: list[dict]) -> dict[str, dict[str, float]]:
     return by_day
 
 
+def _day_battery_energy(rows: list[dict]) -> dict[str, float] | None:
+    """One day's net/charge/discharge/coverage.
+
+    daily_battery_energy buckets by day; given a single day's rows it
+    returns at most one bucket, which is what the cache stores.
+    """
+    by_day = daily_battery_energy(rows)
+    return next(iter(by_day.values())) if by_day else None
+
+
 class EnergyBalanceSignalProvider:
-    def __init__(self, history_service, battery_bank_service) -> None:
+    def __init__(self, history_service, battery_bank_service, cache: DailyAggregateCache | None = None) -> None:
         self._history = history_service
         self._bank = battery_bank_service
+        self._cache = cache or DailyAggregateCache(history_service)
 
     def evaluate(self) -> Signal | None:
-        since = time.time() - LOOKBACK_DAYS * 86400
-        rows = self._history.query(TelemetryDomain.BATTERY.value, since)
-        daily = daily_battery_energy(rows)
+        # Completed days are cached; only today is re-read. This
+        # provider was reading 31,833 battery rows every 30 seconds and
+        # JSON-decoding every one of them - see
+        # app/intelligence/daily_cache.py.
+        daily = {
+            d: v for d, v in self._cache.series(
+                "battery_energy", TelemetryDomain.BATTERY.value, LOOKBACK_DAYS, _day_battery_energy
+            ).items() if v
+        }
         if not daily:
             # No shunt history at all. Nothing to say, and deliberately
             # not an UNKNOWN signal - the Home card already reports the

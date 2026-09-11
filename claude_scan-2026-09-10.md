@@ -284,3 +284,77 @@ systemd unit, because the agent runs outside the container and cannot
 read this config. An editable field would be a control that silently
 does nothing, so the card shows the agent URL (which is app config) and
 states plainly where the rest lives, with the commands to change it.
+
+
+---
+
+# 15. Found 11 Sep: the backend was burning a full core
+
+The camera "feeling slow" turned out not to be the camera at all.
+uStreamer answers a snapshot in **4.7ms** and was running fine at
+640x480. The backend had no CPU left to serve it.
+
+`top` showed uvicorn at 93% and 296MB - 77 minutes of CPU in 78 minutes
+of uptime. Two separate causes, found with `py-spy dump`:
+
+## 15a. Voice control, 900 seconds behind real time
+
+The log was repeating `still listening, 1800 chunks queued (~900.0s
+behind real time)`. It consumed audio slower than the microphone
+produced it, so the backlog grew until it plateaued and it burned a
+core forever trying to catch up. Even if it had recognised a command it
+would have been acting on something said fifteen minutes earlier.
+
+Disabled by clearing the Groq key. **Memory dropped 296MB to 103MB
+immediately** - the backlog was the memory problem too.
+
+**Not fixed, decisions needed:**
+- There is **no off switch**. `voice_control_service.start()` runs
+  whenever a Groq key exists; the only way to stop it is to remove the
+  key. It needs a real enable flag.
+- The queue needs a **cap that drops old audio** rather than growing.
+  Being 900s behind is never useful - stale commands are worse than no
+  commands.
+- Honestly: continuous wake-word detection on 48kHz audio costs about a
+  full core on a Pi 2B, and it could not keep up even at that. If voice
+  matters it needs to get cheaper (downsample before the wake-word
+  stage); if it does not, leaving it off returns a third of the Pi.
+
+## 15b. The intelligence engine re-reading eight days, every 30s — FIXED
+
+`py-spy` caught it in `json.loads` inside `history_service.query`,
+called from `solar_history.evaluate`, **on the event loop**.
+
+Every 30 seconds the engine re-read and JSON-decoded, from this van's
+actual table:
+
+| domain | rows over 8 days |
+|---|---|
+| solar | 10,656 |
+| weather | 338 |
+| battery | 31,833 (twice — energy balance and power predictions) |
+
+About **42,800 rows per compute, ~7 million JSON decodes an hour**, to
+recalculate daily totals that had not changed. And growing: the table
+was at 154,017 rows, so it got slower every day.
+
+**Fixed with a per-day cache** (`app/intelligence/daily_cache.py`).
+Seven of the eight days are finished and cannot change, so they are
+computed once and kept; only today is re-read. Measured against the
+van's real row counts: **42,824 rows per compute down to 5,353, an 88%
+cut** — and today's share resets at midnight rather than growing.
+
+Required adding `until_timestamp` to `history_service.query` so a
+caller can ask for one day rather than "everything since"; a bounded
+window is what makes caching possible at all.
+
+`backend/test_daily_cache.py`, 14 assertions. The ones that matter:
+completed days are queried once (second run makes ONE query, not four),
+today is never cached and updates as data arrives, a completed day's
+value does not move, and two providers reading the same domain with
+different aggregators do not collide.
+
+**Still worth doing:** `history_service.query` runs synchronously on
+the event loop. Even at 5,353 rows that blocks the camera while it
+runs. Wrapping it in `asyncio.to_thread` is a small change with a real
+benefit.

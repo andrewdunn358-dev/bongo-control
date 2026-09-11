@@ -217,7 +217,13 @@ class HistoryService:
         except Exception as e:  # noqa: BLE001 - maintenance must never crash the loop
             logger.warning("Cache maintenance prune failed: %s", e)
 
-    def query(self, domain: str, since_timestamp: float, max_points: int | None = None) -> list[dict]:
+    def query(
+        self,
+        domain: str,
+        since_timestamp: float,
+        max_points: int | None = None,
+        until_timestamp: float | None = None,
+    ) -> list[dict]:
         """Persisted readings for a domain since a timestamp.
 
         max_points optionally downsamples the result. This matters
@@ -234,9 +240,19 @@ class HistoryService:
         """
         db = SessionLocal()
         try:
+            # until_timestamp exists so a caller can ask for ONE day
+            # rather than "everything since". The intelligence providers
+            # aggregate per calendar day and cache completed days, which
+            # is only possible with a bounded window - see
+            # app/intelligence/daily_cache.py.
+            q = db.query(TelemetryReading).filter(
+                TelemetryReading.domain == domain,
+                TelemetryReading.timestamp >= since_timestamp,
+            )
+            if until_timestamp is not None:
+                q = q.filter(TelemetryReading.timestamp < until_timestamp)
             rows = (
-                db.query(TelemetryReading)
-                .filter(TelemetryReading.domain == domain, TelemetryReading.timestamp >= since_timestamp)
+                q
                 .order_by(TelemetryReading.timestamp)
                 .all()
             )

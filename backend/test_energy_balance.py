@@ -61,8 +61,17 @@ class FakeHistory:
     def __init__(self, rows):
         self._rows = rows
 
-    def query(self, domain, since_timestamp, max_points=None):
-        return [r for r in self._rows if r["timestamp"] >= since_timestamp]
+    def query(self, domain, since_timestamp, max_points=None, until_timestamp=None):
+        # until_timestamp mirrors the real HistoryService, which gained
+        # it so the daily cache can ask for one day at a time. A fake
+        # missing it fails with a TypeError before asserting anything -
+        # the same stale-fake trap that silently disabled the roof
+        # suite for weeks.
+        return [
+            r for r in self._rows
+            if r["timestamp"] >= since_timestamp
+            and (until_timestamp is None or r["timestamp"] < until_timestamp)
+        ]
 
 
 class FakeBank:

@@ -29,6 +29,7 @@ from app.core.config import settings
 from app.core.logging_config import configure_logging
 from app.db.database import init_db
 from app.intelligence.engine import IntelligenceEngine
+from app.intelligence.daily_cache import DailyAggregateCache
 from app.intelligence.providers.battery_signal import BatterySignalProvider
 from app.intelligence.providers.energy_balance import EnergyBalanceSignalProvider
 from app.intelligence.providers.power_predictions import PowerPredictionProvider
@@ -54,16 +55,21 @@ plugin_manager = PluginManager(bus, configuration_service, notification_service)
 # (telemetry_service.latest(domain)) rather than being pushed to - a
 # future Water/Heating/Door-Sensor plugin adds itself here as one more
 # provider, with zero changes to IntelligenceEngine's own code.
+# One cache shared by every provider that aggregates history per day.
+# Separate instances would each keep their own copy of the same
+# completed days - the point is to compute them once.
+daily_cache = DailyAggregateCache(history_service)
+
 intelligence_engine = IntelligenceEngine(
     signal_providers=[
         BatterySignalProvider(telemetry_service),
         SolarOutlookSignalProvider(telemetry_service),
         SolarYieldSignalProvider(telemetry_service, location_service),
-        SolarHistorySignalProvider(history_service),
+        SolarHistorySignalProvider(history_service, daily_cache),
         # Daily net Wh at the battery, measured by the shunt. The
         # counterpart to SolarHistory above, which reports harvest
         # only and says in its own docstring why it stops there.
-        EnergyBalanceSignalProvider(history_service, battery_bank_service),
+        EnergyBalanceSignalProvider(history_service, battery_bank_service, daily_cache),
     ],
     prediction_providers=[
         PowerPredictionProvider(telemetry_service, history_service, battery_bank_service),
