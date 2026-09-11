@@ -147,6 +147,29 @@ MIN_COMMAND_RECORD_SECONDS = 1.0  # never stop earlier than this even if the sil
 INITIAL_SILENCE_GRACE_SECONDS = 3.0  # how long to wait for speech to START before giving up entirely
 TRAILING_SILENCE_SECONDS = 2.0  # default pause AFTER speech has started that counts as "finished talking"
 RECORD_CHUNK_SECONDS = 0.1  # how often the silence detector re-checks - small enough to feel responsive
+
+# Hard ceiling on the wake-word audio backlog, in chunks (~0.5s each).
+#
+# Observed on this van: the queue sat at ~1,800 chunks - FIFTEEN MINUTES
+# behind real time - stable rather than growing, so Vosk was keeping up
+# with the microphone but had fallen permanently behind during an
+# earlier period of CPU starvation (the intelligence engine was eating
+# 93% of a core re-reading eight days of history every 30 seconds; see
+# app/intelligence/daily_cache.py).
+#
+# Nothing drained the queue except a wake-word detection, so once behind
+# it stayed behind. Detecting a wake word said fifteen minutes ago is
+# not merely useless - acting on it is worse than ignoring it, because
+# the command is stale and the person has moved on.
+#
+# 30 chunks is ~15 seconds. Past that the oldest audio is dropped. This
+# trades completeness for currency deliberately: a wake word inside
+# dropped audio is missed, but everything processed is recent. Being
+# permanently behind means missing them all anyway, and never knowing.
+MAX_BACKLOG_CHUNKS = 30
+# Dropping back to this rather than to the cap, so it doesn't trim one
+# chunk per arrival and sit permanently at the ceiling.
+BACKLOG_DRAIN_TO = 10
 RADIO_PLAYING_CHECK_INTERVAL_SECONDS = 2.0  # how often _radio_is_playing_cached() re-queries mpv - see its own docstring for why this needs throttling at all
 # The go-ahead confirm beep (_generate_beep_wav's default, 0.25s) plays
 # CONCURRENTLY with the start of recording, deliberately - not one
@@ -2025,9 +2048,40 @@ class VoiceControlService:
 
             audio_q: "queue.Queue[bytes]" = queue.Queue()
 
+            # Counts dropped chunks so the log can report the real
+            # figure rather than "some". Mutable container because this
+            # callback runs on sounddevice's own thread.
+            dropped = {"chunks": 0, "last_logged": 0.0}
+
             def _callback(indata, frames, time_info, status):  # noqa: ARG001 - fixed sounddevice callback signature
                 if status:
                     logger.debug("Voice control: audio stream status: %s", status)
+
+                # Drop the OLDEST audio when the backlog gets too deep,
+                # not the newest. See MAX_BACKLOG_CHUNKS: recent audio
+                # is the only audio worth processing, and without this
+                # the queue could sit fifteen minutes behind real time
+                # indefinitely.
+                if audio_q.qsize() > MAX_BACKLOG_CHUNKS:
+                    while audio_q.qsize() > BACKLOG_DRAIN_TO:
+                        try:
+                            audio_q.get_nowait()
+                            dropped["chunks"] += 1
+                        except queue.Empty:
+                            break
+
+                    # Rate-limited: falling behind produces a lot of
+                    # these and one line a minute is enough to see it.
+                    now = time.time()
+                    if now - dropped["last_logged"] > 60:
+                        dropped["last_logged"] = now
+                        logger.warning(
+                            "Voice control: dropped %d chunks (~%.0fs of audio) to stay near real time - "
+                            "the Pi cannot process speech as fast as the mic produces it",
+                            dropped["chunks"], dropped["chunks"] * 0.5,
+                        )
+                        dropped["chunks"] = 0
+
                 audio_q.put(bytes(indata))
 
             # Stored so _handle_wake() can fully close and recreate this
@@ -2130,7 +2184,28 @@ class VoiceControlService:
                 self._stream = None
             self._stream_kwargs = None
 
+    def wants_to_run(self) -> bool:
+        """Whether voice control should be listening at all.
+
+        Its own flag, separate from is_configured(), because until now
+        there was no off switch: start() ran whenever a Groq key
+        existed, and the only way to stop it was to delete the key -
+        which also breaks transcription and has to be typed back in
+        from the console afterwards. Continuous wake-word detection
+        costs real CPU on a Pi 2B, so turning it off for an evening
+        should not mean losing a credential.
+
+        Defaults to on, so existing installs behave as before.
+        """
+        from app.services.configuration_service import configuration_service
+
+        section = configuration_service.get("voice", {}) or {}
+        return section.get("enabled", True) is not False
+
     def start(self) -> None:
+        if not self.wants_to_run():
+            logger.info("Voice control: disabled in settings, not starting")
+            return
         if not self.is_configured():
             logger.info("Voice control: no Groq API key configured, not starting")
             return

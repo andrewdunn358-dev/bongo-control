@@ -297,7 +297,7 @@ uStreamer answers a snapshot in **4.7ms** and was running fine at
 `top` showed uvicorn at 93% and 296MB - 77 minutes of CPU in 78 minutes
 of uptime. Two separate causes, found with `py-spy dump`:
 
-## 15a. Voice control, 900 seconds behind real time
+## 15a. Voice control, 900 seconds behind real time — ADDRESSED
 
 The log was repeating `still listening, 1800 chunks queued (~900.0s
 behind real time)`. It consumed audio slower than the microphone
@@ -308,17 +308,29 @@ would have been acting on something said fifteen minutes earlier.
 Disabled by clearing the Groq key. **Memory dropped 296MB to 103MB
 immediately** - the backlog was the memory problem too.
 
-**Not fixed, decisions needed:**
-- There is **no off switch**. `voice_control_service.start()` runs
-  whenever a Groq key exists; the only way to stop it is to remove the
-  key. It needs a real enable flag.
-- The queue needs a **cap that drops old audio** rather than growing.
-  Being 900s behind is never useful - stale commands are worse than no
-  commands.
-- Honestly: continuous wake-word detection on 48kHz audio costs about a
-  full core on a Pi 2B, and it could not keep up even at that. If voice
-  matters it needs to get cheaper (downsample before the wake-word
-  stage); if it does not, leaving it off returns a third of the Pi.
+**The key observation:** the queue was **stable** at ~1,800 chunks, not
+growing. So Vosk *was* keeping pace with the microphone - it had simply
+fallen 900s behind during an earlier period and nothing ever drained
+the queue except a wake-word detection. The most likely cause of that
+earlier period is item 15b, which was eating 93% of a core. That is now
+fixed, so voice may keep up unaided.
+
+**Done:**
+- **A backlog cap.** Past ~15s of queued audio the oldest chunks are
+  dropped, back to ~5s. Trades completeness for currency deliberately:
+  a wake word inside dropped audio is missed, but everything processed
+  is recent. Permanently behind means missing them all anyway and never
+  knowing. Verified the lag is bounded at ~12s rather than 900s, and
+  that a consumer keeping pace never triggers a drop.
+- **A real off switch.** `voice.enabled` in config, defaulting to on.
+  Previously `start()` ran whenever a Groq key existed and the only way
+  to stop it was to delete the key - which also breaks transcription
+  and has to be typed back in from the console.
+
+**Still open:** whether Vosk keeps up now the CPU is free. Watch the
+log for the drop warning; if it appears steadily, the Pi genuinely
+cannot process speech in real time and the next step is downsampling
+before the wake-word stage.
 
 ## 15b. The intelligence engine re-reading eight days, every 30s — FIXED
 

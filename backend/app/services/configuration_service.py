@@ -157,6 +157,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "leisure_ah": 120.0,
         "external_ah": 130.0,
     },
+    # Voice control ("hey bongo"). Its own section, and its own enable
+    # flag: continuous wake-word detection costs real CPU on a Pi 2B,
+    # and turning it off should not mean deleting the Groq key - which
+    # also breaks transcription and has to be typed back in afterwards.
+    "voice": {"enabled": True},
     "developer": {},
 }
 
