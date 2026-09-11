@@ -4,7 +4,7 @@ import { GlassCard, CardHeader } from '@/components/primitives/GlassCard';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { useWeather } from '@/lib/telemetry';
 import { fmtTemp, fmtMJ, fmtLocalTime, fmtPct, wmoLabel, DASH } from '@/lib/format';
-import type { DailyWeather } from '@/lib/types';
+import type { DailyWeather, HourlyWeather } from '@/lib/types';
 import { WEATHER } from '@/constants/testIds';
 
 function iconFor(code: number | null | undefined) {
@@ -60,6 +60,76 @@ function DayCol({ date, day, i, selected, onSelect }: { date?: string | null; da
  *  strip above - the data (precipitation chance, solar radiation,
  *  sunrise/sunset) was already being fetched and typed, just never
  *  surfaced anywhere in the UI. */
+/**
+ * The hourly breakdown for a selected day.
+ *
+ * The point of it: a day summarised as "18C, light drizzle" might be
+ * dry until four - which is the difference between going out and not.
+ * The daily tile cannot say that; this can.
+ *
+ * Scrolls horizontally rather than wrapping, so the shape of the day
+ * reads left to right the way time does. Today starts at the current
+ * hour, because the eleven hours already gone are not a forecast.
+ */
+function HourlyStrip({ hours, isToday }: { hours: HourlyWeather[]; isToday: boolean }) {
+  const nowHour = new Date().getHours();
+  const shown = isToday
+    ? hours.filter((h) => (h.time ? new Date(h.time).getHours() >= nowHour : true))
+    : hours;
+
+  if (!shown.length) return null;
+
+  // Scaled against the day's own range, not an absolute one: a flat
+  // 14-16C day should still show its shape rather than a straight line.
+  const temps = shown.map((h) => h.temp_c).filter((t): t is number => t != null);
+  const lo = Math.min(...temps);
+  const hi = Math.max(...temps);
+  const span = Math.max(1, hi - lo);
+
+  return (
+    <div className="mt-4">
+      <div className="text-[11px] uppercase tracking-widest text-ink-muted mb-2">
+        Hour by hour{isToday ? ' · rest of today' : ''}
+      </div>
+      <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1">
+        {shown.map((h, i) => {
+          const meta = iconFor(h.weather_code);
+          const Icon = meta.Icon;
+          const rain = h.precipitation_probability_pct;
+          return (
+            <div
+              key={h.time ?? i}
+              className="shrink-0 w-[52px] rounded-xl bg-ink/[0.03] ring-1 ring-inset ring-ink/10 px-1 py-2 text-center"
+            >
+              <div className="text-[10px] text-ink-faint num">
+                {h.time ? fmtLocalTime(h.time) : DASH}
+              </div>
+              <div className="my-1.5 grid place-items-center">
+                <Icon size={16} color={meta.color} />
+              </div>
+              <div className="num text-[12px]">{h.temp_c == null ? DASH : `${Math.round(h.temp_c)}\u00b0`}</div>
+              {/* Rain chance only when it is worth mentioning - a row of
+                  "0%" under every hour is noise that hides the hours
+                  that matter. */}
+              <div className="text-[10px] num mt-0.5 h-3">
+                {rain != null && rain >= 20 ? (
+                  <span className="text-aurora-blue">{Math.round(rain)}%</span>
+                ) : null}
+              </div>
+              <div className="mt-1 h-6 flex items-end justify-center">
+                <div
+                  className="w-1.5 rounded-full bg-gradient-to-t from-aurora-teal/30 to-aurora-teal"
+                  style={{ height: `${h.temp_c == null ? 2 : 4 + ((h.temp_c - lo) / span) * 18}px` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function DayDetail({ date, day, i }: { date?: string | null; day: DailyWeather; i: number }) {
   const meta = iconFor(day.weather_code);
   const Icon = meta.Icon;
@@ -92,6 +162,12 @@ function DayDetail({ date, day, i }: { date?: string | null; day: DailyWeather; 
           <div className="num text-sm mt-0.5">{day.sunset ? fmtLocalTime(day.sunset) : DASH}</div>
         </div>
       </div>
+
+      {/* Hourly detail. Only `forecast` entries carry hours - today and
+          tomorrow are the same days and would otherwise duplicate it. */}
+      {day.hours?.length ? (
+        <HourlyStrip hours={day.hours} isToday={i === 0} />
+      ) : null}
     </div>
   );
 }

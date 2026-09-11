@@ -136,6 +136,16 @@ class WeatherPlugin(Plugin):
                 "temperature_2m_max,temperature_2m_min,precipitation_sum,"
                 "precipitation_probability_max,shortwave_radiation_sum,weather_code,sunrise,sunset"
             ),
+            # Hourly detail so tapping a day can show how it actually
+            # unfolds - a day that is "18C and light drizzle" might be
+            # dry until four, which is the difference between going out
+            # and not.
+            #
+            # Four variables, not everything on offer: each one is 120
+            # numbers over five days, and this payload is persisted to
+            # telemetry history every poll. Wind and humidity were left
+            # out because nothing asks for them.
+            "hourly": "temperature_2m,precipitation_probability,weather_code,cloud_cover",
             # 5 days: enough for a proper forecast row without making
             # the response heavy. today/tomorrow are still exposed
             # separately below (the solar outlook and solar history
@@ -164,6 +174,7 @@ class WeatherPlugin(Plugin):
 
         current = data.get("current", {})
         daily = data.get("daily", {})
+        hourly = data.get("hourly", {})
 
         def daily_value(key: str, index: int):
             values = daily.get(key, [])
@@ -177,9 +188,37 @@ class WeatherPlugin(Plugin):
             (tomorrow_radiation / today_radiation) if today_radiation and tomorrow_radiation and today_radiation > 0 else None
         )
 
-        def build_day(index: int) -> dict:
-            return {
-                "date": daily_value("time", index),
+        # Hourly rows bucketed by the day they belong to, so a day tile
+        # can carry its own hours without the frontend having to slice a
+        # flat 120-entry list by date string.
+        hours_by_day: dict[str, list[dict]] = {}
+        for i, stamp in enumerate(hourly.get("time", [])):
+            day = str(stamp)[:10]
+
+            def hourly_value(key: str):
+                values = hourly.get(key, [])
+                return values[i] if len(values) > i else None
+
+            hours_by_day.setdefault(day, []).append({
+                "time": stamp,
+                "temp_c": hourly_value("temperature_2m"),
+                "precipitation_probability_pct": hourly_value("precipitation_probability"),
+                "cloud_cover_pct": hourly_value("cloud_cover"),
+                "weather_code": hourly_value("weather_code"),
+            })
+
+        def build_day(index: int, include_hours: bool = False) -> dict:
+            """include_hours only for the `forecast` list.
+
+            today/tomorrow are the same days as forecast[0]/[1], so
+            attaching hours to all three would store 24 hourly rows
+            three times over in every persisted telemetry row. The
+            intelligence providers read today/tomorrow for the daily
+            radiation figure and have no use for hours.
+            """
+            date = daily_value("time", index)
+            day = {
+                "date": date,
                 "weather_code": daily_value("weather_code", index),
                 "weather_description": describe_weather_code(daily_value("weather_code", index)),
                 "temp_max_c": daily_value("temperature_2m_max", index),
@@ -189,6 +228,9 @@ class WeatherPlugin(Plugin):
                 "sunrise": daily_value("sunrise", index),
                 "sunset": daily_value("sunset", index),
             }
+            if include_hours:
+                day["hours"] = hours_by_day.get(str(date), [])
+            return day
 
         payload = {
             "current_temp_c": current.get("temperature_2m"),
@@ -209,7 +251,10 @@ class WeatherPlugin(Plugin):
             "today": build_day(0),
             "tomorrow": build_day(1),
             # Full multi-day forecast for the day-tile row.
-            "forecast": [build_day(i) for i in range(len(daily.get("weather_code", [])))],
+            "forecast": [
+                build_day(i, include_hours=True)
+                for i in range(len(daily.get("weather_code", [])))
+            ],
             "tomorrow_vs_today_radiation_ratio": radiation_ratio,
         }
 

@@ -136,7 +136,34 @@ class HistoryService:
         finally:
             self._telemetry.unsubscribe(queue)
 
+    # Payload fields that are live UI detail, not history. Stripped
+    # before persisting: they are re-fetched on every poll anyway, so
+    # storing them buys nothing and costs a great deal.
+    #
+    # `hours` is the weather plugin's hourly forecast - ~15KB per row.
+    # At 48 weather rows a day that is 21MB a month, and worse, the
+    # intelligence engine re-reads today's weather rows on every compute
+    # (see app/intelligence/daily_cache.py), so it would mean decoding
+    # hundreds of KB of JSON twice a minute. That is precisely the
+    # problem the daily cache was written to solve, and keeping the
+    # hourly forecast out of history avoids reintroducing it. The
+    # forecast still reaches the UI live over the telemetry bus.
+    _NOT_PERSISTED: dict[str, tuple[str, ...]] = {
+        "weather": ("forecast",),
+    }
+
+    def _strip_for_history(self, domain: str, payload: dict) -> dict:
+        """Drop live-only fields. The weather `forecast` list is the only
+        one so far, and only because it now carries hourly detail."""
+        drop = self._NOT_PERSISTED.get(domain)
+
+        if not drop:
+            return payload
+
+        return {k: v for k, v in payload.items() if k not in drop}
+
     def _persist(self, domain: str, source: str, timestamp: float, payload: dict) -> None:
+        payload = self._strip_for_history(domain, payload)
         db = SessionLocal()
         try:
             db.add(TelemetryReading(domain=domain, source=source, timestamp=timestamp, payload_json=json.dumps(payload)))

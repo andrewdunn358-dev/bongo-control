@@ -118,6 +118,22 @@ export interface DailyWeather {
   /** Local time, no timezone suffix. Slice — do not parse with Date(). */
   sunrise: string | null;
   sunset: string | null;
+  /** Hourly breakdown, present only on `forecast` entries - today and
+   *  tomorrow are the same days and would otherwise carry it twice more. */
+  hours?: HourlyWeather[];
+}
+
+/** One hour of forecast, from Open-Meteo's hourly block. Live only -
+ *  deliberately stripped before telemetry is persisted (see
+ *  history_service._NOT_PERSISTED), because 24 hours x 5 days is ~15KB
+ *  per row and the intelligence engine re-reads today's weather rows
+ *  on every compute. */
+export interface HourlyWeather {
+  time?: string | null;
+  temp_c?: number | null;
+  precipitation_probability_pct?: number | null;
+  cloud_cover_pct?: number | null;
+  weather_code?: number | null;
 }
 
 export interface WeatherPayload {
