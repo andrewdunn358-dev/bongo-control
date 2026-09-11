@@ -182,6 +182,14 @@ async def lifespan(app: FastAPI):
     await plugin_manager.stop_all()
 
 
+# httpx logs every request at INFO as "HTTP Request: <method> <url>".
+# Two reasons to quieten it: the snapshot poll and the heater agent poll
+# alone produce a line every second or two, burying anything useful; and
+# any API called with a secret in its query string writes that secret
+# into the log on every call. The Google TTS key leaked exactly that
+# way. Errors still surface - this only silences the per-request INFO.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 app.add_middleware(

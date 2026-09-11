@@ -1347,9 +1347,20 @@ class VoiceControlService:
         logger.info("Voice control: asking Google to speak %r", text)
 
         def _request(voice: dict) -> httpx.Response:
+            # Key in a HEADER, not ?key= in the query string.
+            #
+            # httpx logs every request as "HTTP Request: POST <url>" at
+            # INFO, and with the key as a query parameter that wrote the
+            # full Google API key into the log on every single call -
+            # which meant it appeared in any log dump, including ones
+            # pasted into a chat to debug something unrelated. That is
+            # how this one leaked.
+            #
+            # Google accepts X-Goog-Api-Key for the same auth, so the key
+            # never reaches the URL and never reaches the log.
             return httpx.post(
                 GOOGLE_TTS_API_URL,
-                params={"key": api_key},
+                headers={"X-Goog-Api-Key": api_key},
                 json={
                     "input": {"text": text},
                     "voice": voice,

@@ -475,3 +475,33 @@ best.
   **exposure_dynamic_framerate**.
 - The picture looked slow. The backend had **no CPU spare** to proxy it
   (item 15b).
+
+
+---
+
+# 17. The Google TTS key was being written into the log (11 Sep) — FIXED
+
+`httpx` logs every request at INFO as `HTTP Request: POST <url>`, and
+the Google TTS call passed its key as `?key=...`. So the full API key
+was written to the log on **every single call** - and therefore into any
+log dump, including ones pasted elsewhere to debug something unrelated.
+That is exactly how it leaked.
+
+**Fixed two ways:**
+
+1. The key moves to an `X-Goog-Api-Key` header. Google accepts it for
+   the same auth, so the key never reaches the URL and never reaches the
+   log. Verified with a mock transport: the logged URL now has no query
+   string at all.
+2. `httpx`'s logger is set to WARNING. Defence in depth for any future
+   call that puts a secret in a URL - and a side benefit, since the
+   snapshot poll and heater agent poll were producing a line every
+   second or two and burying anything useful. Errors still surface.
+
+Checked for others: this was the only secret passed as a query
+parameter anywhere in `backend/app/`.
+
+**Still to do: rotate that key.** It is in the Pi's logs and was pasted
+into a chat. It is a TTS key, so the worst case is someone burning the
+character quota rather than anything serious - but it should be replaced
+from the Google Cloud console when convenient.
