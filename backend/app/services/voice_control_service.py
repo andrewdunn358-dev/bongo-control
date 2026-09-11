@@ -344,6 +344,15 @@ class VoiceControlUnavailableError(RuntimeError):
     pass
 
 
+class GroqQuotaExhaustedError(VoiceControlUnavailableError):
+    """Specifically Groq TTS's daily quota being used up, not any other
+    TTS failure. The one case _synthesize() treats as "try the other
+    provider" rather than a hard failure - a bad key or a network error
+    still needs to surface as a real error, but running out of a 3600
+    token/day allowance mid-conversation doesn't mean voice is broken,
+    it means this specific provider is tapped out until midnight UTC."""
+
+
 class VoiceControlService:
     def __init__(self) -> None:
         self._task: asyncio.Task | None = None
@@ -1276,9 +1285,28 @@ class VoiceControlService:
         """Dispatches to whichever provider is currently configured
         (see _tts_provider()). Both providers speak the SAME text and
         raise the SAME VoiceControlUnavailableError on failure - the
-        caller doesn't need to know or care which one actually ran."""
+        caller doesn't need to know or care which one actually ran.
+
+        Exception: if Groq is configured and specifically its quota is
+        exhausted (GroqQuotaExhaustedError), this falls back to Google
+        for that one reply rather than going silent for the rest of
+        the day. Groq's TTS is a sound preference ("the groq one was
+        amazing"), not a requirement - a reply that comes out in
+        Google's voice is a better outcome than no spoken reply at all,
+        and normal usage picks back up on Groq once the daily quota
+        resets. Any OTHER Groq TTS failure (bad key, network) still
+        raises exactly as before - those mean something is actually
+        wrong, not "try the other one"."""
         if self._tts_provider() == "groq":
-            return self._synthesize_groq(text)
+            try:
+                return self._synthesize_groq(text)
+            except GroqQuotaExhaustedError:
+                if not self._google_tts_api_key():
+                    raise  # nothing to fall back to - surface the original message
+                logger.warning(
+                    "Voice control: Groq TTS quota exhausted for today - falling back to Google for this reply"
+                )
+                return self._synthesize_google(text)
         return self._synthesize_google(text)
 
     def _synthesize_groq(self, text: str) -> bytes:
@@ -1290,8 +1318,8 @@ class VoiceControlService:
         confirmed from a real 429 error earlier tonight) separate from
         the rest of the account - fine for realistic day-to-day use,
         but a heavy testing session can exhaust it, at which point this
-        raises the same clear, friendly error it always did rather than
-        a raw API dump."""
+        raises GroqQuotaExhaustedError so _synthesize() can fall back
+        to Google instead of the reply going unspoken."""
         logger.info("Voice control: asking Groq to speak %r", text)
         client = self._groq_client()
         groq_voice = GROQ_TTS_VOICES.get(self._tts_gender(), GROQ_TTS_VOICES["female"])
@@ -1307,7 +1335,7 @@ class VoiceControlService:
 
             if isinstance(e, RateLimitError):
                 logger.warning("Voice control: Groq TTS rate-limited: %s", e)
-                raise VoiceControlUnavailableError(
+                raise GroqQuotaExhaustedError(
                     "Reply generated fine, but Groq's daily voice quota is used up for now "
                     "(a busy testing session adds up fast - it's a small separate allowance "
                     "from the rest of the account). Resets at midnight UTC; the text reply "
