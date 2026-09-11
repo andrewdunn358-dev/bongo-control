@@ -75,8 +75,9 @@ query = protocol._build_hcalory_cmd(
 ```
 
 Send the `0A0A` time sync **once** on connect, after the password
-handshake, then poll with the above. With that change the link holds
-indefinitely — ours reports 0 queued chunks and has not dropped since.
+handshake, then poll with the above. With that change the link holds —
+ours has been up continuously since, where before it dropped every
+6–19 seconds without fail.
 
 ## Environment
 
