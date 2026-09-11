@@ -409,6 +409,47 @@ than 480p12. If the stream is poor from outside the van, the link is now
 the limit rather than the Pi, and dropping to 1280x720 at 15fps would
 halve it.
 
-**If the exposure bothers you** (it hunts against bright windows),
-`v4l2-ctl --list-ctrls` shows what the camera exposes, and uStreamer can
-set those at startup from the service file.
+## The 12fps was NOT the resolution
+
+`exposure_dynamic_framerate` was **on**, which lets the camera drop its
+frame rate to expose longer in low light. Pointed at a dim van interior,
+it was doing exactly that. Turning it off gives a genuine **30fps at
+720p**:
+
+    v4l2-ctl -d $WEBCAM_DEVICE --set-ctrl=exposure_dynamic_framerate=0
+
+Made permanent with an `ExecStartPre` on the uStreamer unit, so it
+survives a reboot or the camera being unplugged. uStreamer has no
+`--set-ctrl` of its own; its README points at `v4l2-ctl`, which is why
+it is a pre-start step rather than a flag.
+
+The trade: it now holds 30fps in dim light rather than dropping frames
+to brighten, so night footage will be darker. One command to reverse if
+that matters more than smoothness.
+
+Unexpectedly the picture got **better**, not just faster - with the
+frame rate pinned the auto-exposure settles instead of hunting.
+
+## Backlight compensation: tried, rejected
+
+`backlight_compensation` was at 1 of a possible 121 and looked like the
+obvious fix for bright windows. It is not. At 60 the whole frame blew
+out to white; at 10 it was still washed out. It lifts the entire image
+rather than protecting highlights, and with windows this bright there is
+nothing to lift into. Returned to 1.
+
+The scene simply has more dynamic range than the sensor holds: anything
+that brightens the interior blows the windows, anything that holds the
+windows darkens the interior. Only HDR or a camera not pointed at glass
+fixes that. **Do not re-try this control.**
+
+`auto_exposure` is already on (`Aperture Priority Mode`) and doing its
+best.
+
+## Three things, none of them what they looked like
+
+- The field of view looked narrow. It was the 640x480 **crop**.
+- The 12fps looked like a resolution limit. It was
+  **exposure_dynamic_framerate**.
+- The picture looked slow. The backend had **no CPU spare** to proxy it
+  (item 15b).
