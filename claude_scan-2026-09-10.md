@@ -358,3 +358,45 @@ different aggregators do not collide.
 the event loop. Even at 5,353 rows that blocks the camera while it
 runs. Wrapping it in `asyncio.to_thread` is a small change with a real
 benefit.
+
+
+---
+
+# 16. The camera was cropped, not narrow (11 Sep)
+
+uStreamer was running at `--resolution=640x480 --desired-fps=20`, and
+reporting `captured_fps: 12` - the camera could not do 20 at that size.
+
+Checking what it actually supports:
+
+    v4l2-ctl -d $WEBCAM_DEVICE --list-formats-ext | grep -A 6 MJPG
+
+    MJPG 1280x720:  30 / 25 / 15 / 10 fps
+
+**1280x720 does 30fps** - higher resolution AND smoother than the 480p12
+it was set to. Changed in `/etc/systemd/system/ustreamer.service`; no
+Docker involved.
+
+The interesting part: at 640x480 this camera **crops** rather than
+scaling, using a centre region of the sensor. The field of view looked
+narrow and was reasonably assumed to be the lens. It was the config.
+At 720p the whole van is visible.
+
+Almost certainly set low back when the camera path went through ffmpeg,
+where every frame cost ~4.1s to capture and dropping the resolution was
+a sensible way to claw performance back. Once uStreamer took over, that
+constraint disappeared and the setting was never revisited - the same
+pattern as the camera settle gate in item 11: a workaround outliving
+the problem it solved.
+
+MJPEG is compressed in the camera's own hardware, so the Pi never
+decodes it - uStreamer proxies bytes. 720p30 costs bandwidth, not CPU.
+
+**Worth watching:** 720p30 over the Cloudflare tunnel is a lot more data
+than 480p12. If the stream is poor from outside the van, the link is now
+the limit rather than the Pi, and dropping to 1280x720 at 15fps would
+halve it.
+
+**If the exposure bothers you** (it hunts against bright windows),
+`v4l2-ctl --list-ctrls` shows what the camera exposes, and uStreamer can
+set those at startup from the service file.
