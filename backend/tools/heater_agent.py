@@ -416,11 +416,25 @@ class Heater:
                 "not exist - check `hciconfig -a`."
             )
 
+        # max_attempts=1, deliberately.
+        #
+        # establish_connection creates its BleakClient ONCE, outside its
+        # own retry loop. So if attempt 1 connects and then fails during
+        # service discovery, attempts 2-4 reuse the same already-
+        # connected client and each raises "Client is already
+        # connected" - and THAT is the error reported, masking the real
+        # one entirely.
+        #
+        # This sent two separate debugging sessions after the wrong
+        # thing. With max_attempts=1 the true failure surfaces
+        # ("failed to discover services, device disconnected", which is
+        # the heater dropping us), and our own retry loop above handles
+        # backoff anyway - we were paying for its retries twice over.
         client = await establish_connection(
             BleakClientWithServiceCache,
             device,
             "hcalory-heater",
-            max_attempts=4,
+            max_attempts=1,
             # See the note above - caching services broke start_notify.
             use_services_cache=False,
             # Pinned again here: establish_connection creates its own
@@ -539,7 +553,7 @@ class Heater:
 
             await close_stale_connections_by_address(MAC)
         except Exception as e:  # noqa: BLE001 - older versions may not have it
-            logger.debug("close_stale_connections unavailable (ignored): %s", e)
+            logger.warning("close_stale_connections failed: %s", e)
 
     def _plain_query(self) -> bytearray:
         """The 0E04 status request. Built directly rather than via

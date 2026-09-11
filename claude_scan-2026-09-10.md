@@ -532,7 +532,7 @@ reintroduces the scan collision that moved this agent onto the host in
 the first place. Log when it does it, so a van that needs a scan every
 cycle is visible rather than silently slow.
 
-# 19. "Client is already connected" needs a manual disconnect
+# 19. "Client is already connected" was MASKING the real error — FIXED
 
 Also 11 Sep, and seen repeatedly. After the agent is stopped and
 restarted, BlueZ can hold a connection nothing owns, and
@@ -542,15 +542,33 @@ restarted, BlueZ can hold a connection nothing owns, and
 
 Cleared by hand with `bluetoothctl disconnect <mac>`.
 
-`_force_disconnect()` already calls `close_stale_connections_by_address`
-before connecting, so either that is not covering this case or it is
-running too late. **Do:** reproduce by stopping and restarting the
-agent, then check whether the stale-connection call is reached at all -
-it is wrapped in a broad `except` that logs at DEBUG, so a failure there
-is currently invisible. Raising that to a warning would be a one-line
-start.
+**It was never the real error.** `establish_connection` creates its
+BleakClient **once, outside its own retry loop**. So when attempt 1
+connects and then fails during service discovery, attempts 2-4 reuse the
+same now-connected client and each raises "Client is already connected"
+— and that is what gets reported. The actual failure is discarded.
 
-Both of these are "the agent should sort itself out" rather than
-faults - it does recover eventually via backoff. They cost a manual
-command each time the Pi or the container restarts, which is often
-enough to be worth fixing.
+This sent two separate debugging sessions after the wrong thing:
+BlueZ's connection state, stale clients, `bluetoothctl disconnect`,
+`remove`, adapter resets. None of it was relevant. BlueZ reported
+`Connected: no` throughout, which should have been the clue.
+
+Unmasked by connecting once with `max_attempts=1` and debug logging:
+
+    BleakError: failed to discover services, device disconnected
+
+Which is the heater accepting the connection and then dropping it —
+its own behaviour, not the agent's.
+
+**Fixed:** `max_attempts=1` in the agent. Our own retry loop already
+handles backoff, so we were paying for its retries twice over and
+getting a misleading error for it. The two cleanup failure paths now
+log at WARNING rather than DEBUG — a cleanup that silently never works
+is indistinguishable from one that has nothing to do.
+
+**Still open:** why the heater refuses. It connected and held for 1h21m
+this morning, then stopped, with no change to the agent. Suspect the
+heater gets into a state where it advertises but will not complete a
+GATT connection — the same pattern as 10 Sep, where long refusing
+spells alternated with it working fine. **Try a power cycle at the
+panel** next time you are at the van; that is the test that settles it.
