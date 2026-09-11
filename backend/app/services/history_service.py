@@ -88,6 +88,32 @@ PRUNE_INTERVAL_SECONDS = 6 * 3600  # every 6 hours is plenty for a daily-scale r
 # season, not a month.
 RELAY_EVENT_RETENTION_DAYS = 90
 
+# Recent history stays at full sampling resolution (an overnight
+# discharge curve or a heater burn is exactly what that resolution is
+# for). Once a reading is old enough that nobody's looking at the shape
+# of *that specific hour* any more, only the trend matters, so it gets
+# collapsed to one row per hour - same averaging the query-time
+# downsample already does, just applied at rest instead of per-request.
+# This is what actually keeps the table small over the full 30-day
+# retention window; deleting at the retention cliff alone still means
+# every domain in COMPACTABLE_DOMAINS sits at full resolution for the
+# whole window right up until the day it's deleted outright.
+COMPACTION_AFTER_HOURS = 48
+COMPACTION_BUCKET_SECONDS = 3600
+# Only domains sampled finer than the compaction bucket gain anything -
+# ENVIRONMENT is already hourly. HEATING is deliberately excluded even
+# though it's sampled at 60s: it's event-shaped (off for hours, then a
+# burn), and averaging on/off state across an hour would blur exactly
+# the ignition/warm-up/cooldown shape the 60s rate exists to capture,
+# for a domain that's already low-volume because it's mostly idle.
+COMPACTABLE_DOMAINS = {
+    TelemetryDomain.BATTERY.value,
+    TelemetryDomain.SOLAR.value,
+    TelemetryDomain.ENERGY.value,
+    TelemetryDomain.CONNECTIVITY.value,
+    TelemetryDomain.WEATHER.value,
+}
+
 
 class HistoryService:
     def __init__(
@@ -190,12 +216,133 @@ class HistoryService:
     async def _prune_loop(self) -> None:
         try:
             while True:
-                self._prune()
+                # Off the event loop, not called directly. _prune() is
+                # pure sync DB work (SessionLocal() opens its own
+                # connection per call, nothing async happens inside
+                # it), and it just gained a real cost: the first run
+                # after compaction ships has to work through whatever
+                # backlog already exists older than COMPACTION_AFTER_HOURS
+                # - potentially tens of thousands of rows on an install
+                # that's been running a while. This loop shares the
+                # event loop with roof_service's watchdog (a multi-
+                # second stall here is exactly the failure mode flagged
+                # in the July code review, H1) so it can't be allowed to
+                # block it, even for a one-off migration pass.
+                await asyncio.to_thread(self._prune)
                 await asyncio.sleep(PRUNE_INTERVAL_SECONDS)
         except asyncio.CancelledError:
             raise
 
+    def _compact_old_readings(self) -> None:
+        """Collapse readings older than COMPACTION_AFTER_HOURS into one
+        hourly-averaged row per (domain, source, hour bucket).
+
+        Grouped by source as well as domain - BATTERY alone has two
+        publishers (MPPT and SmartShunt), and averaging their two
+        different devices' readings together would produce a number
+        that belongs to neither. Reuses the same averaging logic as the
+        query-time `_downsample`, just writing the result back to the
+        table instead of returning it to a caller.
+
+        Idempotent by construction: re-running this over a range that's
+        already hourly finds one row per bucket, "merges" it with
+        itself, and writes back the same row - a wasted but harmless
+        pass, not a correctness problem. That means a crashed or
+        restarted run just gets redone next cycle rather than needing
+        separate progress tracking.
+
+        The window is recomputed every run (not tracked incrementally),
+        so the first run after this ships processes the existing
+        backlog in one pass - potentially tens of thousands of rows per
+        domain on an install that's been running a while. Committed
+        per-domain to keep any single transaction bounded rather than
+        one transaction for the whole backlog.
+        """
+        now = time.time()
+        window_end = now - (COMPACTION_AFTER_HOURS * 3600)
+        window_start = now - (self._retention_days * 86400)
+        if window_start >= window_end:
+            return
+
+        for domain in COMPACTABLE_DOMAINS:
+            db = SessionLocal()
+            try:
+                rows = (
+                    db.query(TelemetryReading)
+                    .filter(
+                        TelemetryReading.domain == domain,
+                        TelemetryReading.timestamp >= window_start,
+                        TelemetryReading.timestamp < window_end,
+                    )
+                    .order_by(TelemetryReading.timestamp)
+                    .all()
+                )
+                if not rows:
+                    continue
+
+                buckets: dict[tuple[str, int], list] = {}
+                for row in rows:
+                    bucket_key = (row.source, int(row.timestamp // COMPACTION_BUCKET_SECONDS))
+                    buckets.setdefault(bucket_key, []).append(row)
+
+                new_rows: list[TelemetryReading] = []
+                old_ids: list[int] = []
+                for bucket_rows in buckets.values():
+                    if len(bucket_rows) <= 1:
+                        continue  # already at (or below) target resolution
+                    readings = [
+                        {
+                            "domain": r.domain,
+                            "source": r.source,
+                            "timestamp": r.timestamp,
+                            "payload": json.loads(r.payload_json),
+                        }
+                        for r in bucket_rows
+                    ]
+                    merged = self._downsample(readings, 1)[0]
+                    new_rows.append(
+                        TelemetryReading(
+                            domain=merged["domain"],
+                            source=merged["source"],
+                            timestamp=merged["timestamp"],
+                            payload_json=json.dumps(merged["payload"]),
+                        )
+                    )
+                    old_ids.extend(r.id for r in bucket_rows)
+
+                if not old_ids:
+                    continue
+
+                # Delete and insert as two separate commits, not one
+                # transaction. SQLite recycles freed rowids, so an
+                # insert in the same flush as the matching delete can
+                # land a new row on the same id an old, expired object
+                # still holds in the session's identity map - harmless,
+                # but SQLAlchemy logs a warning every cycle. Committing
+                # the delete first (and clearing expired objects out of
+                # the identity map) avoids the collision entirely.
+                db.query(TelemetryReading).filter(TelemetryReading.id.in_(old_ids)).delete(
+                    synchronize_session=False
+                )
+                db.commit()
+                db.expunge_all()
+                db.add_all(new_rows)
+                db.commit()
+                logger.info(
+                    "Compacted %d readings into %d hourly rows for domain %s",
+                    len(old_ids),
+                    len(new_rows),
+                    domain,
+                )
+            except Exception as e:  # noqa: BLE001 - maintenance must never crash the loop
+                logger.warning("Failed to compact old history for %s: %s", domain, e)
+                db.rollback()
+            finally:
+                db.close()
+
     def _prune(self) -> None:
+        self._compact_old_readings()
+
         cutoff = time.time() - (self._retention_days * 86400)
         db = SessionLocal()
         try:
