@@ -18,6 +18,15 @@ library hands back MAPPED ones. In the mapped set, 3 means running -
 so the guard refused to stop a running heater and gave no protection
 during actual ignition. Exactly backwards, on the one guard that exists
 to stop unburnt fuel fouling the exhaust.
+
+Section 6 (added later, hence the number gap) covers the item 18 fix:
+get_device_by_adapter() only reads BlueZ's existing device list and
+never scans, so after a reboot or a long idle period the heater can be
+sitting right there and still not be found. _find_device() was
+extracted from _connect_and_poll() so this fallback - scan once on a
+miss, retry the lookup, give up cleanly if still not found - can be
+tested directly with a fake scanner and a fake lookup, instead of only
+through the real connect flow.
 """
 
 import asyncio
@@ -186,6 +195,72 @@ check("ventilating set from either the step or the status",
       and agent.shape_state({**parsed, "hcalory_status": agent.STATUS_VENTILATION})["ventilating"] is True)
 
 check("an empty parse does not throw", isinstance(agent.shape_state({}), dict))
+
+print("\n=== 6. SCAN-ON-MISS FALLBACK (item 18: unreachable after idle/reboot) ===")
+
+import bleak  # noqa: E402
+import bleak_retry_connector.bluez as bluez_mod  # noqa: E402
+
+_real_get_device_by_adapter = bluez_mod.get_device_by_adapter
+_real_discover = bleak.BleakScanner.discover
+
+
+class FakeScan:
+    calls: list[tuple[float, str]] = []
+
+    @staticmethod
+    async def discover(*, timeout, adapter):
+        FakeScan.calls.append((timeout, adapter))
+
+
+async def _known_without_scanning():
+    async def fake_lookup(mac, adapter):
+        return f"DEVICE({mac},{adapter})"
+
+    bluez_mod.get_device_by_adapter = fake_lookup
+    bleak.BleakScanner.discover = FakeScan.discover
+    FakeScan.calls.clear()
+    device = await agent._find_device("AA:BB", "hci0", scan_timeout=1)
+    check("a device BlueZ already knows about is returned with no scan", device == "DEVICE(AA:BB,hci0)")
+    check("no scan performed when the first lookup already succeeds", FakeScan.calls == [])
+
+
+async def _found_after_one_scan():
+    lookups = []
+
+    async def fake_lookup(mac, adapter):
+        lookups.append(1)
+        return None if len(lookups) == 1 else f"DEVICE({mac},{adapter})"
+
+    bluez_mod.get_device_by_adapter = fake_lookup
+    bleak.BleakScanner.discover = FakeScan.discover
+    FakeScan.calls.clear()
+    device = await agent._find_device("AA:BB", "hci0", scan_timeout=3)
+    check("a device missing on the first lookup is found on the retry after scanning", device == "DEVICE(AA:BB,hci0)")
+    check("exactly one scan ran, scoped to the given adapter and timeout", FakeScan.calls == [(3, "hci0")])
+
+
+async def _still_missing_after_scan():
+    async def fake_lookup(mac, adapter):
+        return None
+
+    bluez_mod.get_device_by_adapter = fake_lookup
+    bleak.BleakScanner.discover = FakeScan.discover
+    FakeScan.calls.clear()
+    device = await agent._find_device("AA:BB", "hci0", scan_timeout=2)
+    check("still not found after scanning returns None, not an exception", device is None)
+    check("only ONE scan is run even when the device genuinely isn't there", len(FakeScan.calls) == 1)
+
+
+try:
+    asyncio.run(_known_without_scanning())
+    asyncio.run(_found_after_one_scan())
+    asyncio.run(_still_missing_after_scan())
+finally:
+    # Restore the real functions - other sections of this script (or a
+    # future one appended after this) shouldn't inherit fakes.
+    bluez_mod.get_device_by_adapter = _real_get_device_by_adapter
+    bleak.BleakScanner.discover = _real_discover
 
 print()
 if failures:

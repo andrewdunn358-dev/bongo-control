@@ -94,6 +94,12 @@ ADAPTER = os.environ.get("HEATER_ADAPTER", "hci0")
 # cycle plus a moment - which points at an idle timeout on the heater.
 # The app never goes quiet, and neither should this.
 POLL_SECONDS = float(os.environ.get("HEATER_POLL_SECONDS", "1"))
+# How long to scan for the heater when BlueZ's own device list doesn't
+# have it (see the "device is None" fallback in _connect_and_poll()).
+# Short and only used on a miss - a long or continuous scan here would
+# collide with the container's Victron discovery, the exact problem
+# this agent living on the host was built to avoid.
+SCAN_ON_MISS_TIMEOUT_SECONDS = float(os.environ.get("HEATER_SCAN_ON_MISS_SECONDS", "8"))
 
 MVP2_WRITE = "0000bdf7-0000-1000-8000-00805f9b34fb"
 MVP2_NOTIFY = "0000bdf8-0000-1000-8000-00805f9b34fb"
@@ -222,6 +228,49 @@ def shape_state(parsed: dict) -> dict:
     shaped["fuel_estimated"] = shaped["fuel_lph"] is not None
 
     return shaped
+
+
+async def _find_device(mac: str, adapter: str, scan_timeout: float = SCAN_ON_MISS_TIMEOUT_SECONDS):
+    """Look up `mac` on `adapter`, scanning once if BlueZ's own device
+    list doesn't have it.
+
+    Extracted as its own function - same reasoning as shape_state()
+    above - so this fallback can be exercised directly in
+    test_heater_agent.py with a fake lookup and a fake scanner, rather
+    than only through the full connect flow, which needs real hardware.
+
+    get_device_by_adapter() only reads BlueZ's existing D-Bus device
+    list - it never scans. After a Pi reboot, or once BlueZ has evicted
+    the device following a long idle period, the heater can be sitting
+    right there and still not show up, even though it connects fine
+    once BlueZ knows about it again. Nothing else populates that list
+    either - this agent deliberately never scans on its own outside of
+    this fallback (see the module docstring) - so without this, the
+    agent can be permanently unable to find a heater it otherwise has
+    no trouble talking to.
+
+    The scan itself is scoped to `adapter` and capped at `scan_timeout`
+    seconds, and only ever runs on a miss - never proactively - so it
+    can't turn into the continuous discovery session that collides with
+    the container's Victron scan (see the module docstring for why that
+    split exists in the first place).
+    """
+    from bleak import BleakScanner
+    from bleak_retry_connector.bluez import get_device_by_adapter
+
+    device = await get_device_by_adapter(mac, adapter)
+    if device is not None:
+        return device
+
+    logger.warning(
+        "%s not known to BlueZ on %s - running a %gs scan before giving up",
+        mac, adapter, scan_timeout,
+    )
+    await BleakScanner.discover(timeout=scan_timeout, adapter=adapter)
+    device = await get_device_by_adapter(mac, adapter)
+    if device is not None:
+        logger.info("%s found after scanning - BlueZ's device list was just stale", mac)
+    return device
 
 
 class Heater:
@@ -360,7 +409,6 @@ class Heater:
             BleakClientWithServiceCache,
             establish_connection,
         )
-        from bleak_retry_connector.bluez import get_device_by_adapter
         from diesel_heater_ble.protocol import ProtocolHcalory
 
         protocol = ProtocolHcalory()
@@ -403,17 +451,14 @@ class Heater:
         # late.
         await self._force_disconnect()
 
-        # Scoped to our own adapter. get_device() searches every
-        # adapter, which would happily hand back the device as seen by
-        # hci0 - putting us straight back on the radio the Victron scan
-        # owns, and undoing the whole point of the dongle.
-        device = await get_device_by_adapter(MAC, ADAPTER)
+        device = await _find_device(MAC, ADAPTER)
 
         if device is None:
             raise RuntimeError(
-                f"{MAC} is not known to BlueZ on {ADAPTER}. It may be powered down, "
-                f"out of range, already connected to the phone app, or {ADAPTER} may "
-                "not exist - check `hciconfig -a`."
+                f"{MAC} is not known to BlueZ on {ADAPTER}, even after a "
+                f"{SCAN_ON_MISS_TIMEOUT_SECONDS:g}s scan. It may be powered down, out of "
+                f"range, already connected to the phone app, or {ADAPTER} may not exist "
+                "- check `hciconfig -a`."
             )
 
         # max_attempts=1, deliberately.
