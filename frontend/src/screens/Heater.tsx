@@ -32,6 +32,13 @@ import { HeaterGraphic } from '@/components/HeaterGraphic';
 
 const MIN_TEMP = 8;
 const MAX_TEMP = 36;
+// Level mode's range - matches the agent's shape_state() level field
+// (1-10) and the physical controller's own gear bars. Distinct from
+// MIN_TEMP/MAX_TEMP so the +/- buttons and the debounced commit below
+// clamp and send the right thing depending on which mode is active,
+// rather than always treating the target as a temperature.
+const MIN_LEVEL = 1;
+const MAX_LEVEL = 10;
 /** Older than this is worth flagging. Comfortably longer than the
  *  reconnect cycle, so normal operation stays quiet. */
 const AGE_WARN_SECONDS = 180;
@@ -225,12 +232,23 @@ export function Heater() {
   // Sending on every press would queue a command per degree on a link
   // that is slow to acknowledge sets, and they would land out of order.
   const [debounce, setDebounce] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const isLevelMode = s.mode !== 2;
   const nudge = (delta: number) => {
-    const next = Math.max(MIN_TEMP, Math.min(MAX_TEMP, target + delta));
+    const [min, max] = isLevelMode ? [MIN_LEVEL, MAX_LEVEL] : [MIN_TEMP, MAX_TEMP];
+    const next = Math.max(min, Math.min(max, target + delta));
     if (next === target) return;
     setPendingTarget(next);
     if (debounce) clearTimeout(debounce);
-    setDebounce(setTimeout(() => act.mutate(() => api.heaterTemperature(next)), 600));
+    // Bug fixed here: this used to always call heaterTemperature(),
+    // even in level mode - so pressing +/- while set to a fixed power
+    // level silently sent a TEMPERATURE command instead (clamped to
+    // 8-36, which is why a real level value like 5 rendered as "5°C"
+    // rather than "Level 5" - see the unit span below for the other
+    // half of the same bug). Mode-aware now: sends the command that
+    // actually matches what's on screen.
+    setDebounce(
+      setTimeout(() => act.mutate(() => (isLevelMode ? api.heaterLevel(next) : api.heaterTemperature(next))), 600),
+    );
   };
 
   if (isLoading) {
@@ -306,7 +324,13 @@ export function Heater() {
                                             color: targetIsLive ? 'var(--paper)' : 'var(--grey)' }}>
               {target}
             </span>
-            <span className="num" style={{ fontSize: 'clamp(22px, 7vw, 30px)', color: 'var(--grey)', marginLeft: 4 }}>&deg;C</span>
+            {/* Only meaningful in temperature mode - a level (1-10) has
+                no unit at all, and always showing "°C" here used to
+                make a real level like 5 read as "5°C" (see the fixed
+                bug in nudge() above for the other half of this). */}
+            {!isLevelMode && (
+              <span className="num" style={{ fontSize: 'clamp(22px, 7vw, 30px)', color: 'var(--grey)', marginLeft: 4 }}>&deg;C</span>
+            )}
             {!targetIsLive && (
               <div style={{ fontSize: 11, color: 'var(--grey-dim)', marginTop: 4 }}>set for next start</div>
             )}
