@@ -7,8 +7,10 @@ import { SatelliteSky } from '@/components/SatelliteSky';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { GaugeRing } from '@/components/primitives/GaugeRing';
 import { Sparkline } from '@/components/primitives/Sparkline';
+import { CockpitDashboard } from '@/components/CockpitDashboard';
 import { api } from '@/lib/api';
 import { useBattery, useSolar, useEnergy, useEnvironment, useSparkBuffer, useConnected } from '@/lib/telemetry';
+import { useIsWideScreen } from '@/lib/useIsWideScreen';
 import { fmtVolt, fmtWatt, fmtTemp, DASH } from '@/lib/format';
 import type { BatteryPayload, SolarPayload } from '@/lib/types';
 import { HOME } from '@/constants/testIds';
@@ -35,6 +37,24 @@ function useClock(): Date {
 }
 
 export function Home() {
+  // "When a tablet or desktop connects, show the complete dashboard"
+  // (Andrew, 14 Sep) - same route, same data, just a different
+  // component once the viewport is tablet/desktop-sized rather than a
+  // phone. 900px: wide enough to exclude phones in either orientation,
+  // narrow enough to include a tablet held in portrait.
+  //
+  // Delegates to two separate components rather than an early return
+  // inside one - MobileHome below calls a dozen hooks of its own, and
+  // an early return before them would skip those hooks on some renders
+  // and not others (whenever isWide flips), which breaks React's Rules
+  // of Hooks. Switching between two whole components sidesteps that
+  // entirely: React unmounts one tree and mounts the other, and each
+  // manages its own hooks independently.
+  const isWide = useIsWideScreen(900);
+  return isWide ? <CockpitDashboard /> : <MobileHome />;
+}
+
+function MobileHome() {
   const { data: brief } = useQuery({
     queryKey: ['mission-brief'],
     queryFn: api.missionBrief,
