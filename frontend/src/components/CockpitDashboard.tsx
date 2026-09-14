@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { toast } from 'sonner';
 import {
   ShieldCheck, AlertTriangle, XCircle, Battery as BatteryIcon, Sun, Thermometer, Zap,
-  Mic, Power as PowerIcon, ArrowRight,
+  Mic,
 } from 'lucide-react';
 import { GlassCard, CardHeader } from '@/components/primitives/GlassCard';
 import { SatelliteSky } from '@/components/SatelliteSky';
@@ -14,7 +13,7 @@ import { StatusPill } from '@/components/primitives/StatusPill';
 import { GaugeRing } from '@/components/primitives/GaugeRing';
 import { Sparkline } from '@/components/primitives/Sparkline';
 import { HeaterGraphic } from '@/components/HeaterGraphic';
-import { api, ApiError } from '@/lib/api';
+import { api } from '@/lib/api';
 import { useBattery, useSolar, useEnergy, useEnvironment, useSparkBuffer, useConnected } from '@/lib/telemetry';
 import { fmtVolt, fmtWatt, fmtTemp, DASH } from '@/lib/format';
 import type { BatteryPayload, SolarPayload } from '@/lib/types';
@@ -63,21 +62,27 @@ function useClock(): Date {
  * The "show it off" dashboard: everything Home.tsx already tracks
  * (battery/solar/energy/GPS/mission brief - same hooks, same
  * components, not re-fetched or re-implemented) PLUS the domains Home
- * never surfaced at all - heater, voice, a relay quick-toggle strip -
- * laid out densely for a tablet or laptop propped up at a meet rather
- * than scrolled through on a phone. Auto-activated by useIsWideScreen,
- * not a separate route: the same van, the same data, just more of it
- * visible at once on a bigger screen.
+ * never surfaced at all - heater, voice - laid out densely for a
+ * tablet or laptop propped up at a meet rather than scrolled through
+ * on a phone. Auto-activated by useIsWideScreen, not a separate route:
+ * the same van, the same data, just more of it visible at once on a
+ * bigger screen.
  *
- * Every tile that has a real screen behind it is a Link to that screen
- * (first real-hardware pass, 14 Sep, had none of these - "nothing is
- * clickable"). The relay strip is the one exception: it acts directly
- * (same setRelay mutation Switches.tsx uses) rather than only linking
- * out, because a quick-glance power dashboard that makes you leave it
- * to flip a switch has missed the point of having one.
+ * Every tile that has a real screen behind it is a Link to that
+ * screen (first real-hardware pass, 14 Sep, had none of these -
+ * "nothing is clickable").
+ *
+ * A relay quick-toggle strip was tried and dropped again (15 Sep):
+ * relay state is commanded, never actual (no sense line back to the
+ * physical circuit, documented on the Relay type itself), and a toggle
+ * on a glance-dashboard implies a confidence about current state this
+ * app doesn't have anywhere else. Switches.tsx already settled this
+ * exact question with a plain "Toggle" button and no on/off claim;
+ * "we can't measure if current is actually on" was the right call to
+ * just remove it rather than reproduce a weaker version of the same
+ * button here.
  */
 export function CockpitDashboard() {
-  const qc = useQueryClient();
   const { data: brief } = useQuery({ queryKey: ['mission-brief'], queryFn: api.missionBrief, refetchInterval: 30_000 });
   const battery = useBattery();
   const solar = useSolar();
@@ -88,18 +93,7 @@ export function CockpitDashboard() {
 
   const loc = useQuery({ queryKey: ['location'], queryFn: api.location, retry: false });
   const heater = useQuery({ queryKey: ['heater'], queryFn: api.heater, refetchInterval: 2_000, retry: false });
-  const roof = useQuery({ queryKey: ['roof'], queryFn: api.roofStatus, refetchInterval: 10_000, retry: false });
   const voice = useQuery({ queryKey: ['voice-control-status'], queryFn: api.voiceControlStatus, refetchInterval: 3_000, retry: false });
-  const relays = useQuery({ queryKey: ['relays'], queryFn: api.relays, refetchInterval: 5_000, retry: false });
-
-  const setRelayMut = useMutation({
-    mutationFn: ({ id, on }: { id: number; on: boolean }) => api.setRelay(id, on),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['relays'] }),
-    onError: (e) => {
-      if (e instanceof ApiError && e.status === 401) toast.error('Locked — the unlock screen will reappear.');
-      else toast.error('Relay update failed');
-    },
-  });
 
   const solarSeries = useSparkBuffer<SolarPayload>('solar', (p) => p.watts);
   const voltSeries = useSparkBuffer<BatteryPayload>('battery', (p) => p.voltage);
@@ -134,17 +128,6 @@ export function CockpitDashboard() {
             : heaterGraphicMode === 'blowing'
               ? 'Ventilating'
               : 'Off';
-
-  // Same exclusion Switches.tsx applies - roof channels are driven
-  // through the hold-to-run watchdog, never a plain on/off toggle, and
-  // showing them here as an ordinary switch would offer exactly the
-  // control path the roof safety guard exists to prevent.
-  const roofChannelIds = new Set(
-    [roof.data?.up_channel, roof.data?.down_channel, ...(roof.data?.isolate_channels ?? [])].filter(
-      (id): id is number => id != null,
-    ),
-  );
-  const quickRelays = (relays.data?.channels ?? []).filter((r) => r.in_use && !roofChannelIds.has(r.id));
 
   return (
     <div className="relative">
@@ -210,8 +193,11 @@ export function CockpitDashboard() {
           </Link>
         </Tile>
 
-        {/* Camera + GPS row */}
-        <Tile index={4} className="col-span-12 lg:col-span-7">
+        {/* Camera + GPS row - camera is the focal point of this row now
+            (was a near-even 7/5 split; GPS was reported too large next
+            to it, 15 Sep), GPS shrunk down to a glance-sized companion
+            tile rather than competing with it for attention. */}
+        <Tile index={4} className="col-span-12 lg:col-span-8">
           <Link to="/camera" className="block h-full">
             {/* aspect-[16/10], not an arbitrary minHeight - matches
                 Home.tsx's own camera tile exactly. Without a locked
@@ -240,27 +226,26 @@ export function CockpitDashboard() {
           </Link>
         </Tile>
 
-        <Tile index={5} className="col-span-12 lg:col-span-5">
+        <Tile index={5} className="col-span-12 lg:col-span-4">
           <Link to="/nearby" className="block h-full">
             <GlassCard className="h-full p-0 overflow-hidden relative aspect-[16/10] hover:ring-white/20 transition-all">
               <SatelliteSky className="absolute inset-0 z-0 opacity-70" />
-              <div className="relative z-10 p-5">
-                <div className="text-[10px] tracking-[0.25em] text-status-green uppercase font-semibold">GPS Locked</div>
-                <div className="text-3xl font-bold mt-0.5">{loc.data?.satellites ?? DASH} Satellites</div>
+              <div className="relative z-10 p-4">
+                <div className="text-[10px] tracking-[0.22em] text-status-green uppercase font-semibold">GPS Locked</div>
+                <div className="text-2xl font-bold mt-0.5">{loc.data?.satellites ?? DASH} Satellites</div>
                 {loc.data?.hdop != null && <div className="text-xs text-ink-soft mt-0.5">HDOP {loc.data.hdop.toFixed(1)}</div>}
-                {loc.data?.latitude != null && loc.data?.longitude != null && (
-                  <div className="text-xs text-ink-soft mt-3 num" style={{ textShadow: '0 2px 12px rgba(0,0,0,.6)' }}>
-                    {loc.data.latitude.toFixed(4)}°, {loc.data.longitude.toFixed(4)}°
-                  </div>
-                )}
               </div>
             </GlassCard>
           </Link>
         </Tile>
 
-        {/* Heater / Ron / Power - the domains Home.tsx never showed.
-            Roof dropped entirely per feedback - it didn't earn its
-            place on a glance-dashboard the way the other three do. */}
+        {/* Heater / Ron / Temperatures - one even row. Power dropped
+            entirely (15 Sep: "we can toggle it but can't measure if
+            current is actually on - it's pointless" - fair, and it
+            also left this row one tile short and Temperatures
+            stretched alone across the full width below it, which
+            looked exactly as bad as reported). Three equal tiles fixes
+            both at once: no gap, and Temperatures no longer stretches. */}
         <Tile index={6} className="col-span-12 lg:col-span-4">
           <Link to="/heater" className="block h-full">
             <GlassCard className="h-full hover:ring-white/20 transition-all">
@@ -296,53 +281,11 @@ export function CockpitDashboard() {
           </Link>
         </Tile>
 
-        {/* Real quick-toggles, not a link out - "having power on the
-            main dash, even stripped down, may be good" (Andrew, 14
-            Sep). Agreed: a glance dashboard that makes you leave it to
-            flip a switch hasn't earned the word "dashboard". Same
-            setRelay mutation and roof-channel exclusion Switches.tsx
-            itself uses - spares (in_use: false) never show here
-            either, same reasoning as Switches.tsx: offering a toggle
-            with no real load behind it is the same false confidence
-            this app avoids everywhere else. */}
         <Tile index={8} className="col-span-12 lg:col-span-4">
-          <GlassCard className="h-full flex flex-col">
-            <CardHeader label="Power" right={<PowerIcon size={16} className="text-aurora-teal" />} />
-            {quickRelays.length === 0 ? (
-              <div className="text-sm text-ink-faint mt-2">No relays wired yet.</div>
-            ) : (
-              <div className="flex flex-col gap-2 mt-1">
-                {quickRelays.map((r) => (
-                  <button
-                    key={r.id}
-                    type="button"
-                    aria-label={`Toggle ${r.name}`}
-                    disabled={setRelayMut.isPending}
-                    onClick={() => setRelayMut.mutate({ id: r.id, on: !r.commanded_on })}
-                    className="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm bg-ink/[0.06] ring-1 ring-inset ring-ink/15 hover:bg-ink/[0.1] transition disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span className="truncate">{r.name}</span>
-                    <PowerIcon size={14} className="text-ink-muted shrink-0 ml-2" />
-                  </button>
-                ))}
-              </div>
-            )}
-            <Link to="/switches" className="mt-auto pt-3 inline-flex items-center gap-1 text-[11px] text-ink-faint hover:text-aurora-teal transition-colors self-start">
-              Manage all <ArrowRight size={11} />
-            </Link>
-          </GlassCard>
-        </Tile>
-
-        {/* Temperatures - one combined card, not two separate ones
-            (feedback: "temps should be in their own card together").
-            Dropped from the Net Energy hero card above too, so this is
-            now the ONE place these two readings live rather than
-            appearing twice on the same screen. */}
-        <Tile index={9} className="col-span-12">
-          <Link to="/weather" className="block">
-            <GlassCard level="quiet" className="hover:ring-white/15 transition-colors">
+          <Link to="/weather" className="block h-full">
+            <GlassCard level="quiet" className="h-full hover:ring-white/15 transition-colors">
               <CardHeader label="Temperatures" hint="1-Wire probes" right={<Thermometer size={16} className="text-aurora-teal" />} />
-              <div className="flex gap-10">
+              <div className="flex gap-8 mt-2">
                 <div>
                   <div className="text-[10px] uppercase tracking-wider text-ink-muted">Interior</div>
                   <div className="num text-3xl font-semibold">{fmtTemp(env.payload?.internal_temp_c)}</div>
