@@ -9,6 +9,7 @@ import {
   Mic, Power as PowerIcon, ArrowRight,
 } from 'lucide-react';
 import { GlassCard, CardHeader } from '@/components/primitives/GlassCard';
+import { Switch } from '@/components/ui/switch';
 import { SatelliteSky } from '@/components/SatelliteSky';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { GaugeRing } from '@/components/primitives/GaugeRing';
@@ -150,7 +151,7 @@ export function CockpitDashboard() {
     <div className="relative">
       <div className="grid grid-cols-12 gap-5">
         {/* Hero strip */}
-        <Tile index={0} className="col-span-3">
+        <Tile index={0} className="col-span-6 xl:col-span-3">
           <GlassCard level="hero" glow="teal" className="h-full">
             <CardHeader label="Battery" right={<BatteryIcon size={16} className="text-aurora-teal" />} />
             <div className="num text-4xl font-bold">{fmtVolt(battery.payload?.voltage)}</div>
@@ -171,7 +172,7 @@ export function CockpitDashboard() {
           </GlassCard>
         </Tile>
 
-        <Tile index={1} className="col-span-3">
+        <Tile index={1} className="col-span-6 xl:col-span-3">
           <GlassCard level="hero" className="h-full">
             <CardHeader label="Solar" right={<Sun size={16} className="text-brand-orange" />} />
             <div className="num text-4xl font-bold">{fmtWatt(solar.payload?.watts)}</div>
@@ -182,7 +183,7 @@ export function CockpitDashboard() {
           </GlassCard>
         </Tile>
 
-        <Tile index={2} className="col-span-3">
+        <Tile index={2} className="col-span-6 xl:col-span-3">
           <GlassCard level="hero" className="h-full">
             <CardHeader label="Net energy" hint="solar − load" right={<Zap size={16} className="text-aurora-teal" />} />
             <div className="num text-4xl font-bold">{fmtWatt(energy.payload?.net_watts)}</div>
@@ -192,7 +193,7 @@ export function CockpitDashboard() {
 
         {/* Whole card is now the link (was just the footer text before -
             "status should be clickable and show you"). */}
-        <Tile index={3} className="col-span-3">
+        <Tile index={3} className="col-span-6 xl:col-span-3">
           <Link to="/overview" className="block h-full">
             <GlassCard level="hero" glow="purple" className="h-full relative overflow-hidden hover:ring-aurora-purple/40 transition-colors">
               <CardHeader label="Status" />
@@ -211,7 +212,7 @@ export function CockpitDashboard() {
         </Tile>
 
         {/* Camera + GPS row */}
-        <Tile index={4} className="col-span-7">
+        <Tile index={4} className="col-span-12 lg:col-span-7">
           <Link to="/camera" className="block h-full">
             {/* aspect-[16/10], not an arbitrary minHeight - matches
                 Home.tsx's own camera tile exactly. Without a locked
@@ -240,7 +241,7 @@ export function CockpitDashboard() {
           </Link>
         </Tile>
 
-        <Tile index={5} className="col-span-5">
+        <Tile index={5} className="col-span-12 lg:col-span-5">
           <Link to="/nearby" className="block h-full">
             <GlassCard className="h-full p-0 overflow-hidden relative aspect-[16/10] hover:ring-white/20 transition-all">
               <SatelliteSky className="absolute inset-0 z-0 opacity-70" />
@@ -261,7 +262,7 @@ export function CockpitDashboard() {
         {/* Heater / Ron / Power - the domains Home.tsx never showed.
             Roof dropped entirely per feedback - it didn't earn its
             place on a glance-dashboard the way the other three do. */}
-        <Tile index={6} className="col-span-4">
+        <Tile index={6} className="col-span-12 lg:col-span-4">
           <Link to="/heater" className="block h-full">
             <GlassCard className="h-full hover:ring-white/20 transition-all">
               <CardHeader label="Diesel heater" right={<StatusPill tone={hs.error_code ? 'red' : heaterHeating ? 'amber' : 'slate'}>{heaterLabel}</StatusPill>} />
@@ -278,7 +279,7 @@ export function CockpitDashboard() {
           </Link>
         </Tile>
 
-        <Tile index={7} className="col-span-4">
+        <Tile index={7} className="col-span-12 lg:col-span-4">
           <Link to="/chat" className="block h-full">
             <GlassCard className="h-full hover:ring-white/20 transition-all">
               <CardHeader
@@ -305,7 +306,7 @@ export function CockpitDashboard() {
             either, same reasoning as Switches.tsx: offering a toggle
             with no real load behind it is the same false confidence
             this app avoids everywhere else. */}
-        <Tile index={8} className="col-span-4">
+        <Tile index={8} className="col-span-12 lg:col-span-4">
           <GlassCard className="h-full flex flex-col">
             <CardHeader label="Power" right={<PowerIcon size={16} className="text-aurora-teal" />} />
             {quickRelays.length === 0 ? (
@@ -313,20 +314,29 @@ export function CockpitDashboard() {
             ) : (
               <div className="flex flex-col gap-2 mt-1">
                 {quickRelays.map((r) => (
-                  <button
+                  <div
                     key={r.id}
-                    type="button"
-                    disabled={setRelayMut.isPending}
-                    onClick={() => setRelayMut.mutate({ id: r.id, on: !r.commanded_on })}
-                    className={`flex items-center justify-between rounded-xl px-3 py-2 text-sm transition-colors ${
-                      r.commanded_on
-                        ? 'bg-aurora-teal/15 ring-1 ring-inset ring-aurora-teal/40 text-aurora-teal'
-                        : 'bg-ink/[0.04] ring-1 ring-inset ring-ink/10 text-ink-soft hover:bg-ink/[0.08]'
+                    className={`flex items-center justify-between rounded-xl px-3 py-2.5 transition-colors ${
+                      r.commanded_on ? 'bg-aurora-teal/10 ring-1 ring-inset ring-aurora-teal/30' : 'bg-ink/[0.04] ring-1 ring-inset ring-ink/10'
                     }`}
                   >
-                    <span className="truncate">{r.name}</span>
-                    <span className="text-[11px] font-medium uppercase tracking-wide shrink-0 ml-2">{r.commanded_on ? 'On' : 'Off'}</span>
-                  </button>
+                    <span className={`text-sm truncate ${r.commanded_on ? 'text-ink font-medium' : 'text-ink-soft'}`}>{r.name}</span>
+                    <div className="flex items-center gap-2 shrink-0 ml-2">
+                      <span className={`text-[11px] font-semibold uppercase tracking-wide ${r.commanded_on ? 'text-aurora-teal' : 'text-ink-faint'}`}>
+                        {r.commanded_on ? 'On' : 'Off'}
+                      </span>
+                      {/* A real switch, not just a colour tint on the row -
+                          "we can't tell what's turned on or not" (14 Sep).
+                          Position + colour + label together, so it reads
+                          at a glance even on a screen across the room. */}
+                      <Switch
+                        checked={r.commanded_on}
+                        disabled={setRelayMut.isPending}
+                        onCheckedChange={(on: boolean) => setRelayMut.mutate({ id: r.id, on })}
+                        className="data-[state=checked]:bg-aurora-teal data-[state=unchecked]:bg-white/15"
+                      />
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
