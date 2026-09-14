@@ -575,13 +575,22 @@ class Heater:
         # first Hcalory library read for this project. The service
         # characteristics changed between MVP1 and MVP2; the status
         # query did not.
-        # Logged at INFO, same reasoning as _write()'s log line above -
-        # this is the other half of the same diagnostic. Once-a-second
-        # is noisy for permanent use; fine for a short, deliberate test
-        # window. Dial back to DEBUG once the mode-switch question is
-        # settled one way or the other.
+        # Demoted to DEBUG 14 Sep - the mode-switch question this was
+        # added for (12 Sep) is now settled: confirmed live that the
+        # right bytes send and the right mode reflects back once the
+        # heater is actually running. At INFO, this pair logs twice a
+        # second forever - roughly 170k lines/day - which chewed through
+        # the Pi's modest journald allocation (SystemMaxUse/
+        # MaxRetentionSec are both unset, i.e. small systemd defaults)
+        # fast enough that even the PREVIOUS day's history was gone by
+        # the time it was needed for an unrelated question (did VanOS
+        # send a command overnight). DEBUG isn't emitted by this
+        # script's basicConfig(level=logging.INFO) at all, so this is
+        # effectively off; re-promote to INFO (one-line edit, restart,
+        # no redeploy needed beyond that) for any future live session
+        # like the one that added it.
         query_bytes = self._plain_query()
-        logger.info("Sending status query: %s", query_bytes.hex())
+        logger.debug("Sending status query: %s", query_bytes.hex())
         await self._client.write_gatt_char(MVP2_WRITE, query_bytes, response=False)
 
         reply = await self._drain(REPLY_TIMEOUT)
@@ -596,13 +605,8 @@ class Heater:
         if not parsed:
             return self.state
 
-        # The other half of the diagnostic: what mode the heater
-        # actually reports back, immediately after each query. Compared
-        # against the "Sending command" lines above, this shows whether
-        # a mode-switch ever takes even momentarily before the next
-        # query's 0x00 byte (same HCALORY_CMD_POWER/0x0E04 channel,
-        # different final byte) potentially overwrites it.
-        logger.info("Heater reports running_mode=%s running_step=%s", parsed.get("running_mode"), parsed.get("running_step"))
+        # See the DEBUG note above - same reasoning, same demotion.
+        logger.debug("Heater reports running_mode=%s running_step=%s", parsed.get("running_mode"), parsed.get("running_step"))
 
         self.state = shape_state(parsed)
         self.updated_at = time.time()
