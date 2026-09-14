@@ -9,7 +9,6 @@ import {
   Mic, Power as PowerIcon, ArrowRight,
 } from 'lucide-react';
 import { GlassCard, CardHeader } from '@/components/primitives/GlassCard';
-import { Switch } from '@/components/ui/switch';
 import { SatelliteSky } from '@/components/SatelliteSky';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { GaugeRing } from '@/components/primitives/GaugeRing';
@@ -314,29 +313,17 @@ export function CockpitDashboard() {
             ) : (
               <div className="flex flex-col gap-2 mt-1">
                 {quickRelays.map((r) => (
-                  <div
+                  <button
                     key={r.id}
-                    className={`flex items-center justify-between rounded-xl px-3 py-2.5 transition-colors ${
-                      r.commanded_on ? 'bg-aurora-teal/10 ring-1 ring-inset ring-aurora-teal/30' : 'bg-ink/[0.04] ring-1 ring-inset ring-ink/10'
-                    }`}
+                    type="button"
+                    aria-label={`Toggle ${r.name}`}
+                    disabled={setRelayMut.isPending}
+                    onClick={() => setRelayMut.mutate({ id: r.id, on: !r.commanded_on })}
+                    className="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm bg-ink/[0.06] ring-1 ring-inset ring-ink/15 hover:bg-ink/[0.1] transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <span className={`text-sm truncate ${r.commanded_on ? 'text-ink font-medium' : 'text-ink-soft'}`}>{r.name}</span>
-                    <div className="flex items-center gap-2 shrink-0 ml-2">
-                      <span className={`text-[11px] font-semibold uppercase tracking-wide ${r.commanded_on ? 'text-aurora-teal' : 'text-ink-faint'}`}>
-                        {r.commanded_on ? 'On' : 'Off'}
-                      </span>
-                      {/* A real switch, not just a colour tint on the row -
-                          "we can't tell what's turned on or not" (14 Sep).
-                          Position + colour + label together, so it reads
-                          at a glance even on a screen across the room. */}
-                      <Switch
-                        checked={r.commanded_on}
-                        disabled={setRelayMut.isPending}
-                        onCheckedChange={(on: boolean) => setRelayMut.mutate({ id: r.id, on })}
-                        className="data-[state=checked]:bg-aurora-teal data-[state=unchecked]:bg-white/15"
-                      />
-                    </div>
-                  </div>
+                    <span className="truncate">{r.name}</span>
+                    <PowerIcon size={14} className="text-ink-muted shrink-0 ml-2" />
+                  </button>
                 ))}
               </div>
             )}
