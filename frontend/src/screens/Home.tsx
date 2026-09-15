@@ -7,8 +7,10 @@ import { SatelliteSky } from '@/components/SatelliteSky';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { GaugeRing } from '@/components/primitives/GaugeRing';
 import { Sparkline } from '@/components/primitives/Sparkline';
+import { CockpitDashboard } from '@/components/CockpitDashboard';
 import { api } from '@/lib/api';
 import { useBattery, useSolar, useEnergy, useEnvironment, useSparkBuffer, useConnected } from '@/lib/telemetry';
+import { useIsWideScreen } from '@/lib/useIsWideScreen';
 import { fmtVolt, fmtWatt, fmtTemp, DASH } from '@/lib/format';
 import type { BatteryPayload, SolarPayload } from '@/lib/types';
 import { HOME } from '@/constants/testIds';
@@ -35,6 +37,19 @@ function useClock(): Date {
 }
 
 export function Home() {
+  // "When a tablet or desktop connects, show the complete dashboard"
+  // (Andrew, 14 Sep) - same route, same data, just a different
+  // component once the viewport is tablet/desktop-sized rather than a
+  // phone. Delegates to two separate components rather than an early
+  // return inside one - MobileHome below calls a dozen hooks of its
+  // own, and an early return before them would skip those hooks on
+  // some renders and not others (whenever isWide flips), breaking
+  // React's Rules of Hooks.
+  const isWide = useIsWideScreen(900);
+  return isWide ? <CockpitDashboard /> : <MobileHome />;
+}
+
+function MobileHome() {
   const { data: brief } = useQuery({
     queryKey: ['mission-brief'],
     queryFn: api.missionBrief,
