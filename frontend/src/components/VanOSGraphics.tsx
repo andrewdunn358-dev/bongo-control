@@ -117,16 +117,16 @@ export function VanOSSolar({
     >
       <style>{reducedMotion}</style>
 
-      <g className={active ? "solar-rays" : ""} transform="translate(24 24)">
+      <g className={active ? "solar-rays" : ""}>
         <g stroke="#f5c451" strokeWidth="2" strokeLinecap="round">
-          <path d="M0 -21V-15" />
-          <path d="M0 15V21" />
-          <path d="M-21 0H-15" />
-          <path d="M15 0H21" />
-          <path d="M-14.85 -14.85L-10.6 -10.6" />
-          <path d="M10.6 10.6L14.85 14.85" />
-          <path d="M14.85 -14.85L10.6 -10.6" />
-          <path d="M-10.6 10.6L-14.85 14.85" />
+          <path d="M24 3V9" />
+          <path d="M24 39V45" />
+          <path d="M3 24H9" />
+          <path d="M39 24H45" />
+          <path d="M9.15 9.15L13.4 13.4" />
+          <path d="M34.6 34.6L38.85 38.85" />
+          <path d="M38.85 9.15L34.6 13.4" />
+          <path d="M13.4 34.6L9.15 38.85" />
         </g>
       </g>
 
@@ -139,7 +139,8 @@ export function VanOSSolar({
           animation: vanosSolarRotate 18s linear infinite;
         }
         @keyframes vanosSolarRotate {
-          to { transform: translate(24px,24px) rotate(360deg) translate(-24px,-24px); }
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
         }
       `}</style>
     </svg>
@@ -250,7 +251,8 @@ export function VanOSWeather({
           animation: vanosRain 1.2s ease-in-out infinite;
         }
         @keyframes vanosWeatherSun {
-          to { transform: rotate(360deg); }
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
         }
         @keyframes vanosCloudDrift {
           from { transform: translateX(0); }
