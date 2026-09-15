@@ -89,6 +89,7 @@ function MiniSpark({
 
   return (
     <svg
+      className="van-spark"
       width="100%"
       height="38"
       viewBox="0 0 300 38"
@@ -214,12 +215,12 @@ export function CockpitDashboard() {
   const cameraTimestamp = Math.floor(now.getTime() / 5000) * 5000;
 
   return (
-    <div className="mx-auto w-full max-w-[1280px] space-y-5 pb-8">
+    <div className="van-cockpit mx-auto w-full max-w-[1280px] space-y-5 pb-8">
       {/* ============================================================
           STATUS
          ============================================================ */}
       <Link to="/overview" className="block">
-        <Panel raised className="px-5 py-4 transition-colors duration-150 hover:border-[#3b9cff]/60">
+        <Panel raised className="van-status px-5 py-4 transition-colors duration-150 hover:border-[#3b9cff]/60">
           <div className="flex flex-wrap items-center justify-between gap-5">
             <div className="flex min-w-0 items-center gap-4">
               <StatusIcon
@@ -314,7 +315,7 @@ export function CockpitDashboard() {
           <Link to="/power" className="block min-h-0">
             <Panel
               raised
-              className="group flex h-full min-h-[250px] flex-col p-5 transition-colors duration-150 hover:border-[#3b9cff]/70"
+              className="van-powercard group flex h-full min-h-[250px] flex-col p-5 transition-colors duration-150 hover:border-[#3b9cff]/70"
             >
               <div className="flex items-start justify-between">
                 <MetricLabel>Battery</MetricLabel>
@@ -386,7 +387,7 @@ export function CockpitDashboard() {
                 </div>
               )}
 
-              <div className="mt-auto pt-4">
+              <div className="van-sparkwrap mt-auto pt-4">
                 <MiniSpark
                   data={voltSeries}
                   stroke="#3b9cff"
@@ -400,7 +401,7 @@ export function CockpitDashboard() {
           <Link to="/weather" className="block min-h-0">
             <Panel
               raised
-              className="group flex h-full min-h-[250px] flex-col p-5 transition-colors duration-150 hover:border-[#3b9cff]/70"
+              className="van-powercard group flex h-full min-h-[250px] flex-col p-5 transition-colors duration-150 hover:border-[#3b9cff]/70"
             >
               <div className="flex items-start justify-between">
                 <MetricLabel>Solar</MetricLabel>
@@ -431,7 +432,7 @@ export function CockpitDashboard() {
                 </div>
               )}
 
-              <div className="mt-auto pt-4">
+              <div className="van-sparkwrap mt-auto pt-4">
                 <MiniSpark
                   data={solarSeries}
                   stroke="#f5c451"
@@ -446,7 +447,7 @@ export function CockpitDashboard() {
         <Link to="/camera" className="block min-h-0">
           <Panel
             raised
-            className="relative h-full min-h-[520px] overflow-hidden p-0 transition-colors duration-150 hover:border-[#3b9cff]/70"
+            className="van-camera relative h-full min-h-[520px] overflow-hidden p-0 transition-colors duration-150 hover:border-[#3b9cff]/70"
           >
             <img
               src={api.cameraSnapshotUrl(cameraTimestamp)}
@@ -500,7 +501,7 @@ export function CockpitDashboard() {
           raised
           className="transition-colors duration-150 hover:border-[#3b9cff]/70"
         >
-          <div className="grid gap-5 p-5 md:grid-cols-[minmax(0,1fr)_minmax(240px,320px)] md:items-center">
+          <div className="van-brief grid gap-5 p-5 md:grid-cols-[minmax(0,1fr)_minmax(240px,320px)] md:items-center">
             <div className="min-w-0">
               <MetricLabel>What you need to know</MetricLabel>
 
@@ -537,9 +538,9 @@ export function CockpitDashboard() {
       {/* ============================================================
           SUPPORTING INFORMATION
          ============================================================ */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="van-support grid gap-4 md:grid-cols-3">
         <Link to="/weather" className="block">
-          <Panel className="h-full p-4 transition-colors duration-150 hover:border-[#304050]">
+          <Panel className="van-supportcard h-full p-4 transition-colors duration-150 hover:border-[#304050]">
             <div className="flex items-center justify-between">
               <MetricLabel>Environment</MetricLabel>
               <VanOSWeather condition={weather.payload?.current_weather_description} size={26} />
@@ -580,7 +581,7 @@ export function CockpitDashboard() {
         </Link>
 
         <Link to="/heater" className="block">
-          <Panel className="h-full p-4 transition-colors duration-150 hover:border-[#304050]">
+          <Panel className="van-supportcard h-full p-4 transition-colors duration-150 hover:border-[#304050]">
             <div className="flex items-center justify-between">
               <MetricLabel>Heater</MetricLabel>
               <Flame
@@ -624,7 +625,7 @@ export function CockpitDashboard() {
         </Link>
 
         <Link to="/nearby" className="block">
-          <Panel className="h-full p-4 transition-colors duration-150 hover:border-[#304050]">
+          <Panel className="van-supportcard h-full p-4 transition-colors duration-150 hover:border-[#304050]">
             <div className="flex items-center justify-between">
               <MetricLabel>Location</MetricLabel>
               <Satellite size={16} className="text-[#3b9cff]" />
