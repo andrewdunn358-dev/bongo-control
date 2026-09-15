@@ -28,12 +28,15 @@ import {
   Sparkles,
   Radio as RadioIcon,
   Flame,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { getTelemetryCloseReason } from '@/lib/telemetry';
 import { NAV } from '@/constants/testIds';
 import { cn } from '@/lib/utils';
 import { isDemo } from '@/lib/demo';
+import { useNavigationStyle } from '@/lib/useNavigationStyle';
 import { api } from '@/lib/api';
 import { useBattery, useEnvironment } from '@/lib/telemetry';
 import { fmtVolt, fmtTemp, DASH } from '@/lib/format';
@@ -84,17 +87,145 @@ function useClock(): Date {
   return now;
 }
 
+
+/** The existing floating dock, extracted verbatim so its appearance is
+ *  unchanged - this is a refactor, not a restyle. */
+function BottomNavigation() {
+  return (
+    <nav className="fixed bottom-4 inset-x-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 z-40 md:w-auto">
+      <ul className="flex overflow-x-auto scrollbar-hide gap-1 rounded-2xl bg-white dark:bg-[#0a1628] ring-1 ring-slate-300 dark:ring-white/10 px-2 py-2 shadow-xl dark:shadow-2xl md:justify-center">
+        {LINKS.map(({ to, short, icon: Icon, testId, end }) => (
+          <li key={to} className="shrink-0">
+            <NavLink
+              to={to}
+              end={end}
+              data-testid={`${testId}-mobile`}
+              className={({ isActive }) =>
+                cn(
+                  'flex flex-col items-center justify-center gap-0.5 py-1.5 px-3 rounded-xl text-[10px] transition-colors',
+                  isActive ? 'text-brand-orange bg-brand-orange/15' : 'text-ink-muted hover:text-ink-soft',
+                )
+              }
+            >
+              <Icon size={17} />
+              <span className="leading-none">{short}</span>
+            </NavLink>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
+/** Fixed left rail. Same LINKS, same routes, same orange active
+ *  treatment as the dock - only the arrangement differs. Collapsed
+ *  state persists so the rail doesn't reset on every navigation. */
+function SidebarNavigation({
+  expanded,
+  onToggle,
+}: {
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <nav
+      className={cn(
+        'fixed left-0 top-0 bottom-0 z-40 flex flex-col border-r border-slate-300 dark:border-white/8 bg-white dark:bg-[#0a1628]',
+        'transition-[width] duration-200 ease-out',
+        expanded ? 'w-[220px]' : 'w-[78px]',
+      )}
+      data-testid={NAV.sidebar}
+    >
+      <div className={cn('flex items-center gap-2.5 px-4 py-3.5 shrink-0', !expanded && 'justify-center px-0')}>
+        <img src={brandMark} alt="" className="h-8 w-8 rounded-lg shrink-0" />
+        {expanded && (
+          <div className="min-w-0">
+            <div className="text-sm font-semibold leading-tight truncate">VanOS</div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-ink-muted truncate">Van cockpit</div>
+          </div>
+        )}
+      </div>
+
+      <ul className="flex-1 overflow-y-auto scrollbar-hide px-2 py-1 space-y-0.5">
+        {LINKS.map(({ to, label, icon: Icon, testId, end }) => (
+          <li key={to}>
+            <NavLink
+              to={to}
+              end={end}
+              title={!expanded ? label : undefined}
+              data-testid={`${testId}-sidebar`}
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] transition-colors',
+                  !expanded && 'justify-center px-0',
+                  isActive ? 'text-brand-orange bg-brand-orange/15' : 'text-ink-muted hover:text-ink-soft',
+                )
+              }
+            >
+              <Icon size={18} className="shrink-0" />
+              {expanded && <span className="truncate">{label}</span>}
+            </NavLink>
+          </li>
+        ))}
+      </ul>
+
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label={expanded ? 'Collapse navigation' : 'Expand navigation'}
+        className={cn(
+          'flex items-center gap-3 px-3 py-3 m-2 rounded-xl text-[12px] text-ink-muted hover:text-ink-soft transition-colors shrink-0',
+          !expanded && 'justify-center px-0',
+        )}
+      >
+        {expanded ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
+        {expanded && <span>Collapse</span>}
+      </button>
+    </nav>
+  );
+}
+
 export function NavShell({ children, wsConnected }: { children: React.ReactNode; wsConnected: boolean }) {
   const battery = useBattery();
   const env = useEnvironment();
   const now = useClock();
   const loc = useQuery({ queryKey: ['location'], queryFn: api.location, retry: false });
+  const { effectiveStyle } = useNavigationStyle();
+  // Collapsed state is remembered so the rail doesn't reset on every
+  // navigation. Separate from the dock/sidebar preference itself.
+  const [sidebarExpanded, setSidebarExpanded] = useState(() => {
+    try {
+      return window.localStorage.getItem('vanos-sidebar-expanded') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+  const toggleSidebar = () => {
+    setSidebarExpanded((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem('vanos-sidebar-expanded', String(next));
+      } catch {
+        /* preference just won't persist */
+      }
+      return next;
+    });
+  };
+  const sidebarOn = effectiveStyle === 'sidebar';
 
   const dateStr = now.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: 'short' }).toUpperCase();
   const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   return (
-    <div className="min-h-screen">
+    <div
+      className={cn(
+        'min-h-screen transition-[padding-left] duration-200 ease-out',
+        sidebarOn && (sidebarExpanded ? 'pl-[220px]' : 'pl-[78px]'),
+      )}
+    >
+      {sidebarOn && (
+        <SidebarNavigation expanded={sidebarExpanded} onToggle={toggleSidebar} />
+      )}
       {/* Top status bar - real data throughout. No fabricated cellular/
           WiFi-speed pills here (this van has no modem - WiFi + Cloudflare
           Tunnel only), unlike the reference this was matched against -
@@ -192,33 +323,9 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
         </div>
       </header>
 
-      <main className="pb-28 pt-6 px-4 md:px-6">{children}</main>
+      <main className={cn('pt-6 px-4 md:px-6', sidebarOn ? 'pb-8' : 'pb-28')}>{children}</main>
 
-      {/* Bottom dock - navigation, on every screen size (not just
-          mobile) - matches the reference's actual nav placement, a
-          floating dock rather than a sidebar. */}
-      <nav className="fixed bottom-4 inset-x-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 z-40 md:w-auto">
-        <ul className="flex overflow-x-auto scrollbar-hide gap-1 rounded-2xl bg-white dark:bg-[#0a1628] ring-1 ring-slate-300 dark:ring-white/10 px-2 py-2 shadow-xl dark:shadow-2xl md:justify-center">
-          {LINKS.map(({ to, short, icon: Icon, testId, end }) => (
-            <li key={to} className="shrink-0">
-              <NavLink
-                to={to}
-                end={end}
-                data-testid={`${testId}-mobile`}
-                className={({ isActive }) =>
-                  cn(
-                    'flex flex-col items-center justify-center gap-0.5 py-1.5 px-3 rounded-xl text-[10px] transition-colors',
-                    isActive ? 'text-brand-orange bg-brand-orange/15' : 'text-ink-muted hover:text-ink-soft',
-                  )
-                }
-              >
-                <Icon size={17} />
-                <span className="leading-none">{short}</span>
-              </NavLink>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      {effectiveStyle === 'dock' && <BottomNavigation />}
     </div>
   );
 }

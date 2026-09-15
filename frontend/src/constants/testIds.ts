@@ -2,6 +2,7 @@
 // design/dev never drift.
 
 export const NAV = {
+  sidebar: 'nav-sidebar',
   root: 'nav-shell',
   brand: 'nav-brand',
   wsIndicator: 'nav-ws-indicator',

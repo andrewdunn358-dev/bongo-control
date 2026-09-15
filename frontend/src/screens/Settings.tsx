@@ -11,6 +11,7 @@ import { StatusPill } from '@/components/primitives/StatusPill';
 import { api } from '@/lib/api';
 import { isDemo } from '@/lib/demo';
 import { useTheme } from '@/lib/theme';
+import { useNavigationStyle } from '@/lib/useNavigationStyle';
 import { signalToBars, getDistanceUnit, setDistanceUnit } from '@/lib/format';
 import { SET } from '@/constants/testIds';
 import { cn } from '@/lib/utils';
@@ -1199,6 +1200,7 @@ function InternetRadioCard() {
 export function Settings() {
   const qc = useQueryClient();
   const { theme, toggle } = useTheme();
+  const { style: navStyle, setStyle: setNavStyle } = useNavigationStyle();
   const [distanceUnit, setDistanceUnitState] = useState<'mi' | 'km'>(() => getDistanceUnit());
   const [pwSsid, setPwSsid] = useState<string | null>(null);
   const [pw, setPw] = useState('');
@@ -1320,6 +1322,44 @@ export function Settings() {
       </div>
 
       <div className="grid grid-cols-12 gap-4 lg:gap-6">
+        <GlassCard className="col-span-12 lg:col-span-5 p-6">
+          <CardHeader label="Navigation" hint="tablet and desktop only · phones always use the bottom dock" />
+          <p className="text-xs text-ink-faint mb-3">
+            Choose how VanOS navigation is arranged on tablet and desktop screens.
+          </p>
+          {/* Segmented control, not a toggle - this is a choice between
+              two named modes, and a switch would not say which is which. */}
+          <div
+            role="radiogroup"
+            aria-label="Navigation style"
+            className="grid grid-cols-2 gap-1 rounded-xl bg-ink/[0.03] ring-1 ring-ink/10 p-1"
+          >
+            {([
+              { value: 'dock' as const, label: 'Bottom dock' },
+              { value: 'sidebar' as const, label: 'Sidebar' },
+            ]).map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                role="radio"
+                aria-checked={navStyle === opt.value}
+                onClick={() => setNavStyle(opt.value)}
+                className={cn(
+                  'rounded-lg px-3 py-2 text-sm transition-colors',
+                  navStyle === opt.value
+                    ? 'bg-brand-orange/15 text-brand-orange'
+                    : 'text-ink-muted hover:text-ink-soft',
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-ink-faint mt-3">
+            The sidebar frees the vertical space the dock uses, which gives the cockpit more room.
+          </p>
+        </GlassCard>
+
         <GlassCard className="col-span-12 lg:col-span-5 p-6">
           <CardHeader label="Appearance" hint="dark by default · light for daylight glare" />
           <div className="rounded-xl bg-ink/[0.03] ring-1 ring-ink/10 px-4 py-3 flex items-center justify-between">
