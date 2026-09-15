@@ -16,6 +16,16 @@ from app.telemetry.models import TelemetryDomain
 from app.intelligence.signals import Prediction
 
 DEFAULT_TYPICAL_LOAD_WATTS = 50.0  # used only when no real load history exists to estimate from
+# Below this, a "load" is measurement noise rather than a reading: the
+# Pi alone draws several watts continuously, so anything under this
+# cannot be the van's real standing draw. Without this floor a near-zero
+# figure divides into the bank capacity and yields absurd runtimes.
+MIN_CREDIBLE_LOAD_WATTS = 5.0
+# Runtime ceiling for DISPLAY. Beyond a few days the estimate is not
+# meaningful - it assumes today's draw continues unchanged with no solar
+# and nothing switched on - so it is capped rather than printed to one
+# decimal place as though it were precise.
+MAX_CREDIBLE_RUNTIME_HOURS = 168.0
 HEATER_ALL_NIGHT_WH_THRESHOLD = 120 * 8
 VOLTAGE_HEATER_OK_THRESHOLD = 12.8
 # Two situations that read very differently to someone who has just
@@ -57,7 +67,7 @@ class PowerPredictionProvider:
                 typical_load_watts = self._estimate_typical_load_watts()
                 bank = self._bank.capacity(battery_msg.payload)
                 bank_wh_remaining = (soc_pct / 100.0) * bank["watt_hours"]
-                runtime_hours = round(min(999, bank_wh_remaining / typical_load_watts), 1) if typical_load_watts > 0 else None
+                runtime_hours = round(min(MAX_CREDIBLE_RUNTIME_HOURS, bank_wh_remaining / typical_load_watts), 1) if typical_load_watts > 0 else None
                 # The estimate more than doubles when the external
                 # battery is paralleled on, so which bank it assumed is
                 # not a footnote - without it the number looks like it
@@ -94,11 +104,40 @@ class PowerPredictionProvider:
         return predictions
 
     def _estimate_typical_load_watts(self) -> float:
-        """Derives a rough typical
-        load from recent battery discharge rate if we have enough
-        history; falls back to a fixed assumption otherwise.
+        """Typical discharge load in watts.
+
+        PREFERS MEASURED POWER. The SmartShunt reports actual
+        power_w/current_a continuously, and that is real data. The
+        previous version ignored it and inferred load from the SoC
+        DELTA across a 6h window instead - which divides by measurement
+        noise: SoC is reported in coarse steps, so a single step of
+        drift over six hours implies a load of a few watts and produced
+        an "estimated runtime" of 326.6 hours (13.6 days) on a van that
+        will not do anything of the sort. The number also wandered
+        wildly between refreshes (948 -> 62 -> 326) because it was
+        tracking quantisation, not consumption.
+
+        Averages only DISCHARGING samples: including charging samples
+        would net solar against load and understate the draw. Falls
+        back to the SoC-delta method, then to a fixed assumption, so
+        this still works on an install with no shunt.
         """
         recent = self._history.query(TelemetryDomain.BATTERY.value, time.time() - 6 * 3600)
+
+        # 1. Measured power, discharge only. power_w is signed: negative
+        #    while discharging on this shunt, so take the magnitude of
+        #    the negative samples.
+        discharging = [
+            -r["payload"]["power_w"]
+            for r in recent
+            if r["payload"].get("power_w") is not None and r["payload"]["power_w"] < 0
+        ]
+        if discharging:
+            measured = sum(discharging) / len(discharging)
+            if measured >= MIN_CREDIBLE_LOAD_WATTS:
+                return measured
+
+        # 2. Fall back to the old SoC-delta inference.
         socs = [(r["timestamp"], r["payload"].get("soc_pct")) for r in recent if r["payload"].get("soc_pct") is not None]
         if len(socs) < 2:
             return DEFAULT_TYPICAL_LOAD_WATTS
@@ -114,4 +153,6 @@ class PowerPredictionProvider:
         # was connected while it happened.
         wh_used = (soc_drop / 100.0) * self._bank.watt_hours()
         watts = wh_used / elapsed_hours
-        return watts if watts > 1 else DEFAULT_TYPICAL_LOAD_WATTS
+        # Below the credible floor this is noise, not a reading - a van
+        # with the Pi running cannot actually be drawing 2W.
+        return watts if watts >= MIN_CREDIBLE_LOAD_WATTS else DEFAULT_TYPICAL_LOAD_WATTS
