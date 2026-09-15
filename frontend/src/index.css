@@ -438,16 +438,27 @@ html.light .maplibregl-ctrl-attrib a {
   }
 }
 
-/* ── Short landscape tablets (<=600px CSS height) ─────────────────
+/* ── Short landscape tablets (<=700px CSS height) ─────────────────
    Measured on the real device: an Honor Pad X9 reports 1143x532 CSS in
    landscape. Every tier above stops at 750px, so this tablet - the
    actual deployment target - fell through to desktop sizing and the
    bottom cards ran off the screen.
 
-   532px is genuinely short, so this tier also trims <main>'s own
-   padding (the only tier that does): 24px top + 32px bottom is fine on
-   a laptop and is 12% of the entire viewport here. */
-@media (min-width: 900px) and (max-height: 600px) {
+   MEASURED IN THE INSTALLED PWA: 1143x628. Chrome reported 532 because
+   of its address bar and the system UI; the PWA has neither, so the
+   real target is 628 - which fell just ABOVE the original 600px cap and
+   matched the much looser 750px tier instead. The layout was being
+   sized for a screen 120px taller than the device actually is. Hence
+   max-height:700px, comfortably covering both the 628px PWA and the
+   532px browser-tab case.
+
+   This tier also trims <main>'s own padding (the only tier that does):
+   24px top + 32px bottom is unremarkable on a laptop and is a large
+   share of a viewport this short. Sized with deliberate headroom - it
+   needs ~456px of the ~552px available at 628px - because estimates of
+   the cards' real heights have run optimistic more than once here, and
+   a fitted page with slack beats another round of shaving. */
+@media (min-width: 900px) and (max-height: 700px) {
   .van-shell > .van-mainel {
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
