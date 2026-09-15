@@ -83,10 +83,15 @@ export function CockpitDashboard() {
   const topPrediction = brief?.predictions?.[0];
 
   return (
-    <div className="grid grid-cols-3 gap-5">
-      {/* Row 1 */}
+    <div className="grid grid-cols-3 gap-5 items-start">
+      {/* Row 1 - Battery/Solar bigger, matching the original hero
+          sizing (16 Sep: "let's try 1" - bigger hero tiles for
+          Battery/Solar/Net-energy, everything else stays compact and
+          uniform). items-start on the grid lets each column size to
+          its own content instead of every tile in a row being
+          stretched to match its tallest neighbour. */}
       <Tile index={0}>
-        <GlassCard level="hero" glow="teal" className="h-full min-h-[240px] flex flex-col">
+        <GlassCard level="hero" glow="teal" className="min-h-[320px] flex flex-col">
           <CardHeader label="Battery" right={<BatteryIcon size={16} className="text-aurora-teal" />} />
           <div className="num text-4xl font-bold">{fmtVolt(battery.payload?.voltage)}</div>
           {battery.payload?.soc_pct != null && (
@@ -115,7 +120,7 @@ export function CockpitDashboard() {
 
       <Tile index={1}>
         <Link to="/overview" className="block h-full">
-          <GlassCard level="hero" glow="purple" className="h-full min-h-[240px] flex flex-col hover:ring-aurora-purple/40 transition-colors">
+          <GlassCard level="hero" glow="purple" className="min-h-[240px] flex flex-col hover:ring-aurora-purple/40 transition-colors">
             <CardHeader label="Mission Brief" right={<Icon size={16} className={meta.tone === 'green' ? 'text-status-green' : meta.tone === 'amber' ? 'text-status-amber' : 'text-status-red'} />} />
             <StatusPill tone={meta.tone === 'green' ? 'teal' : meta.tone}>{meta.label}</StatusPill>
             <div className="text-sm text-ink-soft mt-3 line-clamp-3">{brief?.summary || 'Assembling mission brief…'}</div>
@@ -132,7 +137,7 @@ export function CockpitDashboard() {
       </Tile>
 
       <Tile index={2}>
-        <GlassCard level="hero" className="h-full min-h-[240px] flex flex-col">
+        <GlassCard level="hero" className="min-h-[320px] flex flex-col">
           <CardHeader label="Solar" right={<Sun size={16} className="text-brand-orange" />} />
           <div className="num text-4xl font-bold">{fmtWatt(solar.payload?.watts)}</div>
           <div className="text-[11px] text-ink-faint mt-1">
@@ -152,7 +157,7 @@ export function CockpitDashboard() {
       {/* Row 2 - camera dead centre, same footprint as every neighbour */}
       <Tile index={3}>
         <Link to="/nearby" className="block h-full">
-          <GlassCard className="h-full min-h-[240px] flex flex-col hover:ring-white/20 transition-all">
+          <GlassCard className="min-h-[240px] flex flex-col hover:ring-white/20 transition-all">
             <CardHeader label="Satellites" right={<Satellite size={16} className="text-status-green" />} />
             <div className="num text-4xl font-bold">{loc.data?.satellites ?? DASH}</div>
             <div className="text-[11px] text-ink-faint mt-1">
@@ -169,7 +174,7 @@ export function CockpitDashboard() {
 
       <Tile index={4}>
         <Link to="/camera" className="block h-full">
-          <GlassCard className="h-full min-h-[240px] p-0 overflow-hidden relative hover:ring-white/20 transition-all">
+          <GlassCard className="min-h-[240px] p-0 overflow-hidden relative hover:ring-white/20 transition-all">
             <img
               src={api.cameraSnapshotUrl(Math.floor(now.getTime() / 5000) * 5000)}
               alt="Van camera"
@@ -187,7 +192,7 @@ export function CockpitDashboard() {
 
       <Tile index={5}>
         <Link to="/power" className="block h-full">
-          <GlassCard className="h-full min-h-[240px] flex flex-col hover:ring-white/20 transition-all">
+          <GlassCard className="min-h-[240px] flex flex-col hover:ring-white/20 transition-all">
             <CardHeader label="Charging power" hint="MPPT → bank" right={<PlugZap size={16} className="text-aurora-teal" />} />
             <div className="num text-4xl font-bold">{fmtWatt(battery.payload?.charging_power_w)}</div>
             <div className="text-[11px] text-ink-faint mt-1">{battery.payload?.charging ? 'Charging' : 'Not charging'}</div>
@@ -197,16 +202,16 @@ export function CockpitDashboard() {
 
       {/* Row 3 */}
       <Tile index={6}>
-        <GlassCard level="quiet" className="h-full min-h-[240px] flex flex-col">
+        <GlassCard level="quiet" className="min-h-[320px] flex flex-col justify-center">
           <CardHeader label="Net energy" hint="solar − load" right={<Zap size={16} className="text-aurora-teal" />} />
-          <div className="num text-4xl font-bold">{fmtWatt(energy.payload?.net_watts)}</div>
+          <div className="num text-5xl font-bold">{fmtWatt(energy.payload?.net_watts)}</div>
           <div className="text-[11px] text-ink-faint mt-2">in {fmtWatt(energy.payload?.solar_watts)} · out {fmtWatt(energy.payload?.load_watts)}</div>
         </GlassCard>
       </Tile>
 
       <Tile index={7}>
         <Link to="/weather" className="block h-full">
-          <GlassCard level="quiet" className="h-full min-h-[240px] flex flex-col hover:ring-white/15 transition-colors">
+          <GlassCard level="quiet" className="min-h-[240px] flex flex-col hover:ring-white/15 transition-colors">
             <CardHeader label="Weather" right={<CloudSun size={16} className="text-brand-orange" />} />
             <div className="num text-4xl font-bold">{fmtTemp(weather.payload?.current_temp_c)}</div>
             <div className="text-[11px] text-ink-faint mt-1 line-clamp-2">{weather.payload?.current_weather_description || 'No reading yet'}</div>
@@ -216,7 +221,7 @@ export function CockpitDashboard() {
 
       <Tile index={8}>
         <Link to="/weather" className="block h-full">
-          <GlassCard level="quiet" className="h-full min-h-[240px] flex flex-col hover:ring-white/15 transition-colors">
+          <GlassCard level="quiet" className="min-h-[240px] flex flex-col hover:ring-white/15 transition-colors">
             <CardHeader label="Temperatures" hint="1-Wire probes" right={<Thermometer size={16} className="text-aurora-teal" />} />
             <div className="flex gap-8 mt-2">
               <div>
