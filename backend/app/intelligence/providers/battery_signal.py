@@ -29,6 +29,19 @@ SOC_WARNING_THRESHOLD = 40.0
 NO_SHUNT_CAVEAT = "no battery shunt installed, voltage-only estimate"
 SHUNT_UNSYNCED_CAVEAT = "shunt fitted but not yet synchronised - needs a full charge before it can report a percentage"
 
+# A shunt is fitted if ANY shunt-only field is present - not just
+# current_a. BATTERY has two publishers (the MPPT and the SmartShunt);
+# when the MPPT's message is the most recent one it carries voltage but
+# no current, and testing current_a alone then concluded "no battery
+# shunt installed" on a van that has had one fitted for months. Any of
+# these fields can only come from a shunt.
+_SHUNT_FIELDS = ("current_a", "power_w", "consumed_ah", "time_remaining_mins")
+
+
+def _shunt_fitted(payload: dict) -> bool:
+    return any(payload.get(f) is not None for f in _SHUNT_FIELDS)
+
+
 
 class BatterySignalProvider:
     def __init__(self, telemetry_service: TelemetryService) -> None:
@@ -43,7 +56,7 @@ class BatterySignalProvider:
         voltage = battery_msg.payload.get("voltage")
         # current_a only ever comes from a shunt, so its presence is how
         # we know one exists even while soc_pct is still None.
-        caveat = SHUNT_UNSYNCED_CAVEAT if battery_msg.payload.get("current_a") is not None else NO_SHUNT_CAVEAT
+        caveat = SHUNT_UNSYNCED_CAVEAT if _shunt_fitted(battery_msg.payload) else NO_SHUNT_CAVEAT
 
         if soc_pct is None:
             # No shunt - same voltage-only fallback the old PowerBudgetService

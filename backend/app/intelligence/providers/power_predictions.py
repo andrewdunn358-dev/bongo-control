@@ -26,8 +26,13 @@ NO_SHUNT_CAVEAT = "No battery shunt installed - estimate based on voltage only, 
 SHUNT_UNSYNCED_CAVEAT = "Shunt fitted but not yet synchronised - needs a full charge before it can report a percentage"
 
 
+# See battery_signal.py for why current_a alone is not a safe test.
+_SHUNT_FIELDS = ("current_a", "power_w", "consumed_ah", "time_remaining_mins")
+
+
 def _caveat(payload: dict) -> str:
-    return SHUNT_UNSYNCED_CAVEAT if payload.get("current_a") is not None else NO_SHUNT_CAVEAT
+    fitted = any(payload.get(f) is not None for f in _SHUNT_FIELDS)
+    return SHUNT_UNSYNCED_CAVEAT if fitted else NO_SHUNT_CAVEAT
 
 
 class PowerPredictionProvider:

@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   XCircle,
   Satellite,
-  CloudSun,
   Flame,
   Wifi,
   WifiOff,
@@ -14,6 +13,12 @@ import {
 } from 'lucide-react';
 
 import { StatusPill } from '@/components/primitives/StatusPill';
+import {
+  VanOSBattery,
+  VanOSSolar,
+  VanOSThermometer,
+  VanOSWeather,
+} from '@/components/VanOSGraphics';
 import { api } from '@/lib/api';
 import {
   useBattery,
@@ -57,92 +62,6 @@ function useClock(): Date {
   return now;
 }
 
-/**
- * Custom VanOS battery graphic.
- * This intentionally replaces the generic Lucide Battery icon.
- */
-function BatteryGraphic({ soc }: { soc?: number | null }) {
-  const value = soc == null ? 0 : Math.max(0, Math.min(100, soc));
-
-  const fill =
-    value < 50 ? '#f0645b' : value < 70 ? '#f2b84b' : '#32d583';
-
-  const fillHeight = 36 * value / 100;
-  const fillY = 48 - fillHeight;
-
-  return (
-    <svg
-      width="46"
-      height="60"
-      viewBox="0 0 46 60"
-      aria-hidden="true"
-      className="shrink-0"
-    >
-      <rect
-        x="7"
-        y="7"
-        width="32"
-        height="46"
-        rx="6"
-        fill="none"
-        stroke="#9aa8b6"
-        strokeWidth="2"
-      />
-      <rect
-        x="15"
-        y="1"
-        width="16"
-        height="8"
-        rx="2.5"
-        fill="#9aa8b6"
-      />
-      {value > 0 && (
-        <rect
-          x="11"
-          y={fillY}
-          width="24"
-          height={fillHeight}
-          rx="3"
-          fill={fill}
-        />
-      )}
-      <rect
-        x="11"
-        y="11"
-        width="24"
-        height="34"
-        rx="3"
-        fill="none"
-        stroke="#304050"
-        strokeWidth="1"
-      />
-    </svg>
-  );
-}
-
-function SolarGraphic() {
-  return (
-    <svg
-      width="46"
-      height="46"
-      viewBox="0 0 46 46"
-      aria-hidden="true"
-      className="shrink-0"
-    >
-      <circle cx="23" cy="23" r="7" fill="#f5c451" />
-      <g stroke="#f5c451" strokeWidth="2" strokeLinecap="round">
-        <path d="M23 3v7" />
-        <path d="M23 36v7" />
-        <path d="M3 23h7" />
-        <path d="M36 23h7" />
-        <path d="m9 9 5 5" />
-        <path d="m32 32 5 5" />
-        <path d="m37 9-5 5" />
-        <path d="m14 32-5 5" />
-      </g>
-    </svg>
-  );
-}
 
 function MiniSpark({
   data,
@@ -298,7 +217,14 @@ export function CockpitDashboard() {
   const cameraTimestamp = Math.floor(now.getTime() / 5000) * 5000;
 
   return (
-    <div className="mx-auto w-full max-w-[1280px] space-y-5 pb-8">
+    <div
+      className="mx-auto grid w-full max-w-[1280px] gap-3 overflow-hidden"
+      style={{
+        height: 'calc(100dvh - 12rem)',
+        minHeight: 0,
+        gridTemplateRows: 'auto minmax(0, 1fr) auto auto',
+      }}
+    >
       {/* ============================================================
           STATUS
          ============================================================ */}
@@ -384,16 +310,16 @@ export function CockpitDashboard() {
          ============================================================ */}
       <div className="grid min-h-0 grid-cols-1 gap-4 lg:grid-cols-[minmax(300px,40fr)_minmax(0,60fr)]">
         {/* POWER COLUMN */}
-        <div className="grid min-h-0 gap-4 lg:grid-rows-2">
+        <div className="grid min-h-0 gap-4 lg:grid-rows-[minmax(0,1fr)_minmax(0,1fr)]">
           {/* BATTERY */}
           <Link to="/power" className="block min-h-0">
             <Panel
               raised
-              className="group flex h-full min-h-[250px] flex-col p-5 transition-colors duration-150 hover:border-[#3b9cff]/70"
+              className="group flex h-full min-h-0 flex-col overflow-hidden p-5 transition-colors duration-150 hover:border-[#3b9cff]/70"
             >
               <div className="flex items-start justify-between">
                 <MetricLabel>Battery</MetricLabel>
-                <BatteryGraphic soc={bp?.soc_pct} />
+                <VanOSBattery soc={bp?.soc_pct} charging={bp?.charging} />
               </div>
 
               <div className="mt-1 flex items-end gap-3">
@@ -475,11 +401,11 @@ export function CockpitDashboard() {
           <Link to="/weather" className="block min-h-0">
             <Panel
               raised
-              className="group flex h-full min-h-[250px] flex-col p-5 transition-colors duration-150 hover:border-[#3b9cff]/70"
+              className="group flex h-full min-h-0 flex-col overflow-hidden p-5 transition-colors duration-150 hover:border-[#3b9cff]/70"
             >
               <div className="flex items-start justify-between">
                 <MetricLabel>Solar</MetricLabel>
-                <SolarGraphic />
+                <VanOSSolar />
               </div>
 
               <div className="mt-1 flex items-end gap-3">
@@ -544,7 +470,7 @@ export function CockpitDashboard() {
               <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white">
                 {connected ? 'LIVE' : 'OFFLINE'}
               </span>
-              <span className="text-[11px] text-white/55">Rear Camera</span>
+              <span className="text-[11px] text-white/55">Van Camera</span>
             </div>
 
             <div className="absolute bottom-4 left-4">
@@ -617,13 +543,16 @@ export function CockpitDashboard() {
           <Panel className="h-full p-4 transition-colors duration-150 hover:border-[#304050]">
             <div className="flex items-center justify-between">
               <MetricLabel>Environment</MetricLabel>
-              <CloudSun size={16} className="text-[#f5c451]" />
+              <VanOSWeather condition={weather.payload?.current_weather_description} size={26} />
             </div>
 
             <div className="mt-4 grid grid-cols-3 gap-3">
               <div>
-                <div className="font-mono text-[20px] font-semibold text-[#f1f5f9]">
-                  {fmtTemp(env.payload?.internal_temp_c)}
+                <div className="flex items-center gap-1.5">
+                  <VanOSThermometer temperature={env.payload?.internal_temp_c} size={20} />
+                  <span className="font-mono text-[20px] font-semibold text-[#f1f5f9]">
+                    {fmtTemp(env.payload?.internal_temp_c)}
+                  </span>
                 </div>
                 <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-[#647382]">
                   Inside
