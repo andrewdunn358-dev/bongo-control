@@ -29,11 +29,15 @@ const STATUS_META = {
   red: { tone: 'red' as const, label: 'CRITICAL', icon: XCircle, cls: 'text-status-red' },
 };
 
+/** A titled row that FILLS its grid track rather than sizing to its
+ *  content - min-h-0 on both the wrapper and the inner grid is what
+ *  stops a tall card pushing the whole page past one viewport (grid
+ *  tracks default to min-content, which reintroduces the scrollbar). */
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div>
-      <div className="text-[11px] uppercase tracking-[0.18em] text-ink-muted mb-3">{title}</div>
-      {children}
+    <div className="min-h-0 flex flex-col">
+      <div className="text-[11px] uppercase tracking-[0.18em] text-ink-muted mb-2 shrink-0">{title}</div>
+      <div className="min-h-0 flex-1">{children}</div>
     </div>
   );
 }
@@ -45,7 +49,7 @@ function Tile({ index, children }: { index: number; children: ReactNode }) {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.5, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }}
       whileHover={{ scale: 1.012 }}
-      className="h-full"
+      className="h-full min-h-0"
     >
       {children}
     </motion.div>
@@ -162,10 +166,29 @@ export function CockpitDashboard() {
   const topPred = brief?.predictions?.[0];
 
   return (
-    <div className="space-y-8">
+    // Fits ONE viewport - no scrolling. 16 Sep: "I have to scroll down
+    // to see stuff, that's not good on desktop or tablet". A dashboard
+    // you have to scroll isn't a dashboard.
+    //
+    // The previous version stacked fixed pixel heights (300 + 220 +
+    // 230 + gaps + section labels), which overflows any laptop screen
+    // by construction. This is a real height-constrained grid instead:
+    // 100vh minus NavShell's chrome (pt-6 + pb-28 on <main>, plus the
+    // sticky header), then three rows sharing what's left by RATIO
+    // (1.1 / 1 / 1) rather than by fixed pixels. min-h-0 on the rows
+    // is load-bearing - grid rows default to min-content, which would
+    // let a tall card push the grid past its own height and bring the
+    // scrollbar straight back.
+    <div
+      className="grid gap-4"
+      style={{
+        height: 'calc(100vh - 12.5rem)',
+        gridTemplateRows: 'auto 1.1fr 1fr 1fr',
+      }}
+    >
       {/* ── Status band: one dominant answer to "how is the van?" ── */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }}>
-        <Link to="/overview" className="block">
+        <Link to="/overview" className="block h-full">
           <GlassCard level="hero" glow={brief?.status === 'red' ? undefined : 'teal'} className="hover:ring-white/20 transition-all">
             <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
               <div className="flex items-center gap-4 min-w-0 flex-1">
@@ -218,13 +241,13 @@ export function CockpitDashboard() {
 
       {/* ── Power: the system that actually matters off-grid ── */}
       <Section title="Power">
-        <div className="grid grid-cols-3 gap-5 items-start">
+        <div className="grid grid-cols-3 gap-4 h-full min-h-0">
           <Tile index={0}>
-            <Link to="/power" className="block">
-              <GlassCard level="hero" glow="teal" className="min-h-[300px] flex flex-col hover:ring-white/20 transition-all">
+            <Link to="/power" className="block h-full">
+              <GlassCard level="hero" glow="teal" className="h-full min-h-0 overflow-hidden flex flex-col hover:ring-white/20 transition-all">
                 <CardHeader label="Battery" right={<BatteryIcon size={16} className="text-aurora-teal" />} />
                 <div className="flex items-baseline gap-3">
-                  <span className="num text-5xl font-bold">{bp?.soc_pct != null ? `${Math.round(bp.soc_pct)}%` : DASH}</span>
+                  <span className="num font-bold text-[clamp(1.5rem,3.2vh,2.25rem)]">{bp?.soc_pct != null ? `${Math.round(bp.soc_pct)}%` : DASH}</span>
                   <span className="num text-xl text-ink-soft">{fmtVolt(bp?.voltage)}</span>
                 </div>
                 {bp?.soc_pct != null && (
@@ -248,10 +271,10 @@ export function CockpitDashboard() {
           </Tile>
 
           <Tile index={1}>
-            <Link to="/weather" className="block">
-              <GlassCard level="hero" className="min-h-[300px] flex flex-col hover:ring-white/20 transition-all">
+            <Link to="/weather" className="block h-full">
+              <GlassCard level="hero" className="h-full min-h-0 overflow-hidden flex flex-col hover:ring-white/20 transition-all">
                 <CardHeader label="Solar" right={<Sun size={16} className="text-brand-orange" />} />
-                <div className="num text-5xl font-bold">{fmtWatt(solar.payload?.watts)}</div>
+                <div className="num font-bold text-[clamp(1.5rem,3.2vh,2.25rem)]">{fmtWatt(solar.payload?.watts)}</div>
                 <div className="text-sm text-ink-soft mt-3">
                   Peak today {fmtWatt(solar.payload?.peak_today_watts)}
                 </div>
@@ -267,14 +290,14 @@ export function CockpitDashboard() {
           </Tile>
 
           <Tile index={2}>
-            <Link to="/power" className="block">
-              <GlassCard level="hero" className="min-h-[300px] flex flex-col hover:ring-white/20 transition-all">
+            <Link to="/power" className="block h-full">
+              <GlassCard level="hero" className="h-full min-h-0 overflow-hidden flex flex-col hover:ring-white/20 transition-all">
                 <CardHeader label="Net energy" hint="solar − load" right={<Zap size={16} className="text-aurora-teal" />} />
                 {/* The question this answers: am I making more than I'm
                     using? Sign carries that, so it's stated rather than
                     left for the reader to infer from a bare number. */}
                 <div
-                  className={`num text-5xl font-bold ${
+                  className={`num font-bold text-[clamp(1.5rem,3.2vh,2.25rem)] ${
                     energy.payload?.net_watts == null
                       ? ''
                       : energy.payload.net_watts > 0
@@ -307,14 +330,14 @@ export function CockpitDashboard() {
       </Section>
 
       {/* ── Environment + the engine's own advice ── */}
-      <div className="grid grid-cols-3 gap-5 items-start">
-        <div className="col-span-1">
+      <div className="grid grid-cols-3 gap-4 min-h-0">
+        <div className="col-span-1 min-h-0">
           <Section title="Environment">
             <Tile index={3}>
-              <Link to="/weather" className="block">
-                <GlassCard className="min-h-[220px] flex flex-col hover:ring-white/20 transition-all">
+              <Link to="/weather" className="block h-full">
+                <GlassCard className="h-full min-h-0 overflow-hidden flex flex-col hover:ring-white/20 transition-all">
                   <CardHeader label="Weather" right={<CloudSun size={16} className="text-brand-orange" />} />
-                  <div className="num text-4xl font-bold">{fmtTemp(weather.payload?.current_temp_c)}</div>
+                  <div className="num font-bold text-[clamp(1.5rem,3.2vh,2.25rem)]">{fmtTemp(weather.payload?.current_temp_c)}</div>
                   <div className="text-sm text-ink-soft mt-1 line-clamp-1">
                     {weather.payload?.current_weather_description || 'No reading yet'}
                   </div>
@@ -323,11 +346,11 @@ export function CockpitDashboard() {
                       <div className="text-[10px] uppercase tracking-wider text-ink-muted flex items-center gap-1">
                         <Thermometer size={10} /> Inside
                       </div>
-                      <div className="num text-2xl font-semibold">{fmtTemp(env.payload?.internal_temp_c)}</div>
+                      <div className="num font-semibold text-[clamp(1.1rem,2.2vh,1.5rem)]">{fmtTemp(env.payload?.internal_temp_c)}</div>
                     </div>
                     <div>
                       <div className="text-[10px] uppercase tracking-wider text-ink-muted">Outside</div>
-                      <div className="num text-2xl font-semibold">{fmtTemp(env.payload?.external_temp_c)}</div>
+                      <div className="num font-semibold text-[clamp(1.1rem,2.2vh,1.5rem)]">{fmtTemp(env.payload?.external_temp_c)}</div>
                     </div>
                   </div>
                 </GlassCard>
@@ -336,11 +359,11 @@ export function CockpitDashboard() {
           </Section>
         </div>
 
-        <div className="col-span-2">
+        <div className="col-span-2 min-h-0">
           <Section title="What you need to know">
             <Tile index={4}>
-              <Link to="/overview" className="block">
-                <GlassCard level="hero" glow="purple" className="min-h-[220px] flex flex-col hover:ring-aurora-purple/40 transition-all">
+              <Link to="/overview" className="block h-full">
+                <GlassCard level="hero" glow="purple" className="h-full min-h-0 overflow-hidden flex flex-col hover:ring-aurora-purple/40 transition-all">
                   <CardHeader label="Today's brief" hint="from the intelligence engine" right={<Lightbulb size={16} className="text-aurora-purple" />} />
                   <div className="text-base text-ink-soft line-clamp-2">{brief?.summary || 'Assembling mission brief…'}</div>
 
@@ -355,7 +378,7 @@ export function CockpitDashboard() {
                     <div className="mt-auto pt-4 flex items-end justify-between gap-4 border-t border-ink/10">
                       <div className="min-w-0">
                         <div className="text-[10px] uppercase tracking-wider text-ink-muted">{topPred.label}</div>
-                        <div className="num text-2xl font-semibold">
+                        <div className="num font-semibold text-[clamp(1.1rem,2.2vh,1.5rem)]">
                           {topPred.value == null ? DASH : `${topPred.value}${topPred.unit ? ` ${topPred.unit}` : ''}`}
                         </div>
                         {topPred.confidence && <div className="text-[11px] text-ink-faint mt-0.5 line-clamp-1">{topPred.confidence}</div>}
@@ -374,10 +397,10 @@ export function CockpitDashboard() {
 
       {/* ── Situational awareness ── */}
       <Section title="Right now">
-        <div className="grid grid-cols-3 gap-5 items-start">
+        <div className="grid grid-cols-3 gap-4 h-full min-h-0">
           <Tile index={5}>
-            <Link to="/camera" className="block">
-              <GlassCard className="min-h-[230px] p-0 overflow-hidden relative hover:ring-white/20 transition-all">
+            <Link to="/camera" className="block h-full">
+              <GlassCard className="h-full p-0 overflow-hidden relative hover:ring-white/20 transition-all">
                 <img
                   src={api.cameraSnapshotUrl(Math.floor(now.getTime() / 5000) * 5000)}
                   alt="Van camera"
@@ -394,10 +417,10 @@ export function CockpitDashboard() {
           </Tile>
 
           <Tile index={6}>
-            <Link to="/nearby" className="block">
-              <GlassCard className="min-h-[230px] flex flex-col hover:ring-white/20 transition-all">
+            <Link to="/nearby" className="block h-full">
+              <GlassCard className="h-full min-h-0 overflow-hidden flex flex-col hover:ring-white/20 transition-all">
                 <CardHeader label="Location" right={<Satellite size={16} className="text-status-green" />} />
-                <div className="num text-4xl font-bold">{loc.data?.satellites ?? DASH}</div>
+                <div className="num font-bold text-[clamp(1.5rem,3.2vh,2.25rem)]">{loc.data?.satellites ?? DASH}</div>
                 <div className="text-sm text-ink-soft mt-1">
                   satellites{loc.data?.hdop != null && <span className="text-ink-faint"> · HDOP {loc.data.hdop.toFixed(1)}</span>}
                 </div>
@@ -411,14 +434,14 @@ export function CockpitDashboard() {
           </Tile>
 
           <Tile index={7}>
-            <Link to="/heater" className="block">
-              <GlassCard className="min-h-[230px] flex flex-col hover:ring-white/20 transition-all">
+            <Link to="/heater" className="block h-full">
+              <GlassCard className="h-full min-h-0 overflow-hidden flex flex-col hover:ring-white/20 transition-all">
                 <CardHeader
                   label="Heater"
                   right={<Flame size={16} className={heaterOn ? 'text-brand-orange' : 'text-ink-muted'} />}
                 />
                 <StatusPill tone={hs.error_code ? 'red' : heaterOn ? 'amber' : 'slate'}>{heaterLabel}</StatusPill>
-                <div className="num text-3xl font-semibold mt-3">
+                <div className="num font-semibold text-[clamp(1.25rem,2.6vh,1.875rem)] mt-3">
                   {hs.target != null ? `${hs.target}${hs.mode === 2 ? '°C' : ''}` : DASH}
                 </div>
                 <div className="text-[11px] text-ink-faint mt-1">
