@@ -214,14 +214,7 @@ export function CockpitDashboard() {
   const cameraTimestamp = Math.floor(now.getTime() / 5000) * 5000;
 
   return (
-    <div
-      className="mx-auto grid w-full max-w-[1280px] gap-3 overflow-hidden"
-      style={{
-        height: 'calc(100dvh - 12rem)',
-        minHeight: 0,
-        gridTemplateRows: 'auto minmax(0, 1fr) auto auto',
-      }}
-    >
+    <div className="mx-auto w-full max-w-[1280px] space-y-5 pb-8">
       {/* ============================================================
           STATUS
          ============================================================ */}
@@ -316,12 +309,12 @@ export function CockpitDashboard() {
          ============================================================ */}
       <div className="grid min-h-0 grid-cols-1 gap-4 lg:grid-cols-[minmax(300px,40fr)_minmax(0,60fr)]">
         {/* POWER COLUMN */}
-        <div className="grid min-h-0 gap-4 lg:grid-rows-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="grid min-h-0 gap-4 lg:grid-rows-2">
           {/* BATTERY */}
           <Link to="/power" className="block min-h-0">
             <Panel
               raised
-              className="group flex h-full min-h-0 flex-col overflow-hidden p-5 transition-colors duration-150 hover:border-[#3b9cff]/70"
+              className="group flex h-full min-h-[250px] flex-col p-5 transition-colors duration-150 hover:border-[#3b9cff]/70"
             >
               <div className="flex items-start justify-between">
                 <MetricLabel>Battery</MetricLabel>
@@ -407,7 +400,7 @@ export function CockpitDashboard() {
           <Link to="/weather" className="block min-h-0">
             <Panel
               raised
-              className="group flex h-full min-h-0 flex-col overflow-hidden p-5 transition-colors duration-150 hover:border-[#3b9cff]/70"
+              className="group flex h-full min-h-[250px] flex-col p-5 transition-colors duration-150 hover:border-[#3b9cff]/70"
             >
               <div className="flex items-start justify-between">
                 <MetricLabel>Solar</MetricLabel>
