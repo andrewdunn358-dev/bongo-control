@@ -308,7 +308,7 @@ export function CockpitDashboard() {
           MAIN COCKPIT
           40% power / 60% camera
          ============================================================ */}
-      <div className="grid min-h-0 grid-cols-1 gap-4 lg:grid-cols-[minmax(300px,40fr)_minmax(0,60fr)]">
+      <div className="van-main grid min-h-0 grid-cols-1 gap-4 lg:grid-cols-[minmax(300px,40fr)_minmax(0,60fr)]">
         {/* POWER COLUMN */}
         <div className="grid min-h-0 gap-4 lg:grid-rows-2">
           {/* BATTERY */}
