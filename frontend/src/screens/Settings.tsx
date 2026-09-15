@@ -12,6 +12,54 @@ import { api } from '@/lib/api';
 import { isDemo } from '@/lib/demo';
 import { useTheme } from '@/lib/theme';
 import { useNavigationStyle } from '@/lib/useNavigationStyle';
+
+/** Live viewport readout. Temporary but genuinely useful: the cockpit's
+ *  layout tiers are driven by CSS viewport HEIGHT, and that number
+ *  differs between Chrome (address bar + system UI visible), an
+ *  installed PWA, and Fully Kiosk fullscreen - on the same device. It
+ *  cannot be measured from outside the app, and guessing it has cost
+ *  several build cycles. This shows exactly what the layout is being
+ *  sized against, in whichever mode the app is actually running. */
+function ViewportReadout() {
+  const [vp, setVp] = useState({ w: 0, h: 0, dpr: 1, standalone: false });
+  useEffect(() => {
+    const read = () =>
+      setVp({
+        w: window.innerWidth,
+        h: window.innerHeight,
+        dpr: window.devicePixelRatio,
+        standalone: window.matchMedia('(display-mode: standalone)').matches,
+      });
+    read();
+    window.addEventListener('resize', read);
+    window.addEventListener('orientationchange', read);
+    return () => {
+      window.removeEventListener('resize', read);
+      window.removeEventListener('orientationchange', read);
+    };
+  }, []);
+
+  // Which tier the cockpit CSS is currently matching, so the readout
+  // answers "why does it look like this", not just "how big is it".
+  const tier =
+    vp.w < 900 ? 'mobile (no cockpit)'
+    : vp.h <= 600 ? 'short tablet'
+    : vp.h <= 750 ? '750px'
+    : vp.h <= 850 ? '850px'
+    : vp.h <= 1000 ? '1000px'
+    : 'desktop';
+
+  return (
+    <GlassCard className="col-span-12 lg:col-span-5 p-6">
+      <CardHeader label="Viewport" hint="for layout sizing - temporary" />
+      <div className="font-mono text-2xl font-semibold">{vp.w} x {vp.h}</div>
+      <div className="text-xs text-ink-faint mt-2">
+        DPR {vp.dpr} · {vp.standalone ? 'installed PWA' : 'browser tab'}
+      </div>
+      <div className="text-xs text-ink-soft mt-1">Layout tier: {tier}</div>
+    </GlassCard>
+  );
+}
 import { signalToBars, getDistanceUnit, setDistanceUnit } from '@/lib/format';
 import { SET } from '@/constants/testIds';
 import { cn } from '@/lib/utils';
@@ -1322,6 +1370,8 @@ export function Settings() {
       </div>
 
       <div className="grid grid-cols-12 gap-4 lg:gap-6">
+        <ViewportReadout />
+
         <GlassCard className="col-span-12 lg:col-span-5 p-6">
           <CardHeader label="Navigation" hint="tablet and desktop only · phones always use the bottom dock" />
           <p className="text-xs text-ink-faint mb-3">
