@@ -346,6 +346,20 @@ html.light .maplibregl-ctrl-attrib a {
   .animate-live-pulse { animation: none !important; }
 }
 
+/* First tier: ordinary laptop / windowed heights (~900-1000px). The
+   camera's 520px floor alone overflows these once the status band,
+   brief and supporting row are added, so it is the main thing reduced.
+   Gentler than the tablet tiers below - there is more room here. */
+@media (min-width: 900px) and (max-height: 1000px) {
+  .van-cockpit > :not([hidden]) ~ :not([hidden]) { margin-top: 0.85rem; }
+  .van-status { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+  .van-powercard { min-height: 0; padding: 1rem; }
+  .van-camera { min-height: 380px; }
+  .van-cockpit .van-spark { height: 30px; }
+  .van-brief { padding: 0.9rem 1.1rem; }
+  .van-supportcard { padding: 0.8rem; }
+}
+
 /* ── VanOS cockpit: compact tablet / short-viewport mode ───────────
    The cockpit is deployed on a landscape tablet, so the whole Home
    screen has to fit one viewport with no page scroll.

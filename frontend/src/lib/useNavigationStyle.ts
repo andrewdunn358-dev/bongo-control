@@ -11,11 +11,11 @@ const SIDEBAR_MIN_WIDTH = 900;
 
 function read(): NavigationStyle {
   try {
-    return window.localStorage.getItem(STORAGE_KEY) === 'sidebar' ? 'sidebar' : 'dock';
+    return window.localStorage.getItem(STORAGE_KEY) === 'dock' ? 'dock' : 'sidebar';
   } catch {
-    // Private mode / storage disabled - fall back to the current default
+    // Private mode / storage disabled - fall back to the default
     // rather than throwing on first render.
-    return 'dock';
+    return 'sidebar';
   }
 }
 
