@@ -7,8 +7,7 @@ import {
   XCircle,
   Satellite,
   Flame,
-  Wifi,
-  WifiOff,
+  Cable,
   Maximize2,
 } from 'lucide-react';
 
@@ -26,7 +25,6 @@ import {
   useEnergy,
   useEnvironment,
   useWeather,
-  useConnectivity,
   useConnected,
   useSparkBuffer,
 } from '@/lib/telemetry';
@@ -153,7 +151,6 @@ export function CockpitDashboard() {
   const energy = useEnergy();
   const env = useEnvironment();
   const weather = useWeather();
-  const net = useConnectivity();
   const connected = useConnected();
   const now = useClock();
 
@@ -275,14 +272,23 @@ export function CockpitDashboard() {
               <div>
                 <MetricLabel>
                   <span className="inline-flex items-center gap-1">
-                    {net.payload?.online ? <Wifi size={10} /> : <WifiOff size={10} />}
-                    Pi ↔ Router
+                    <Cable size={10} /> Network
                   </span>
                 </MetricLabel>
+                {/* The Pi is wired to the van router over ETHERNET, not
+                    Wi-Fi - no SSID, no signal strength, no Wi-Fi icon.
+                    Reachability comes from the live websocket: if this
+                    page is receiving telemetry the Pi-to-browser path is
+                    demonstrably up. The CONNECTIVITY telemetry domain is
+                    deliberately NOT used here - nothing in the backend
+                    publishes it (only plugins/simulation does), so it
+                    reported "Offline" permanently on the real van. */}
                 <div className="mt-0.5 text-[13px] font-medium text-[#f1f5f9]">
-                  {net.payload?.online
-                    ? net.payload.ssid || 'Connected'
-                    : 'Offline'}
+                  {connected ? (
+                    <>Ethernet <span className="text-[#647382]">· Connected</span></>
+                  ) : (
+                    <span className="text-[#647382]">Not reachable</span>
+                  )}
                 </div>
               </div>
 
