@@ -219,7 +219,7 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
   return (
     <div
       className={cn(
-        'min-h-screen transition-[padding-left] duration-200 ease-out',
+        'van-shell min-h-screen transition-[padding-left] duration-200 ease-out',
         sidebarOn && (sidebarExpanded ? 'pl-[220px]' : 'pl-[78px]'),
       )}
     >
@@ -323,7 +323,7 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
         </div>
       </header>
 
-      <main className={cn('pt-6 px-4 md:px-6', sidebarOn ? 'pb-8' : 'pb-28')}>{children}</main>
+      <main className={cn('van-mainel min-w-0 pt-6 px-4 md:px-6', sidebarOn ? 'pb-8' : 'pb-28')}>{children}</main>
 
       {effectiveStyle === 'dock' && <BottomNavigation />}
     </div>

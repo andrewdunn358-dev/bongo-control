@@ -215,7 +215,7 @@ export function CockpitDashboard() {
   const cameraTimestamp = Math.floor(now.getTime() / 5000) * 5000;
 
   return (
-    <div className="van-cockpit mx-auto w-full max-w-[1280px] space-y-5 pb-8">
+    <div className="van-cockpit mx-auto w-full max-w-[1280px] space-y-5">
       {/* ============================================================
           STATUS
          ============================================================ */}

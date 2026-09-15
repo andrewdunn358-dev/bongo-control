@@ -398,3 +398,42 @@ html.light .maplibregl-ctrl-attrib a {
   .van-brief { padding: 0.65rem 0.9rem; }
   .van-supportcard { padding: 0.6rem; }
 }
+
+/* ── App shell: fit the viewport without a document scrollbar ──────
+   THE BUG: the shell root was min-h-screen (min-height:100vh) while
+   ALSO containing the header. That guarantees the page is at least a
+   full viewport tall and then stacks the ~60px header inside it, so
+   anything <main> needs beyond (100vh - header) spills past the bottom
+   and the document scrolls. The root never accounted for the header
+   at all - which is why capping cards inside the cockpit kept helping
+   without ever fully removing the scrollbar.
+
+   THE FIX: make the shell exactly one viewport tall and lay it out as
+   a column - header at its natural size, <main> taking the remainder.
+   min-height:0 on <main> is load-bearing: flex children default to
+   min-content, which would let tall content push the shell past its
+   own height and put the scrollbar straight back.
+
+   No blanket overflow:hidden. <main> scrolls internally only if its
+   content genuinely doesn't fit, so nothing is ever clipped or
+   unreachable - and when it fits (the normal case now) no scrollbar
+   appears anywhere. The header and sidebar stay put either way.
+
+   dvh, not vh, so mobile browser chrome is accounted for.
+
+   Desktop/tablet only - mobile keeps the existing scrolling page. */
+@media (min-width: 900px) {
+  .van-shell {
+    height: 100dvh;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .van-shell > header { flex: 0 0 auto; }
+  .van-shell > .van-mainel {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+}
