@@ -51,6 +51,14 @@ export const COCKPIT_THEMES: CockpitTheme[] = [
       import('@/components/cockpits/InstrumentCockpit').then((m) => ({ default: m.InstrumentCockpit })),
     ),
   },
+  {
+    id: 'adventure',
+    name: 'Adventure',
+    description: 'Camera hero, magazine styling, image action tiles',
+    component: lazy(() =>
+      import('@/components/cockpits/AdventureCockpit').then((m) => ({ default: m.AdventureCockpit })),
+    ),
+  },
 ];
 
 /** The theme used when nothing is stored, or when a stored id no longer
