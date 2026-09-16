@@ -1,0 +1,108 @@
+# SAFETY GATE
+#
+# This repo drives real 12V hardware in a campervan: relays on fused
+# loads, a pop-top roof with two motors and NO position sensor, and a
+# diesel heater. More than one agent contributes to it.
+#
+# A wrong constant here does not fail a type check and does not look
+# wrong in review - it just drives the wrong circuit, or removes the
+# only thing that stops a motor. These checks exist so that cannot
+# reach the van silently.
+#
+# If a check fails, do not work around it. Either the change is a bug,
+# or the physical van has genuinely changed and the expected values in
+# tools/ must be updated in the SAME commit, with the reason.
+name: Safety gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  hardware-contract:
+    name: Hardware contract (GPIO, polarity, roof, heater)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: python3 tools/check_hardware_contract.py
+
+  frontend-contract:
+    name: Frontend contract (honesty rules)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: python3 tools/check_frontend_contract.py
+
+  secrets:
+    name: No secrets or backups committed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Block credential and backup artefacts
+        run: |
+          # A 44MB encrypted config backup was committed to a public repo
+          # once. Git history is permanent - the only real fix is not
+          # committing it in the first place.
+          bad=$(git ls-files | grep -iE '\.(enc|pem|key|p12)$|\.tar\.gz$|(^|/)\.env$|vanos-migration|(^|/)config\.json$' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::Credential or backup artefacts must not be committed:"
+            echo "$bad"
+            echo "Use Settings -> Backup in the app to move config between cards."
+            exit 1
+          fi
+          echo "No credential or backup artefacts tracked."
+      - name: Scan for live API keys
+        run: |
+          # Matches the key formats this project actually uses.
+          hits=$(git grep -nE 'sk-ant-api[0-9]{2}-|gsk_[A-Za-z0-9]{40,}|AIza[0-9A-Za-z_-]{30,}|ghp_[A-Za-z0-9]{30,}' \
+                 -- . ':(exclude)*.md' ':(exclude)tools/check_*' ':(exclude).github/workflows/*' || true)
+          if [ -n "$hits" ]; then
+            echo "::error::Possible live API key committed:"
+            echo "$hits"
+            exit 1
+          fi
+          echo "No API key patterns found."
+
+  backend:
+    name: Backend compiles and safety tests pass
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Byte-compile every backend module
+        run: python3 -m compileall -q backend/app backend/tools
+      - name: Roof and battery safety suites
+        run: |
+          cd backend
+          pip install -q -r requirements.txt
+          # These assert the guards that stop a roof motor and protect
+          # the battery maths. They must never be skipped.
+          for t in test_roof_safety.py test_battery_bank.py test_energy_balance.py \
+                   test_battery_alarms.py test_daily_cache.py test_heater_fuel.py; do
+            echo "--- $t"
+            python3 "$t"
+          done
+
+  frontend:
+    name: Frontend typechecks and builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - run: npm ci
+        working-directory: frontend
+      - run: npx tsc -b
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - name: Demo build
+        run: VITE_DEMO=true npm run build
+        working-directory: frontend
