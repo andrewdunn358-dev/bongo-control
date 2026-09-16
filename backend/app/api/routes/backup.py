@@ -40,7 +40,7 @@ def download_backup() -> Response:
 async def restore_backup(file: UploadFile = File(...)) -> dict:
     data = await file.read()
     try:
-        backup_service.restore_zip(data)
+        result = backup_service.restore_zip(data)
     except BackupError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    return {"ok": True, "message": "Restored. The app is restarting - reload in a few seconds."}
+    return {"ok": True, "message": "Restored. The app is restarting - reload in a few seconds.", **result}

@@ -93,17 +93,25 @@ services:
       # relays energised through boot, no temperature sensors, no heater
       # and a slow camera, with nothing to explain why.
       #
-      # Read-only on purpose: the backup only ever READS these. Restore
-      # does not write them back - that would need rw access to host
-      # /boot and /etc, which is a genuine escalation for no benefit,
-      # since applying them needs a reboot and root anyway. They are
-      # included in the zip for manual placement, with instructions.
+      # WRITABLE, so restore can actually restore them. An earlier
+      # version mounted these read-only and left the three host files to
+      # be placed by hand, which is not a restore - it is a checklist,
+      # and the exact kind of silent gap that turns a "restored" card
+      # into one that boots with relays energised and no heater.
       #
-      # Both are optional (:ro with a missing source would fail the
-      # container, so they are declared only as directories that exist
-      # on any Raspberry Pi OS install).
-      - /boot/firmware:/host/boot:ro
-      - /etc/systemd/system:/host/systemd:ro
+      # rw is not a meaningful escalation here: this container already
+      # runs as root with host networking and /dev/gpiochip0, i.e. it can
+      # already drive real 12V circuits. Guarding /boot while handing out
+      # the relays would be security theatre.
+      #
+      # The real risk is a BAD config.txt making the Pi unbootable, so
+      # restore_zip validates the incoming file and keeps a .bak - see
+      # backup_service._restore_host_files().
+      #
+      # /boot/firmware is the Bookworm path (pre-Bookworm was /boot);
+      # this project targets Bookworm - see relay_service.py.
+      - /boot/firmware:/host/boot
+      - /etc/systemd/system:/host/systemd
     environment:
       VANOS_ENVIRONMENT: production
       VANOS_DATABASE_URL: sqlite:///./data/vanos.db

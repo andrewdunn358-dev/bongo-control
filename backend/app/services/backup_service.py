@@ -185,7 +185,67 @@ class BackupService:
             raise BackupError("Nothing to back up yet - no config.json or vanos.db found.")
         return buf.getvalue()
 
-    def restore_zip(self, data: bytes) -> None:
+
+    def _restore_host_files(self, zf: zipfile.ZipFile, names: set[str]) -> tuple[list[str], list[str]]:
+        """Write the host files back. Returns (restored, skipped-with-reason).
+
+        These are the files that decide whether a restored card actually
+        works: the boot GPIO guard, the 1-Wire overlay, and the two host
+        systemd units. Leaving them to be copied by hand was the gap that
+        made a "restored" card come up with relays energised through boot
+        and no heater, with nothing explaining why.
+
+        config.txt is SANITY CHECKED before writing, because a malformed
+        one makes the Pi unbootable and there is no recovering that from
+        software. The existing file is kept as .bak either way.
+        """
+        restored: list[str] = []
+        skipped: list[str] = []
+
+        for src, arcname, _why in _HOST_FILES:
+            if arcname not in names:
+                skipped.append(f"{arcname} - not present in this backup")
+                continue
+
+            dest = Path(src)
+            if not dest.parent.is_dir():
+                skipped.append(f"{arcname} - {dest.parent} not mounted (rebuild with the current docker-compose.yml)")
+                continue
+
+            try:
+                payload = zf.read(arcname)
+            except KeyError:
+                skipped.append(f"{arcname} - unreadable inside the zip")
+                continue
+
+            # Guard the one file that can brick the Pi. A real config.txt
+            # is small, text, and carries recognisable directives; refuse
+            # anything that does not look like one rather than risk an
+            # unbootable card.
+            if arcname.endswith("config.txt"):
+                try:
+                    text = payload.decode("utf-8")
+                except UnicodeDecodeError:
+                    skipped.append(f"{arcname} - not valid UTF-8, refused (would risk an unbootable Pi)")
+                    continue
+                if len(payload) > 64 * 1024 or not any(
+                    marker in text for marker in ("dtoverlay", "dtparam", "gpio=", "[all]", "arm_", "kernel")
+                ):
+                    skipped.append(f"{arcname} - does not look like a Pi config.txt, refused")
+                    continue
+
+            try:
+                if dest.exists():
+                    shutil.copy2(dest, dest.with_suffix(dest.suffix + ".bak"))
+                with open(dest, "wb") as fh:
+                    fh.write(payload)
+                restored.append(f"{arcname} -> {src}")
+            except OSError as e:
+                skipped.append(f"{arcname} - could not write {src}: {e}")
+
+        return restored, skipped
+
+    def restore_zip(self, data: bytes) -> dict:
         try:
             zf = zipfile.ZipFile(io.BytesIO(data))
         except zipfile.BadZipFile as e:
@@ -210,11 +270,38 @@ class BackupService:
                 with zf.open(filename) as src, open(DATA_DIR / filename, "wb") as dst:
                     shutil.copyfileobj(src, dst)
 
+        host_restored, host_skipped = self._restore_host_files(zf, names)
+        for line in host_restored:
+            logger.warning("Restored host file: %s", line)
+        for line in host_skipped:
+            logger.warning("Host file NOT restored: %s", line)
+        if host_restored:
+            logger.warning(
+                "HOST FILES WERE CHANGED. A REBOOT is required for /boot/firmware/config.txt "
+                "to take effect, and any restored systemd unit still needs: "
+                "sudo systemctl daemon-reload && sudo systemctl enable --now <unit>"
+            )
+
         logger.warning("Backup restored - restarting the process so it loads the restored files cleanly.")
         # Delay long enough for the HTTP response to actually reach the
         # client before the process exits; `restart: unless-stopped`
         # brings the container straight back up.
         threading.Timer(1.5, lambda: os._exit(0)).start()
+
+        # Returned to the caller so the UI can show exactly what landed
+        # and what still needs a human - a restore that quietly half
+        # works is the failure mode this whole change exists to remove.
+        return {
+            "restored": [CONFIG_FILENAME, DB_FILENAME],
+            "host_files_restored": host_restored,
+            "host_files_skipped": host_skipped,
+            "reboot_required": bool(host_restored),
+            "note": (
+                "Reboot required for /boot/firmware/config.txt to take effect. "
+                "Restored systemd units still need: sudo systemctl daemon-reload "
+                "&& sudo systemctl enable --now <unit>"
+            ) if host_restored else "",
+        }
 
 
 backup_service = BackupService()
