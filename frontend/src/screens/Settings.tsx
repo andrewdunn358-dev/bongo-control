@@ -14,6 +14,11 @@ import { useTheme } from '@/lib/theme';
 import { useNavigationStyle } from '@/lib/useNavigationStyle';
 import { useCockpitTheme } from '@/lib/useCockpitTheme';
 import { COCKPIT_THEMES } from '@/lib/cockpitThemes';
+import {
+  deleteCustomTheme, loadCustomThemes, parseThemeFile, saveCustomTheme,
+  ThemeFileError,
+} from '@/lib/customThemes';
+import type { CustomTheme } from '@/lib/customThemes';
 
 /** Live viewport readout. Temporary but genuinely useful: the cockpit's
  *  layout tiers are driven by CSS viewport HEIGHT, and that number
@@ -1252,6 +1257,28 @@ export function Settings() {
   const { theme, toggle } = useTheme();
   const { style: navStyle, setStyle: setNavStyle } = useNavigationStyle();
   const { themeId, setTheme } = useCockpitTheme();
+  const [customThemes, setCustomThemes] = useState<CustomTheme[]>(() => loadCustomThemes());
+  const [themeError, setThemeError] = useState<string | null>(null);
+
+  const onThemeFile = async (file: File | undefined) => {
+    if (!file) return;
+    setThemeError(null);
+    try {
+      const parsed = parseThemeFile(await file.text());
+      setCustomThemes(saveCustomTheme(parsed));
+      setTheme(parsed.id);
+      toast.success(`Theme "${parsed.name}" added`);
+    } catch (e) {
+      const msg = e instanceof ThemeFileError ? e.message : 'Could not read that theme file.';
+      setThemeError(msg);
+      toast.error(msg);
+    }
+  };
+
+  const onDeleteTheme = (id: string) => {
+    setCustomThemes(deleteCustomTheme(id));
+    if (themeId === id) setTheme(COCKPIT_THEMES[0].id);
+  };
   const [distanceUnit, setDistanceUnitState] = useState<'mi' | 'km'>(() => getDistanceUnit());
   const [pwSsid, setPwSsid] = useState<string | null>(null);
   const [pw, setPw] = useState('');
@@ -1398,6 +1425,63 @@ export function Settings() {
                 <div className="text-[11px] text-ink-faint mt-0.5">{t.description}</div>
               </button>
             ))}
+
+            {customThemes.map((t) => (
+              <div
+                key={t.id}
+                className={cn(
+                  'flex items-center gap-2 rounded-lg px-3 py-2 transition-colors',
+                  themeId === t.id ? 'bg-brand-orange/15' : 'hover:bg-ink/[0.04]',
+                )}
+              >
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={themeId === t.id}
+                  onClick={() => setTheme(t.id)}
+                  className="flex-1 text-left min-w-0"
+                >
+                  <div className={cn('text-sm font-medium truncate', themeId === t.id ? 'text-brand-orange' : 'text-ink-muted')}>
+                    {t.name}
+                  </div>
+                  <div className="text-[11px] text-ink-faint mt-0.5 truncate">
+                    Custom{t.author ? ` \u00b7 ${t.author}` : ''} \u00b7 {Object.keys(t.tokens).length} tokens
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDeleteTheme(t.id)}
+                  aria-label={`Delete theme ${t.name}`}
+                  className="shrink-0 text-ink-faint hover:text-status-red transition-colors px-2 py-1 text-xs"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Themes are DATA, not code - a theme file is colour tokens
+              only, validated before anything reaches the DOM, so an
+              uploaded theme cannot break the app. No rebuild, no
+              deploy: it applies the moment it is added. */}
+          <div className="mt-3 pt-3 border-t border-ink/10">
+            <label className="inline-flex items-center gap-2 text-xs text-ink-soft cursor-pointer hover:text-ink transition-colors">
+              <input
+                type="file"
+                accept="application/json,.json"
+                className="sr-only"
+                onChange={(e) => {
+                  void onThemeFile(e.target.files?.[0]);
+                  e.target.value = '';
+                }}
+              />
+              <span className="rounded-lg px-3 py-1.5 bg-ink/[0.05] ring-1 ring-ink/10">Add theme file\u2026</span>
+            </label>
+            {themeError && <div className="text-[11px] text-status-red mt-2">{themeError}</div>}
+            <p className="text-[11px] text-ink-faint mt-2">
+              A JSON file of colour tokens. Custom themes use the default cockpit layout in their own
+              colours. Status colours stay fixed so faults remain readable.
+            </p>
           </div>
         </GlassCard>
 

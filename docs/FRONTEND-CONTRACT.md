@@ -152,3 +152,30 @@ config between SD cards.
 | `backend/tools/` | `git pull && sudo systemctl restart vanos-heater-agent` | seconds |
 | `backend/app/` only | `docker compose --profile cloudflare-tunnel up -d --build backend` | ~30s |
 | Frontend or any dependency | `docker compose --profile cloudflare-tunnel up -d --build --remove-orphans` | 5–25 min |
+
+---
+
+## 9. Custom theme files (data, not code)
+
+A theme can also be a **JSON file** uploaded in Settings → Cockpit theme. No rebuild,
+no deploy — it applies immediately. See `docs/themes/example-highland.json`.
+
+```json
+{ "name": "Highland", "author": "optional",
+  "tokens": { "ink": "244 249 255", "surface": "7 21 34" } }
+```
+
+- Colour values are `"R G B"` (0–255), the form Tailwind's `<alpha-value>` needs.
+- `aurora-base` may be a `linear-gradient(...)`, `radial-gradient(...)` or hex colour.
+- Settable tokens: `ink`, `ink-soft`, `ink-muted`, `ink-faint`, `surface`,
+  `surface-raised`, `surface-sunken`, `line`, `aurora-teal`, `aurora-blue`,
+  `aurora-purple`, `aurora-pink`, `aurora-lime`, `aurora-base`.
+- **`status-green/amber/red` and `brand-orange` are deliberately NOT settable.** They
+  mean charging, attention, fault and active-nav. A theme must not make a fault harder
+  to spot.
+- Unknown tokens are ignored; invalid values are rejected with a readable message.
+- A custom theme supplies **colours only** — it uses the default cockpit layout. A data
+  file cannot supply a component.
+
+Every value is validated before it reaches the DOM, and applied via
+`style.setProperty()` — never by injecting CSS. A theme file cannot break the app.

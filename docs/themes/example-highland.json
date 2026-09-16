@@ -1,0 +1,17 @@
+{
+  "name": "Highland",
+  "author": "example",
+  "tokens": {
+    "ink": "238 246 240",
+    "ink-soft": "203 219 208",
+    "ink-muted": "150 174 158",
+    "ink-faint": "122 146 130",
+    "surface": "16 33 26",
+    "surface-raised": "22 43 34",
+    "surface-sunken": "9 20 15",
+    "line": "125 160 138",
+    "aurora-teal": "94 200 160",
+    "aurora-blue": "78 154 168",
+    "aurora-base": "linear-gradient(180deg, #0a1410 0%, #132019 100%)"
+  }
+}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { DEFAULT_COCKPIT_THEME, getCockpitTheme } from '@/lib/cockpitThemes';
+import { applyCustomTheme, loadCustomThemes } from '@/lib/customThemes';
 import type { CockpitTheme, CockpitThemeId } from '@/lib/cockpitThemes';
 
 const STORAGE_KEY = 'vanos-cockpit-theme';
@@ -37,7 +38,18 @@ export function useCockpitTheme(): {
   // Tailwind, so they restyle automatically. This is what makes the
   // theme switch change the whole app.
   useEffect(() => {
-    document.documentElement.setAttribute('data-cockpit-theme', getCockpitTheme(themeId).id);
+    // A custom theme layers ITS TOKENS on top of a built-in theme's
+    // layout. It never replaces the cockpit component - a data file
+    // cannot supply one - so the base attribute is still set, and the
+    // custom tokens are applied as inline properties on <html>, which
+    // win over the stylesheet by specificity.
+    const custom = themeId.startsWith('custom:')
+      ? loadCustomThemes().find((t) => t.id === themeId) ?? null
+      : null;
+
+    const base = custom ? DEFAULT_COCKPIT_THEME : getCockpitTheme(themeId).id;
+    document.documentElement.setAttribute('data-cockpit-theme', base);
+    applyCustomTheme(custom);
   }, [themeId]);
 
   useEffect(() => {
@@ -64,5 +76,8 @@ export function useCockpitTheme(): {
     listeners.forEach((fn) => fn(id));
   }, []);
 
-  return { themeId, theme: getCockpitTheme(themeId), setTheme };
+  // A custom theme has no component of its own, so it renders the
+  // default cockpit layout wearing its colours.
+  const theme = getCockpitTheme(themeId.startsWith('custom:') ? DEFAULT_COCKPIT_THEME : themeId);
+  return { themeId, theme, setTheme };
 }
