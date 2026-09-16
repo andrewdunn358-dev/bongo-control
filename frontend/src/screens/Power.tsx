@@ -42,7 +42,7 @@ export function Power() {
         <div className="pc-big-number">{fmtVolt(bp?.voltage)}</div>
         <div className="pc-soc"><div style={{width:`${Math.max(0,Math.min(100,bp?.soc_pct ?? 0))}%`}}/><span>{bp?.soc_pct == null ? `${DASH}%` : `${bp.soc_pct.toFixed(0)}%`}</span></div>
         <div className="pc-metrics">
-          <Metric label="Current" value={bp?.current_a == null ? DASH : fmtAmp(bp.current_a)} sub={shuntPresent ? 'SmartShunt' : 'No shunt reading'} />
+          <Metric label="Current" value={shuntPresent ? fmtAmp(bp?.current_a) : DASH} sub={shuntPresent ? 'SmartShunt' : 'No shunt reading'} />
           <Metric label="Battery power" value={bp?.power_w == null ? DASH : fmtWatt(bp.power_w)} accent="purple" />
           <Metric label="Bank" value={bp?.bank_amp_hours != null ? `${bp.bank_amp_hours.toFixed(0)} Ah` : DASH}/>
         </div>
@@ -65,7 +65,7 @@ export function Power() {
         <div className="pc-panel-top"><div><span className="pc-kicker">SHUNT TELEMETRY</span><h2>Battery flow</h2></div><Activity size={24}/></div>
         <div className="pc-net-value">{bp?.power_w == null ? DASH : fmtWatt(bp.power_w)}</div>
         <p>{bp?.power_w == null ? 'No SmartShunt power reading is available.' : bp.power_w > 0 ? 'Measured power flowing into the battery.' : bp.power_w < 0 ? 'Measured power flowing out of the battery.' : 'Battery power is currently balanced.'}</p>
-        <div className="pc-balance"><span>Current <b>{bp?.current_a == null ? DASH : fmtAmp(bp.current_a)}</b></span><span>Voltage <b>{fmtVolt(bp?.voltage)}</b></span></div>
+        <div className="pc-balance"><span>Current <b>{shuntPresent ? fmtAmp(bp?.current_a) : DASH}</b></span><span>Voltage <b>{fmtVolt(bp?.voltage)}</b></span></div>
         <Graph data={flowSeries} kind="flow" />
       </section>
 
