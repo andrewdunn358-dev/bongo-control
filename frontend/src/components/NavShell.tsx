@@ -37,6 +37,7 @@ import { NAV } from '@/constants/testIds';
 import { cn } from '@/lib/utils';
 import { isDemo } from '@/lib/demo';
 import { useNavigationStyle } from '@/lib/useNavigationStyle';
+import { useCockpitTheme } from '@/lib/useCockpitTheme';
 import { api } from '@/lib/api';
 import { useBattery, useEnvironment } from '@/lib/telemetry';
 import { fmtVolt, fmtTemp, DASH } from '@/lib/format';
@@ -191,6 +192,12 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
   const now = useClock();
   const loc = useQuery({ queryKey: ['location'], queryFn: api.location, retry: false });
   const { effectiveStyle } = useNavigationStyle();
+  // Called here, not only in Home, because NavShell wraps EVERY route.
+  // The hook sets data-cockpit-theme on <html>, and that attribute is
+  // what makes the theme's token overrides reach Power, Weather and the
+  // rest. Without it here, landing directly on a non-Home route would
+  // render untimed - the theme would only apply after visiting Home.
+  useCockpitTheme();
   // Collapsed state is remembered so the rail doesn't reset on every
   // navigation. Separate from the dock/sidebar preference itself.
   const [sidebarExpanded, setSidebarExpanded] = useState(() => {

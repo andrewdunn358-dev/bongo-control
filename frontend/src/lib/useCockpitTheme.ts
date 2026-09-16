@@ -31,6 +31,15 @@ export function useCockpitTheme(): {
 } {
   const [themeId, setThemeIdState] = useState<CockpitThemeId>(read);
 
+  // Apply the theme to <html> so its token overrides in index.css reach
+  // EVERY screen, not just the Home cockpit. Power, Weather, History and
+  // the rest never reference a theme - they use --surface and --ink via
+  // Tailwind, so they restyle automatically. This is what makes the
+  // theme switch change the whole app.
+  useEffect(() => {
+    document.documentElement.setAttribute('data-cockpit-theme', getCockpitTheme(themeId).id);
+  }, [themeId]);
+
   useEffect(() => {
     const onLocal = (id: CockpitThemeId) => setThemeIdState(id);
     listeners.add(onLocal);

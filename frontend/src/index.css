@@ -474,3 +474,58 @@ html.light .maplibregl-ctrl-attrib a {
   .van-support { gap: 0.5rem; }
   .van-supportcard { padding: 0.5rem; }
 }
+
+/* ── COCKPIT THEME TOKENS ──────────────────────────────────────────
+   A theme is selected in Settings and sets data-cockpit-theme on <html>
+   (see lib/useCockpitTheme.ts). Every rule below overrides variables
+   that already exist at :root, and every Tailwind colour in this app
+   resolves through those variables (see tailwind.config.ts, e.g.
+   ink: 'rgb(var(--ink) / <alpha-value>)').
+
+   That is what makes a theme change the WHOLE APP rather than just the
+   Home cockpit: Power, Weather, History, Nearby and the rest never
+   reference a theme, they reference --surface and --ink, so they shift
+   automatically. No per-screen work, no per-screen variants.
+
+   WHAT A TOKEN THEME CAN DO: colour, depth, surface treatment, accent.
+   WHAT IT CANNOT DO: rearrange a screen. Adventure's Home is a genuinely
+   different layout, which is why that one is also a component swap in
+   the theme registry. Layout changes are the exception; colour is the
+   rule.
+
+   STATUS COLOURS ARE DELIBERATELY NOT THEMED. --status-green/amber/red
+   carry meaning - charging, attention, fault - and a theme that recolours
+   them to suit an aesthetic makes the van harder to read at a glance.
+   Same reason --brand-orange stays put for the active nav item. */
+
+/* Instrument - the original aurora look. Declared explicitly rather
+   than left implicit so switching BACK to it fully resets anything a
+   previous theme changed. */
+html[data-cockpit-theme='instrument'] {
+  --ink: 230 240 255;
+  --ink-soft: 214 224 238;
+  --ink-muted: 190 202 219;
+  --ink-faint: 166 181 201;
+  --surface: 15 41 66;
+  --surface-raised: 20 47 77;
+  --surface-sunken: 10 22 40;
+  --line: 148 163 184;
+  --aurora-base: linear-gradient(180deg, #0a1628 0%, #0f2942 100%);
+}
+
+/* Adventure - deeper, cooler, flatter. Matches the vm-* cockpit's own
+   palette so the rest of the app no longer looks like a different app
+   when that cockpit is selected. */
+html[data-cockpit-theme='adventure'] {
+  --ink: 244 249 255;
+  --ink-soft: 205 222 236;
+  --ink-muted: 143 166 186;
+  --ink-faint: 120 145 163;
+  --surface: 7 21 34;
+  --surface-raised: 10 27 42;
+  --surface-sunken: 2 9 17;
+  --line: 119 202 255;
+  --aurora-teal: 22 216 255;
+  --aurora-blue: 21 155 232;
+  --aurora-base: linear-gradient(180deg, #020911 0%, #071522 100%);
+}
