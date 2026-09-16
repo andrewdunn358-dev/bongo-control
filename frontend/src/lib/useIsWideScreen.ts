@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 /**
  * True when the viewport is tablet/desktop-sized rather than a phone.
  * Used to switch Home between the phone-first layout and the fuller
- * CockpitDashboard - "when a tablet or desktop connects, show the
+ * the selected cockpit theme - "when a tablet or desktop connects, show the
  * complete dashboard" (Andrew, 14 Sep).
  *
  * matchMedia + a change listener, not a resize listener + innerWidth

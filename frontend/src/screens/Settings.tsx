@@ -12,6 +12,8 @@ import { api } from '@/lib/api';
 import { isDemo } from '@/lib/demo';
 import { useTheme } from '@/lib/theme';
 import { useNavigationStyle } from '@/lib/useNavigationStyle';
+import { useCockpitTheme } from '@/lib/useCockpitTheme';
+import { COCKPIT_THEMES } from '@/lib/cockpitThemes';
 
 /** Live viewport readout. Temporary but genuinely useful: the cockpit's
  *  layout tiers are driven by CSS viewport HEIGHT, and that number
@@ -1249,6 +1251,7 @@ export function Settings() {
   const qc = useQueryClient();
   const { theme, toggle } = useTheme();
   const { style: navStyle, setStyle: setNavStyle } = useNavigationStyle();
+  const { themeId, setTheme } = useCockpitTheme();
   const [distanceUnit, setDistanceUnitState] = useState<'mi' | 'km'>(() => getDistanceUnit());
   const [pwSsid, setPwSsid] = useState<string | null>(null);
   const [pw, setPw] = useState('');
@@ -1371,6 +1374,32 @@ export function Settings() {
 
       <div className="grid grid-cols-12 gap-4 lg:gap-6">
         <ViewportReadout />
+
+        <GlassCard className="col-span-12 lg:col-span-5 p-6">
+          <CardHeader label="Cockpit theme" hint="tablet and desktop only \u00b7 phones always use the mobile layout" />
+          <p className="text-xs text-ink-faint mb-3">
+            How the home cockpit is laid out. Every theme shows the same real telemetry \u2014 only the
+            arrangement and styling differ.
+          </p>
+          <div role="radiogroup" aria-label="Cockpit theme" className="flex flex-col gap-1 rounded-xl bg-ink/[0.03] ring-1 ring-ink/10 p-1">
+            {COCKPIT_THEMES.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="radio"
+                aria-checked={themeId === t.id}
+                onClick={() => setTheme(t.id)}
+                className={cn(
+                  'rounded-lg px-3 py-2 text-left transition-colors',
+                  themeId === t.id ? 'bg-brand-orange/15 text-brand-orange' : 'text-ink-muted hover:text-ink-soft',
+                )}
+              >
+                <div className="text-sm font-medium">{t.name}</div>
+                <div className="text-[11px] text-ink-faint mt-0.5">{t.description}</div>
+              </button>
+            ))}
+          </div>
+        </GlassCard>
 
         <GlassCard className="col-span-12 lg:col-span-5 p-6">
           <CardHeader label="Navigation" hint="tablet and desktop only · phones always use the bottom dock" />

@@ -140,7 +140,7 @@ function MetricLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function CockpitDashboard() {
+export function InstrumentCockpit() {
   const { data: brief } = useQuery({
     queryKey: ['mission-brief'],
     queryFn: api.missionBrief,

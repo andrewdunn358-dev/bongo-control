@@ -7,7 +7,8 @@ import { SatelliteSky } from '@/components/SatelliteSky';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { GaugeRing } from '@/components/primitives/GaugeRing';
 import { Sparkline } from '@/components/primitives/Sparkline';
-import { CockpitDashboard } from '@/components/CockpitDashboard';
+import { Suspense } from 'react';
+import { useCockpitTheme } from '@/lib/useCockpitTheme';
 import { api } from '@/lib/api';
 import { useBattery, useSolar, useEnergy, useEnvironment, useSparkBuffer, useConnected } from '@/lib/telemetry';
 import { useIsWideScreen } from '@/lib/useIsWideScreen';
@@ -46,7 +47,23 @@ export function Home() {
   // some renders and not others (whenever isWide flips), breaking
   // React's Rules of Hooks.
   const isWide = useIsWideScreen(900);
-  return isWide ? <CockpitDashboard /> : <MobileHome />;
+  // Mobile is deliberately NOT themed - a phone layout has different
+  // constraints and is not something themes should fragment. Below the
+  // breakpoint it is always MobileHome, whatever theme is selected.
+  return isWide ? <ThemedCockpit /> : <MobileHome />;
+}
+
+/** Renders the selected cockpit theme. Themes are lazy-loaded, so only
+ *  the chosen one's code and CSS are fetched - adding themes does not
+ *  grow the initial bundle. */
+function ThemedCockpit() {
+  const { theme } = useCockpitTheme();
+  const Cockpit = theme.component;
+  return (
+    <Suspense fallback={<div className="h-64" aria-busy="true" />}>
+      <Cockpit />
+    </Suspense>
+  );
 }
 
 function MobileHome() {
