@@ -16,12 +16,15 @@ function ActionTile({to,title,subtitle,image,children}:{to:string;title:string;s
 
 export function AdventureCockpit() {
  const battery=useBattery(),solar=useSolar(),energy=useEnergy(),env=useEnvironment(),weather=useWeather(),connected=useConnected();
+ const { data: brief } = useQuery({ queryKey: ['mission-brief'], queryFn: api.missionBrief, refetchInterval: 30_000 });
  const now=useClock(); const loc=useQuery({queryKey:['location'],queryFn:api.location,retry:false}); const heater=useQuery({queryKey:['heater'],queryFn:api.heater,refetchInterval:5000,retry:false});
  const solarSeries=useSparkBuffer<SolarPayload>('solar',p=>p.watts),voltSeries=useSparkBuffer<BatteryPayload>('battery',p=>p.voltage);
  const bp=battery.payload,sp=solar.payload,ep=energy.payload,wp=weather.payload,hs=heater.data?.state??{};
  const heaterOn=hs.state===0x8||Boolean(hs.igniting); const heaterLabel=!heater.data?.available?'No signal':hs.error_code?`Fault ${hs.error_code}`:hs.igniting?'Igniting':hs.cooling_down?'Cooling down':heaterOn?'Heating':'Off';
  const ratio=wp?.tomorrow_vs_today_radiation_ratio; const weatherDescription=wp?.current_weather_description; const cameraTimestamp=Math.floor(now.getTime()/5000)*5000; const satCount=loc.data?.satellites;
  const batteryState=bp==null?DASH:bp.charging?'CHARGING':bp.current_a!=null&&Math.abs(bp.current_a)<0.2?'RESTING':'DISCHARGING';
+ const topPred = brief?.predictions?.[0];
+ const predictedUsage = topPred?.value == null ? DASH : `${topPred.value}${topPred.unit ? ` ${topPred.unit}` : ''}`;
  return <div className="vm-page">
   <section className="vm-hero"><div className="vm-hero-photo"><div className="vm-hero-image" style={{backgroundImage:`url(${api.cameraSnapshotUrl(cameraTimestamp)})`}}/><div className="vm-hero-fallback"/><div className="vm-hero-overlay"/>
    <div className="vm-hero-top"><span><Camera size={15}/> VAN CAMERA</span><span className={`vm-live ${connected?'live':'offline'}`}><i/> {connected?'LIVE SNAPSHOT':'OFFLINE'}</span></div>
@@ -31,7 +34,7 @@ export function AdventureCockpit() {
   <section className="vm-core-grid">
    <Link to="/power" className="vm-card vm-battery-card"><div className="vm-card-head"><div><span className="vm-eyebrow">POWER CORE</span><h3>Battery <em>{bp?.charging?'Charging':''}</em></h3></div><BatteryCharging size={25} className={bp?.charging?'vm-green':''}/></div>
     <div className="vm-battery-main"><VanOSBattery soc={bp?.soc_pct} charging={bp?.charging} size={118}/><div className="vm-battery-value"><strong>{fmtPct(bp?.soc_pct)}</strong><span>{fmtVolt(bp?.voltage)}</span></div></div>{bp?.soc_pct!=null&&<div className="vm-progress"><i style={{width:`${Math.max(0,Math.min(100,bp.soc_pct))}%`}}/></div>}
-    <div className="vm-data-box"><DataRow label="Current" value={bp?.current_a==null?DASH:`${bp.current_a>=0?'+':''}${bp.current_a.toFixed(1)} A`}/><DataRow label="State" value={batteryState}/><DataRow label="Temperature" value={fmtTemp(env.payload?.internal_temp_c)}/></div><Spark data={voltSeries} kind="battery"/>
+    <div className="vm-data-box"><DataRow label="Current" value={bp?.current_a==null?DASH:`${bp.current_a>=0?'+':''}${bp.current_a.toFixed(1)} A`}/><DataRow label="State" value={batteryState}/><DataRow label="Temperature" value={fmtTemp(env.payload?.internal_temp_c)}/>{topPred&&<DataRow label={topPred.label} value={predictedUsage}/>}</div><Spark data={voltSeries} kind="battery"/>
    </Link>
    <Link to="/power" className="vm-card vm-solar-card"><div className="vm-card-head"><div><span className="vm-eyebrow">SOLAR · VICTRON</span><h3>Solar</h3></div><Sun size={27} className="vm-sun"/></div>
     <div className="vm-solar-visual"><VanOSSolar size={74} active={Boolean(sp?.watts)}/><div><strong>{fmtWatt(sp?.watts)}</strong><span>{sp?.watts?'GENERATING':(sp?.charge_state||'OFF').toUpperCase()}</span></div></div>
