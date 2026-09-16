@@ -2,6 +2,7 @@ import { GlassCard, CardHeader } from '@/components/primitives/GlassCard';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { Sparkline } from '@/components/primitives/Sparkline';
 import { useBattery, useSolar, useEnergy, useSparkBuffer } from '@/lib/telemetry';
+import { hasShunt } from '@/lib/telemetry';
 import type { BatteryPayload, SolarPayload } from '@/lib/types';
 import { fmtVolt, fmtWatt, fmtAmp, fmtWh, DASH } from '@/lib/format';
 import { POWER } from '@/constants/testIds';
@@ -48,7 +49,7 @@ export function Power() {
         <GlassCard level="hero" glow="teal" className="col-span-12 lg:col-span-6" data-testid={POWER.batteryVoltage}>
           <CardHeader
             label="Battery"
-            hint={bp?.current_a != null ? 'SmartShunt' : 'MPPT / BMS'}
+            hint={hasShunt(bp) ? 'SmartShunt' : 'MPPT / BMS'}
             right={
               <StatusPill tone={bp?.charging ? 'green' : 'slate'} data-testid={POWER.batteryCharging}>
                 {bp?.charging ? 'CHARGING' : 'IDLE'}
@@ -154,7 +155,7 @@ export function Power() {
             )}
           </ul>
           <div className="mt-4 text-xs text-ink-faint leading-relaxed">
-            {bp?.current_a == null ? (
+            {!hasShunt(bp) ? (
               <>No SoC percentage is shown — there&apos;s no shunt fitted, and reading a percentage off voltage alone
               would be a guess, often a wrong one.</>
             ) : bp?.soc_pct == null ? (
@@ -178,7 +179,7 @@ export function Power() {
           </ul>
           <div className="mt-4 text-xs text-ink-faint leading-relaxed">
             LOAD is only the current drawn through the MPPT&apos;s dedicated LOAD terminal.
-            {bp?.current_a != null
+            {hasShunt(bp)
               ? ' Van-wide draw is on the battery card above, measured by the shunt.'
               : ' Van-wide load isn\u2019t measurable without a shunt.'}
           </div>

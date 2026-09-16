@@ -11,6 +11,7 @@ import { Suspense } from 'react';
 import { useCockpitTheme } from '@/lib/useCockpitTheme';
 import { api } from '@/lib/api';
 import { useBattery, useSolar, useEnergy, useEnvironment, useSparkBuffer, useConnected } from '@/lib/telemetry';
+import { hasShunt } from '@/lib/telemetry';
 import { useIsWideScreen } from '@/lib/useIsWideScreen';
 import { fmtVolt, fmtWatt, fmtTemp, DASH } from '@/lib/format';
 import type { BatteryPayload, SolarPayload } from '@/lib/types';
@@ -157,7 +158,7 @@ function MobileHome() {
                 honestly claim that window - not a fixed period. Seeding
                 the buffer from /api/history is a separate change. */}
             <div className="text-[10px] text-ink-faint mt-2">
-              Since page load{battery.payload?.current_a == null ? ' · no shunt · voltage only' : ''}
+              Since page load{!hasShunt(battery.payload) ? ' · no shunt · voltage only' : ''}
             </div>
           </GlassCard>
 
@@ -350,7 +351,7 @@ function MobileHome() {
               <span className="num text-lg ml-1">{fmtWatt(battery.payload?.charging_power_w ?? null)}</span>
             </div>
             <div className="text-ink-faint text-xs">
-              {battery.payload?.current_a != null
+              {hasShunt(battery.payload)
                 ? 'Solar in, from the MPPT. Net battery flow is measured by the shunt.'
                 : "From the MPPT — total van draw isn't measurable without a shunt."}
             </div>

@@ -251,3 +251,22 @@ export function useSparkBuffer<T>(domain: TelemetryDomain, key: (p: T) => number
   }
   return out;
 }
+
+/** True if a battery shunt is fitted.
+ *
+ *  Tests ANY shunt-only field, never current_a alone. The BATTERY domain
+ *  has TWO publishers - the Victron MPPT and the SmartShunt - merged by
+ *  precedence. When the MPPT's message is the most recent it carries
+ *  voltage but no current, so testing current_a on its own reports
+ *  "no shunt" on a van that has had one fitted for months, flickering in
+ *  and out as the two publishers interleave. None of these fields can
+ *  come from anything but a shunt. */
+export function hasShunt(p: BatteryPayload | null | undefined): boolean {
+  if (!p) return false;
+  return (
+    p.current_a != null ||
+    p.power_w != null ||
+    p.consumed_ah != null ||
+    p.time_remaining_mins != null
+  );
+}
