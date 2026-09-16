@@ -34,6 +34,24 @@ DB_FILENAME = "vanos.db"
 # default rollback-journal mode) but are included defensively in case
 # that ever changes - a restore without them would silently lose
 # not-yet-checkpointed writes.
+_HOST_FILES = (
+    (
+        "/host/boot/config.txt",
+        "host/config.txt",
+        "not mounted - update docker-compose.yml and redeploy, or copy by hand",
+    ),
+    (
+        "/host/systemd/vanos-heater-agent.service",
+        "host/vanos-heater-agent.service",
+        "heater agent not installed on this host",
+    ),
+    (
+        "/host/systemd/ustreamer.service",
+        "host/ustreamer.service",
+        "uStreamer not installed on this host",
+    ),
+)
+
 _DATA_FILENAMES = [CONFIG_FILENAME, DB_FILENAME, f"{DB_FILENAME}-wal", f"{DB_FILENAME}-shm"]
 
 
@@ -95,6 +113,37 @@ class BackupService:
                     zf.write(path, arcname=filename)
                     found_any = True
             zf.writestr("env-backup.txt", self._env_snapshot())
+
+            # Host config, via the read-only mounts in docker-compose.yml.
+            # These are the files that made a restored card fail silently:
+            # without them you get relays energised through boot, no
+            # temperature sensors, no heater and a slow camera, and
+            # nothing on screen explains why.
+            captured: list[str] = []
+            missing: list[str] = []
+            for src, arcname, why in _HOST_FILES:
+                path = Path(src)
+                try:
+                    if path.is_file():
+                        zf.write(path, arcname=arcname)
+                        captured.append(f"{arcname}  <- {src}")
+                    else:
+                        missing.append(f"{arcname}  ({src}) - {why}")
+                except OSError as e:
+                    missing.append(f"{arcname}  ({src}) - unreadable: {e}")
+
+            zf.writestr(
+                "CHECKLIST.txt",
+                "VanOS backup - completeness check\n"
+                "=================================\n\n"
+                "CAPTURED:\n"
+                + ("".join(f"  [x] {c}\n" for c in captured) or "  (none)\n")
+                + "\nNOT CAPTURED - these must be handled by hand:\n"
+                + ("".join(f"  [ ] {m}\n" for m in missing) or "  (nothing missing)\n")
+                + "\nIf anything is listed as NOT CAPTURED, a card restored from this\n"
+                  "backup alone will be incomplete. See RESTORE.txt for what each\n"
+                  "file does and what breaks without it.\n",
+            )
             zf.writestr(
                 "RESTORE.txt",
                 "VanOS restore\n"
@@ -106,16 +155,29 @@ class BackupService:
                 "  env-backup.txt  rebuilt from the running environment - see inside\n\n"
                 "Restore config.json + vanos.db through Settings -> Backup -> Restore.\n"
                 "Place env-backup.txt as .env beside docker-compose.yml by hand.\n\n"
-                "NOT IN THIS ZIP - the backend cannot read host files from inside\n"
-                "its container. Copy these from the old card by hand:\n"
-                "  /boot/firmware/config.txt\n"
-                "      gpio=17,27,22,23,16,26,12,13=op,dl   SAFETY: relays off at boot\n"
-                "      dtoverlay=w1-gpio                     else no temperature sensors\n"
-                "  /etc/systemd/system/vanos-heater-agent.service\n"
-                "      plus: sudo pip3 install bleak bleak-retry-connector \\\n"
-                "            diesel-heater-ble --break-system-packages\n"
-                "  /etc/systemd/system/ustreamer.service\n"
-                "      plus: sudo apt install -y ustreamer\n\n"
+                "  host/config.txt          boot settings - see below\n"
+                "  host/*.service           systemd units - see below\n"
+                "  CHECKLIST.txt            what was and was not captured\n\n"
+                "READ CHECKLIST.txt FIRST. If it lists anything as NOT CAPTURED,\n"
+                "this backup is incomplete and a restored card will not fully work.\n\n"
+                "HOST FILES - restore cannot write these (the container mounts them\n"
+                "read-only, by design). Place them by hand on the new card:\n\n"
+                "  host/config.txt  ->  /boot/firmware/config.txt\n"
+                "      Must contain these two lines, then reboot:\n"
+                "        gpio=17,27,22,23,16,26,12,13=op,dl\n"
+                "            SAFETY - without it the relays energise for the whole\n"
+                "            boot window. op,dl = drive LOW; the board is HIGH-trigger.\n"
+                "        dtoverlay=w1-gpio\n"
+                "            without it there are no temperature sensors at all\n\n"
+                "  host/vanos-heater-agent.service  ->  /etc/systemd/system/\n"
+                "      sudo pip3 install bleak bleak-retry-connector \\\n"
+                "           diesel-heater-ble --break-system-packages\n"
+                "      sudo systemctl enable --now vanos-heater-agent\n"
+                "      Without it: heater shows No signal, permanently.\n\n"
+                "  host/ustreamer.service  ->  /etc/systemd/system/\n"
+                "      sudo apt install -y ustreamer\n"
+                "      sudo systemctl enable --now ustreamer\n"
+                "      Without it: camera falls back to ffmpeg, ~4s per frame.\n\n"
                 "CONTAINS SECRETS. Do not commit to git.\n",
             )
             zf.writestr("MANIFEST.txt", f"VanOS backup\ncreated_at={time.time()}\n")

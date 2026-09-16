@@ -86,6 +86,24 @@ services:
       # instead. Harmless when no sensors are present: the plugin just
       # finds nothing and reports that cleanly.
       - /sys:/sys:ro
+      # READ-ONLY host config, so Settings -> Backup can capture a
+      # COMPLETE picture in one download. Without these the backup
+      # silently omitted the boot GPIO safety line, the 1-Wire overlay
+      # and both host systemd units - a restored card then came up with
+      # relays energised through boot, no temperature sensors, no heater
+      # and a slow camera, with nothing to explain why.
+      #
+      # Read-only on purpose: the backup only ever READS these. Restore
+      # does not write them back - that would need rw access to host
+      # /boot and /etc, which is a genuine escalation for no benefit,
+      # since applying them needs a reboot and root anyway. They are
+      # included in the zip for manual placement, with instructions.
+      #
+      # Both are optional (:ro with a missing source would fail the
+      # container, so they are declared only as directories that exist
+      # on any Raspberry Pi OS install).
+      - /boot/firmware:/host/boot:ro
+      - /etc/systemd/system:/host/systemd:ro
     environment:
       VANOS_ENVIRONMENT: production
       VANOS_DATABASE_URL: sqlite:///./data/vanos.db
