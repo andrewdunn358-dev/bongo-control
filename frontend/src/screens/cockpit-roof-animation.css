@@ -1,0 +1,42 @@
+/* The roof movement is shown using one real Bongo opening video.
+   Closing uses the same video backwards so there is no synthetic roof
+   geometry or second animation to get out of sync with the real movement. */
+.cs-roof-photo{isolation:isolate}
+.cs-roof-video{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  object-position:center;
+  display:block;
+  background:#081722;
+  z-index:0;
+}
+.cs-roof-video-badge{
+  position:absolute;
+  right:20px;
+  top:20px;
+  z-index:5;
+  display:flex;
+  align-items:center;
+  gap:7px;
+  padding:9px 12px;
+  border-radius:11px;
+  background:rgba(5,15,24,.72);
+  border:1px solid rgba(34,211,238,.2);
+  color:#a9c1cd;
+  font-size:9px;
+  letter-spacing:.12em;
+  backdrop-filter:blur(10px);
+}
+.cs-roof-video-badge svg{color:#22d3ee}
+.cs-roof-photo-shade{z-index:1}
+.cs-roof-photo-label,.cs-roof-live{z-index:5}
+
+/* The old still-image roof animation is deliberately disabled. */
+.cs-roof-open-image,.cs-roof-motion-mask,.cs-roof-moving-roof{display:none!important}
+
+@media(max-width:560px){
+  .cs-roof-video-badge{right:12px;top:12px;padding:7px 9px;font-size:8px}
+}
