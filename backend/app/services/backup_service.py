@@ -43,6 +43,48 @@ class BackupError(Exception):
 
 
 class BackupService:
+    def _env_snapshot(self) -> str:
+        """Reconstruct the host .env from the process environment.
+
+        The .env file itself is NOT mounted into the container - compose
+        reads it and passes the values through as environment variables
+        (docker-compose.yml `environment:`). So this is rebuilt from
+        os.environ rather than copied, and is labelled as such: a value
+        set directly in compose rather than in .env will appear here
+        too, which is what you want for rebuilding a card anyway.
+
+        Without this, a restored card comes up with no app password and
+        the camera/GPS pointing at the /dev/null defaults - i.e. auth
+        failing open and two subsystems silently dead. config.json and
+        vanos.db alone are not enough to rebuild a working install.
+        """
+        keys = (
+            "APP_ACCESS_PASSWORD",
+            "WEBCAM_DEVICE",
+            "GPS_DEVICE",
+            "CAMERA_USTREAMER_URL",
+            "CAMERA_ROTATION",
+            "CAMERA_STREAM_FPS",
+            "HEATER_MAC",
+            "HEATER_PIN",
+            "HEATER_ADAPTER",
+            "VANOS_ALLOW_INSECURE",
+        )
+        lines = [
+            "# Reconstructed by VanOS backup from the running environment.",
+            "# NOT a copy of .env - compose passes these through as env vars,",
+            "# the file itself is never mounted into the container.",
+            "# Review before use, then place as .env beside docker-compose.yml.",
+            "",
+        ]
+        for k in keys:
+            v = os.environ.get(k)
+            if v is not None and v != "":
+                lines.append(f"{k}={v}")
+            else:
+                lines.append(f"# {k}=   (not set on this install)")
+        return "\n".join(lines) + "\n"
+
     def build_zip(self) -> bytes:
         buf = io.BytesIO()
         found_any = False
@@ -52,6 +94,30 @@ class BackupService:
                 if path.exists():
                     zf.write(path, arcname=filename)
                     found_any = True
+            zf.writestr("env-backup.txt", self._env_snapshot())
+            zf.writestr(
+                "RESTORE.txt",
+                "VanOS restore\n"
+                "=============\n\n"
+                "In this zip:\n"
+                "  config.json     relay names, roof isolate_channels, Victron MACs +\n"
+                "                  encryption keys, all API keys\n"
+                "  vanos.db        telemetry, location history, places\n"
+                "  env-backup.txt  rebuilt from the running environment - see inside\n\n"
+                "Restore config.json + vanos.db through Settings -> Backup -> Restore.\n"
+                "Place env-backup.txt as .env beside docker-compose.yml by hand.\n\n"
+                "NOT IN THIS ZIP - the backend cannot read host files from inside\n"
+                "its container. Copy these from the old card by hand:\n"
+                "  /boot/firmware/config.txt\n"
+                "      gpio=17,27,22,23,16,26,12,13=op,dl   SAFETY: relays off at boot\n"
+                "      dtoverlay=w1-gpio                     else no temperature sensors\n"
+                "  /etc/systemd/system/vanos-heater-agent.service\n"
+                "      plus: sudo pip3 install bleak bleak-retry-connector \\\n"
+                "            diesel-heater-ble --break-system-packages\n"
+                "  /etc/systemd/system/ustreamer.service\n"
+                "      plus: sudo apt install -y ustreamer\n\n"
+                "CONTAINS SECRETS. Do not commit to git.\n",
+            )
             zf.writestr("MANIFEST.txt", f"VanOS backup\ncreated_at={time.time()}\n")
         if not found_any:
             raise BackupError("Nothing to back up yet - no config.json or vanos.db found.")
