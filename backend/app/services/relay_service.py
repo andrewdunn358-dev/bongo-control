@@ -94,6 +94,20 @@ from typing import Any
 
 logger = logging.getLogger("vanos.relay_service")
 
+# Whether startup state changes reach the DURABLE relay event log (the
+# audit trail shown in the UI). The journal always gets them regardless.
+#
+# True  = record a relay that came back ON at boot. Keep this on: it is
+#         the only record of why a circuit was energised after a restart
+#         with nobody having touched it.
+# False = record nothing at startup at all.
+LOG_STARTUP_EVENTS = True
+# Every channel, including the OFF ones. Off is the safe default and
+# where all channels begin, so those rows say nothing - eight per restart,
+# burying real user actions in the audit trail and growing the table on an
+# SD card. Flip to True if a boot-time audit of every channel is needed.
+LOG_STARTUP_EVENTS_ALL = False
+
 
 def record_relay_event(channel_id: int | None, channel_name: str, action: str, source: str, detail: str | None = None) -> None:
     """Durable audit-trail record of a relay/roof event - the fix for a
@@ -392,21 +406,39 @@ class RelayService:
                 self._devices[channel_id] = device
                 self._commanded[channel_id] = logical_on
 
+                # Startup events are logged to the journal either way -
+                # that costs nothing. What is gated here is whether they
+                # go into the DURABLE relay event log shown in the UI.
+                #
+                # Every restart wrote one row per channel, so eight rows
+                # of "restore - last state before clean shutdown" buried
+                # the actual user actions in the audit trail, and grew the
+                # table on an SD card for no benefit.
+                #
+                # OFF-state startup rows carry no information: off is the
+                # safe default and where every channel starts anyway.
+                # A relay restored ON is the opposite - it is the only
+                # record explaining why a circuit was energised without
+                # anyone touching it after a reboot, which is exactly the
+                # question the audit log exists to answer. So those are
+                # still recorded.
                 if clean:
                     logger.info(
                         "Relay %s restored to %s (via system:startup-restore, last state before clean shutdown)",
                         channel_id, "ON" if logical_on else "OFF",
                     )
-                    record_relay_event(
-                        channel_id, channel["name"], "restored" if logical_on else "restored-off",
-                        "system:startup-restore", detail="last state before clean shutdown",
-                    )
+                    if LOG_STARTUP_EVENTS and logical_on:
+                        record_relay_event(
+                            channel_id, channel["name"], "restored",
+                            "system:startup-restore", detail="last state before clean shutdown",
+                        )
                 else:
                     logger.info("Relay %s reset to OFF (via system:startup, no clean-shutdown record)", channel_id)
-                    record_relay_event(
-                        channel_id, channel["name"], "reset-off", "system:startup",
-                        detail="no clean-shutdown record",
-                    )
+                    if LOG_STARTUP_EVENTS_ALL:
+                        record_relay_event(
+                            channel_id, channel["name"], "reset-off", "system:startup",
+                            detail="no clean-shutdown record",
+                        )
             self._available = True
             # Re-persist immediately: _consume_clean_shutdown_state()
             # cleared the record, so without this a second restart
