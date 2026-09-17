@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils';
 import { useWeather } from '@/lib/telemetry';
 import { selectHeroImage } from '@/lib/heroImage';
+import { publicUrl } from '@/lib/publicUrl';
 
 /** Fixed layered photo / aurora / grid / noise background, behind every
  * screen in the app. The photograph remains decorative; the theme surface
@@ -13,7 +14,7 @@ export function AuroraBackground({ className }: { className?: string }) {
   return (
     <div className={cn('pointer-events-none fixed inset-0 -z-10 overflow-hidden', className)}>
       <img
-        src={`/hero/${image}.jpg`}
+        src={publicUrl(`/hero/${image}.jpg`)}
         alt=""
         className="absolute inset-0 w-full h-full object-cover"
         style={{ objectPosition: 'center 38%' }}

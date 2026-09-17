@@ -14,6 +14,7 @@
  */
 import type { TelemetryMessage } from '@/lib/types';
 import { ApiError } from '@/lib/api';
+import { publicUrl } from '@/lib/publicUrl';
 
 export const isDemo = import.meta.env.VITE_DEMO === 'true';
 
@@ -441,7 +442,7 @@ export const DEMO_CAM_IMAGE = vanFrame(20.8);
 // (a real time-lapse). Until then it falls back to the drawn scene, so
 // nothing looks broken. Probed once; only successfully-loaded photos are
 // used, so missing files never show as a broken image.
-const CAM_PHOTOS = ['/cam1.jpg', '/cam2.jpg', '/cam3.jpg', '/cam4.jpg', '/cam5.jpg'];
+const CAM_PHOTOS = ['/cam1.jpg', '/cam2.jpg', '/cam3.jpg', '/cam4.jpg', '/cam5.jpg'].map(publicUrl);
 let _photos: string[] = [];
 let _probed = false;
 function _probePhotos() {

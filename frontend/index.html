@@ -45,7 +45,19 @@
       window.__BONGO_BUILD__ = '__BUILD_ID__';
 
       // Register the offline-shell service worker in production only.
-      if ('serviceWorker' in navigator && !/localhost|127\.0\.0\.1/.test(location.hostname) && location.protocol === 'https:') {
+      // NOT on the GitHub Pages preview (*.github.io). Two reasons, both
+      // of which bite silently: the worker is registered from an absolute
+      // '/service-worker.js', which 404s when the site is served from a
+      // subpath; and if it did register it would cache the preview and go
+      // on serving an old build after a new one deployed - so the preview
+      // would lie about what is on main, which is the one job it has. The
+      // preview is a demo build with no Pi behind it, so there is nothing
+      // to work offline for.
+      // Tested on the hostname rather than a build-time flag on purpose:
+      // Vite's %VITE_X% substitution in index.html leaves the literal
+      // token in place when the variable is unset, which would be a
+      // syntax error in the Pi's build. This cannot fail that way.
+      if ('serviceWorker' in navigator && !/localhost|127\.0\.0\.1|\.github\.io$/.test(location.hostname) && location.protocol === 'https:') {
         window.addEventListener('load', function () {
           navigator.serviceWorker.register('/service-worker.js').then(function (reg) {
             // This app is a long-lived SPA: after first load there are no

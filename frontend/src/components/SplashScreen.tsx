@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { isDemo } from '@/lib/demo';
+import { publicUrl } from '@/lib/publicUrl';
 
 /**
  * Desktop-only intro splash. Shows the van hero + brand over the aurora
@@ -50,7 +51,7 @@ export function SplashScreen() {
       style={{ background: 'var(--aurora-base)' }}
     >
       {/* Van hero (public/van.jpg). Absent -> just the aurora below. */}
-      <div className="absolute inset-0 bg-center bg-cover" style={{ backgroundImage: "url('/van.jpg')" }} />
+      <div className="absolute inset-0 bg-center bg-cover" style={{ backgroundImage: `url('${publicUrl('/van.jpg')}')` }} />
       {/* Aurora glow — carries the screen when there's no photo, and deepens it when there is. */}
       <div
         className="absolute inset-0"
