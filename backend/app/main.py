@@ -19,6 +19,7 @@ from app.api.routes import roof as roof_routes
 from app.api.routes import system as system_routes
 from app.api.routes import places as places_routes
 from app.api.routes import backup as backup_routes
+from app.api.routes import themes as themes_routes
 from app.api.routes import voice as voice_routes
 from app.api.routes import voice_control as voice_control_routes
 from app.api.routes import heater as heater_routes
@@ -220,6 +221,7 @@ app.include_router(system_routes.router)
 app.include_router(location_routes.router)
 app.include_router(places_routes.router)
 app.include_router(backup_routes.router)
+app.include_router(themes_routes.router)
 app.include_router(poi_routes.router)
 app.include_router(coverage_routes.router)
 app.include_router(modem_routes.router)

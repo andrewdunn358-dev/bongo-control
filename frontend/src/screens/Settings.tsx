@@ -19,9 +19,8 @@ import {
   ThemeFileError,
 } from '@/lib/customThemes';
 import type { CustomTheme } from '@/lib/customThemes';
-import { themeFromPackage } from '@/lib/customThemes';
 import { parseThemePackage, ThemePackageError } from '@/lib/themePackage';
-import { putThemeAssets, deleteThemeAssets, hasRoomFor } from '@/lib/themeAssets';
+import { getServerThemes, refreshServerThemes, onServerThemesChanged } from '@/lib/serverThemes';
 
 /** Live viewport readout. Temporary but genuinely useful: the cockpit's
  *  layout tiers are driven by CSS viewport HEIGHT, and that number
@@ -1260,7 +1259,14 @@ export function Settings() {
   const { theme, toggle } = useTheme();
   const { style: navStyle, setStyle: setNavStyle } = useNavigationStyle();
   const { themeId, setTheme } = useCockpitTheme();
-  const [customThemes, setCustomThemes] = useState<CustomTheme[]>(() => loadCustomThemes());
+  // Installed themes come from the PI, so the same set appears on the
+  // tablet, a phone and this browser. Legacy browser-local themes are
+  // appended so anything imported before the move keeps working.
+  const [customThemes, setCustomThemes] = useState<CustomTheme[]>(() => [...getServerThemes(), ...loadCustomThemes()]);
+  useEffect(() => {
+    void refreshServerThemes();
+    return onServerThemesChanged((t) => setCustomThemes([...t, ...loadCustomThemes()]));
+  }, []);
   const [themeError, setThemeError] = useState<string | null>(null);
 
   const onThemeFile = async (file: File | undefined) => {
@@ -1278,11 +1284,19 @@ export function Settings() {
     }
   };
 
-  const onDeleteTheme = (id: string) => {
-    // Assets live in IndexedDB, not with the theme record, so they must
-    // be removed explicitly or they linger and consume quota forever.
-    void deleteThemeAssets(id);
-    setCustomThemes(deleteCustomTheme(id));
+  const onDeleteTheme = async (id: string) => {
+    const onServer = getServerThemes().some((t) => t.id === id);
+    if (onServer) {
+      try {
+        await api.deleteTheme(id.replace(/^custom:/, ''));
+        await refreshServerThemes();
+      } catch {
+        toast.error('Could not remove that theme from the van.');
+        return;
+      }
+    } else {
+      setCustomThemes(deleteCustomTheme(id));
+    }
     if (themeId === id) setTheme(COCKPIT_THEMES[0].id);
   };
 
@@ -1291,19 +1305,19 @@ export function Settings() {
     setThemeError(null);
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const pkg = await parseThemePackage(bytes);
+      // Parsed here only to fail fast with a readable message before
+      // uploading several hundred KB over the tunnel.
+      await parseThemePackage(bytes);
 
       // Refuse up front rather than failing partway through the write.
-      const assetBytes = pkg.assets.reduce((n, a) => n + a.bytes.byteLength, 0);
-      if (!(await hasRoomFor(assetBytes))) {
-        throw new ThemePackageError('Not enough browser storage for this theme. Remove another theme and try again.');
-      }
-
-      const theme = themeFromPackage(pkg.manifest, pkg.definition, pkg.assets.map((a) => a.path));
-      await putThemeAssets(theme.id, pkg.assets);
-      setCustomThemes(saveCustomTheme(theme));
-      setTheme(theme.id);
-      toast.success(`Theme "${theme.name}" imported`);
+      // Validated in the browser above for immediate feedback, then
+      // sent to the Pi - which validates it AGAIN before storing. The
+      // backend is the authority: a browser check can be bypassed and
+      // the result here is served to every device on the van.
+      const { theme: installed } = await api.installTheme(file);
+      await refreshServerThemes();
+      setTheme(`custom:${installed.id}`);
+      toast.success(`Theme "${installed.name}" installed`);
     } catch (e) {
       const msg =
         e instanceof ThemePackageError || e instanceof ThemeFileError
@@ -1484,7 +1498,7 @@ export function Settings() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => onDeleteTheme(t.id)}
+                  onClick={() => void onDeleteTheme(t.id)}
                   aria-label={`Delete theme ${t.name}`}
                   className="shrink-0 text-ink-faint hover:text-status-red transition-colors px-2 py-1 text-xs"
                 >
