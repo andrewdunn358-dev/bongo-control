@@ -420,6 +420,136 @@ container. (Also the method used to find the overflow above.)
 
 ---
 
+# 12. State and plan as of 17 Sep 2026 (end of a long session)
+
+Everything below is MEASURED against main at c7b9913, not remembered.
+Numbers were taken from headless Chromium renders of the real
+(non-demo) build unless stated.
+
+## What landed today, in order
+
+  #13 actions row was clipped and sitting on top of the footer
+  #14 column count became a CONTAINER question, not a viewport one
+  #15 hero yields height first; its copy survives being shortened
+  #16 decorative card visuals scale with the card; battery SVG fixed
+  #17 Power Flow fits a narrow card without ceasing to be a flow
+  #18 the 3x3 dashboard restored as Instrument; van-* cockpit deleted
+  #19 action tiles became compact controls instead of clipped ones
+  #20 Power page: restored the battery inventory a screen port dropped
+  #21 Adventure hero is a static image, not the live camera
+  #22 tokenised adventure.css
+  #23 Aurora backdrop follows the theme (+ scrim alphas rebalanced)
+  #24 NavShell follows the theme
+  #25 GitHub Pages preview of main
+  #26 tokenised the shared .glass card - themes now reach every screen
+
+Adventure went from 477px of overflow at 1143x628 to 23px.
+
+## Measured state of the two cockpits
+
+                      content  available  overflow
+  adventure 1143x685    603      624         0
+  adventure 1143x628    590      567        23
+  adventure 1143x532    567      471        96
+  instrument 1143x685   721      624        97
+  instrument 1143x628   721      567       154
+  instrument 1143x532   721      471       250
+
+Andrew's real device reports 1143 x 628, DPR 1, confirmed from the
+Settings -> Viewport readout in the app. Work to that number.
+
+## The remaining work, in the order I would do it
+
+1. TOKENISE ROOF AND SWITCHES. The last screens that ignore a theme.
+   87 colour literals: cockpit-roof.css 58, cockpit-screen.css 23,
+   cockpit-roof-animation.css 5, switches.css 1. Imported only by
+   Roof.tsx and Switches.tsx. Came in with the bongo2 ports (7b3c421,
+   1bde5a5) and never went through the token layer.
+   Method is settled - it has now been done three times (#22, #24, #26)
+   and the same two traps caught every time:
+     a) SEPARATE the literals that defeat a light theme (surfaces,
+        borders, text on a themed surface, fills, functional accents)
+        from the ones that must stay (shadow/text-shadow opacity with
+        no hue, photographic scrims, and text sitting ON a photograph -
+        a photo is not a themed surface).
+     b) MEASURE THE DARK THEME BEFORE AND AFTER by comparing resolved
+        computed colours, not by looking. Tokenising is NOT colour-
+        neutral: the first pass of #22 shifted 15 of 18 values, and in
+        #26 mapping the card border to --line silently killed the cyan
+        edge. Both were invisible in a screenshot.
+
+2. FIT INSTRUMENT. It is 154px over at the real size. It was restored
+   in #18 deliberately WITHOUT the sizing treatment, because mixing a
+   restore with a resize is how it went wrong the first time. It now
+   needs what Adventure got: container queries for structure, scaling
+   for decoration only, touch targets exempt.
+
+3. ADVENTURE'S LAST 23px at 1143x628. Small enough that it may fall out
+   of the composition-ladder work below rather than needing its own
+   pass.
+
+4. THE COMPOSITION LADDER (phone landscape). Home.tsx uses
+   useIsWideScreen(900); below that it renders Instrument directly and
+   ignores the theme, so 844x390 never sees Adventure at all. Container
+   queries already handle WIDTH since #14. What does not exist is the
+   HEIGHT side: a cockpit deciding it cannot fit its composition and
+   reflowing to a smaller one (slim hero, cards two-up, tiles 2x2)
+   rather than shrinking or scrolling. This was in the architecture
+   ChatGPT reviewed and is the last unbuilt piece of it.
+
+5. FREEDA FORD's remaining assets. The package validates clean against
+   the real schema, and heroCamera at TOP level is correct (the parser
+   reads theme?.heroCamera; nesting it under home would be ignored).
+   Two problems, both imagery:
+     - switches.jpg is a 250x120 SCREENSHOT OF THE COCKPIT, showing a
+       switch tile and the Camera tile complete with its arrow. Needs a
+       real photograph of the van's switch panel.
+     - no camera asset, so that tile falls back to /hero/lake_night.jpg,
+       a dark night photo inside a daylight theme.
+   Also ink-faint at 170 152 158 measures 2.73:1 for the footer slogan
+   on white; about 146 124 132 fixes it.
+
+6. cam1-5.jpg ARE NOT IN public/ AT ALL. demo.ts references them, so
+   demo camera frames 404 - on the Pages preview and on the Pi's own
+   demo build. Pre-existing, unrelated to any of today's work.
+
+7. camera-live-producer: THREE FINISHED COMMITS, NEVER OPENED AS A PR.
+   A shared Live producer so streaming and snapshots stop fighting for
+   /dev/video0, plus making a 503 visible instead of silent. Verified
+   against the API: no PR has ever existed for this branch. Worth
+   reviewing and landing or deleting - not leaving.
+   Also stale: fix-adventure-camera (2 commits) and
+   fix-adventure-camera-pr (3) - the Freeda Bright theme work.
+
+8. RESTORE THE DELETED RATIONALE. #23 and #24 each stripped comments
+   while keeping the code, ~26 lines in NavShell alone. Gone with them:
+   why there is no backdrop-blur on the header and dock (reported
+   "horribly slow" on a budget Android; opacity alone let ghost text
+   bleed through), and why the brand mark is imported rather than
+   referenced from public/ (an unversioned filename is always served
+   stale by the service worker). Both are findings this project paid
+   for once. The behaviour still holds; the reasons do not, so someone
+   will undo them.
+
+## Not reproduced, do not chase blind
+
+A stray "null" appeared bottom-right on the Roof page in a desktop
+screenshot. Checked and NOT found: no DOM element renders the text
+"null" on that page, no anchor/img/video carries a null or empty
+href/src, and videoSrc is initialised to a string constant and is never
+null. In the same corner an earlier screenshot showed "185.199.10",
+which is Chrome's link-target bubble - so this may be the browser, not
+the app. If it recurs, capture what is under the cursor.
+
+## The roof video
+
+Works - confirmed playing on desktop. If it is missing on the tablet,
+the deployed build predates 7b3c421 or the PWA is on a stale service-
+worker shell. Reopen the PWA. Files are tracked in git and the paths
+already resolve through import.meta.env.BASE_URL.
+
+---
+
 # 11. Verification discipline
 
 **Always distinguish BUILD VERIFIED from RENDER VERIFIED.** A clean
