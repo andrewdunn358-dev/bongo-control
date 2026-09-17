@@ -27,8 +27,11 @@ import type { ComponentType, LazyExoticComponent } from 'react';
  * would silently restyle the other.
  *
  * Mobile is NOT themed: below the wide-screen breakpoint Home always
- * renders MobileHome, whatever is selected here. A phone layout has
- * different constraints and is not something themes should fragment.
+ * renders the Instrument cockpit, whatever is selected here. A phone
+ * layout has different constraints and is not something themes should
+ * fragment. It is the same component the Instrument theme renders, not
+ * a second phone copy - keeping one copy is deliberate, because when
+ * this layout existed twice the two drifted apart.
  */
 export type CockpitThemeId = string;
 
@@ -46,7 +49,7 @@ export const COCKPIT_THEMES: CockpitTheme[] = [
   {
     id: 'instrument',
     name: 'Instrument',
-    description: 'Dense telemetry cockpit - status band, power column, live camera, brief',
+    description: 'The 3x3 telemetry dashboard - every reading on one grid',
     component: lazy(() =>
       import('@/components/cockpits/InstrumentCockpit').then((m) => ({ default: m.InstrumentCockpit })),
     ),
