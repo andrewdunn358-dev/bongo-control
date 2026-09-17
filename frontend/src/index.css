@@ -589,4 +589,29 @@ html[data-cockpit-theme='adventure'] {
     min-height: 0;
   }
   .vm-page .vm-action { height: calc(80px * var(--fit)); min-height: 0; }
+
+  /* 17 Sep - THE ACTUAL BUG BEHIND "fonts are wrong outside Instrument":
+     adventure.css's own font-size declarations (hero headline, card
+     titles, the big battery/solar/weather numbers) are plain px with
+     no var(--fit) anywhere in them - the comment two paragraphs up
+     ("headline sizes shrink" was the stated intent site-wide, see the
+     top of the AUTO-FIT block) was never actually applied to Adventure.
+     Instrument "worked" only because its own font sizes happened to be
+     modest enough already, not because either cockpit was genuinely
+     adapting. These six rules are the fix: the SAME headline/number
+     text, now scaled by the SAME --fit the rest of Adventure already
+     uses, each floored well above readable - never below where Adventure
+     currently sits at the real kiosk's measured --fit (~0.90-0.92). Card
+     eyebrows, captions and small labels are deliberately left alone -
+     those were never the complaint and shrinking them further is the
+     wrong trade. Not touched: touch target dimensions (unchanged by
+     this commit; the pre-existing --fit scaling of .vm-action height
+     itself is a separate, already-flagged inconsistency - see
+     claude_HANDOVER-PROJECT.md section 10). */
+  .vm-page .vm-hero-copy h2 { font-size: max(30px, calc(56px * var(--fit))); }
+  .vm-page .vm-card-head h3 { font-size: max(16px, calc(22px * var(--fit))); }
+  .vm-page .vm-battery-value strong { font-size: max(24px, calc(34px * var(--fit))); }
+  .vm-page .vm-solar-visual strong { font-size: max(26px, calc(39px * var(--fit))); }
+  .vm-page .vm-weather-main strong { font-size: max(32px, calc(49px * var(--fit))); }
+  .vm-page .vm-action-copy strong { font-size: max(14px, calc(19px * var(--fit))); }
 }
