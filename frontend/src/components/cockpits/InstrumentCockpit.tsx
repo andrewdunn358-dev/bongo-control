@@ -18,6 +18,7 @@ import {
   VanOSThermometer,
   VanOSWeather,
 } from '@/components/VanOSGraphics';
+import { useAutoFit } from '@/lib/useAutoFit';
 import { api } from '@/lib/api';
 import {
   useBattery,
@@ -213,9 +214,10 @@ export function InstrumentCockpit() {
   const topPred = brief?.predictions?.[0];
 
   const cameraTimestamp = Math.floor(now.getTime() / 5000) * 5000;
+  const fitRef = useAutoFit<HTMLDivElement>();
 
   return (
-    <div className="van-cockpit mx-auto w-full max-w-[1280px] space-y-5">
+    <div ref={fitRef} className="van-cockpit mx-auto w-full max-w-[1280px] space-y-5">
       {/* ============================================================
           STATUS
          ============================================================ */}

@@ -560,3 +560,38 @@ html[data-cockpit-theme='adventure'] {
   --aurora-blue: 21 155 232;
   --aurora-base: linear-gradient(180deg, #020911 0%, #071522 100%);
 }
+
+/* ── AUTO-FIT ──────────────────────────────────────────────────────
+   useAutoFit measures whether a cockpit actually fits and sets --fit
+   (1 down to 0.78) on its root. These rules are what --fit acts on.
+
+   This replaces guessed media-query tiers. Every viewport failure this
+   week came from estimating how tall the cards render and being wrong;
+   the browser already knows, so it is asked instead.
+
+   Spacing and headline sizes shrink. TOUCH TARGETS AND BODY TEXT DO
+   NOT - a control that is harder to hit, or a label that is harder to
+   read, is the wrong thing to trade away on a screen used in a moving
+   vehicle. Whitespace is the cheap thing to give up. */
+.van-cockpit,
+.vm-page {
+  --fit: 1;
+}
+
+@media (min-width: 900px) {
+  .van-cockpit > :not([hidden]) ~ :not([hidden]) {
+    margin-top: calc(1.25rem * var(--fit));
+  }
+  .van-cockpit .van-status { padding-block: calc(1rem * var(--fit)); }
+  .van-cockpit .van-powercard { padding: calc(1.25rem * var(--fit)); }
+  .van-cockpit .van-brief { padding: calc(1.25rem * var(--fit)); }
+  .van-cockpit .van-supportcard { padding: calc(1rem * var(--fit)); }
+  .van-cockpit .van-spark { height: calc(38px * var(--fit)); }
+  .van-cockpit .van-main { height: calc(min(516px, 46vh) * var(--fit)); }
+
+  .vm-page .vm-hero-photo { height: calc(min(30vh, 190px) * var(--fit)); }
+  .vm-page .vm-core-grid { height: calc(min(42vh, 265px) * var(--fit)); }
+  .vm-page .vm-card { padding: calc(14px * var(--fit)); }
+  .vm-page .vm-actions { height: calc(80px * var(--fit)); }
+  .vm-page .vm-action { height: calc(80px * var(--fit)); }
+}
