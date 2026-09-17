@@ -219,6 +219,16 @@ def validate_package(data: bytes) -> dict[str, Any]:
         "shape": definition.get("shape") if isinstance(definition.get("shape"), dict) else None,
         "density": definition.get("density") if isinstance(definition.get("density"), str) else None,
         "assets": definition.get("assets") if isinstance(definition.get("assets"), dict) else None,
+        # ONE bounded layout flag, not arbitrary layout control. A theme
+        # may say the hero should show its own imagery rather than the
+        # live camera - the camera then appears in its own Home tile,
+        # which is where it belongs. Anything else in "home" is ignored;
+        # general layout variants are still deferred.
+        "heroCamera": (
+            bool(definition["home"]["heroCamera"])
+            if isinstance(definition.get("home"), dict) and isinstance(definition["home"].get("heroCamera"), bool)
+            else None
+        ),
         "assetPaths": assets,
         "sizeBytes": len(data),
     }

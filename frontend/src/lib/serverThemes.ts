@@ -39,6 +39,7 @@ function toCustomTheme(s: ServerTheme): CustomTheme {
     previewPath: s.preview ?? undefined,
     /** Bare id, needed to build asset URLs against the Pi. */
     serverId: s.id,
+    heroCamera: s.heroCamera ?? undefined,
   } as CustomTheme;
 }
 

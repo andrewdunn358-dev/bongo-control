@@ -46,6 +46,8 @@ export interface CustomTheme {
   previewPath?: string;
   /** Set for themes stored on the Pi; used to build asset URLs. */
   serverId?: string;
+  /** false = hero shows the theme's own image, camera stays in its tile. */
+  heroCamera?: boolean;
 }
 
 /** Tokens a theme file is allowed to set.
