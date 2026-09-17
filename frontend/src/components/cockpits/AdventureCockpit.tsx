@@ -9,24 +9,49 @@ import { fmtVolt, fmtWatt, fmtTemp, fmtPct, DASH } from '@/lib/format';
 import type { BatteryPayload, SolarPayload } from '@/lib/types';
 import './adventure.css';
 
-function useClock(): Date { const [now,setNow]=useState(()=>new Date()); useEffect(()=>{const id=window.setInterval(()=>setNow(new Date()),1000);return()=>window.clearInterval(id)},[]); return now; }
+function useHeroCamera() {
+ const [url, setUrl] = useState<string | null>(null);
+ useEffect(() => {
+  let cancelled = false;
+  let objectUrl: string | null = null;
+  const load = async () => {
+   try {
+    const res = await fetch(api.cameraSnapshotUrl(Date.now()));
+    if (!res.ok) throw new Error(`Camera snapshot ${res.status}`);
+    const blob = await res.blob();
+    if (cancelled) return;
+    const nextUrl = URL.createObjectURL(blob);
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    objectUrl = nextUrl;
+    setUrl(nextUrl);
+   } catch {
+    if (!cancelled) setUrl(null);
+   }
+   if (!cancelled) window.setTimeout(load, 5000);
+  };
+  void load();
+  return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+ }, []);
+ return url;
+}
 function Spark({data,kind}:{data:number[];kind:'battery'|'solar'}) { if(data.length<2)return null; const lo=Math.min(...data),hi=Math.max(...data),span=Math.max(kind==='battery'?0.4:25,hi-lo); const points=data.map((v,i)=>`${(i/(data.length-1))*300},${34-Math.max(2,((v-lo)/span)*30)}`).join(' '); return <svg className="vm-spark" viewBox="0 0 300 38" preserveAspectRatio="none" aria-hidden="true"><polyline points={points}/></svg>; }
 function DataRow({label,value}:{label:string;value:string}) { return <div className="vm-data-row"><span>{label}</span><strong>{value}</strong></div>; }
 function ActionTile({to,title,subtitle,image,children}:{to:string;title:string;subtitle:string;image:string;children:React.ReactNode}) { return <Link to={to} className="vm-action"><div className="vm-action-image" style={{backgroundImage:`url(${image})`}}/><div className="vm-action-shade"/><div className="vm-action-copy"><div className="vm-action-icon">{children}</div><div><strong>{title}</strong><span>{subtitle}</span></div><ArrowRight className="vm-action-arrow" size={22}/></div></Link>; }
 
 export function AdventureCockpit() {
+ const heroCameraUrl = useHeroCamera();
  const battery=useBattery(),solar=useSolar(),energy=useEnergy(),env=useEnvironment(),weather=useWeather(),connected=useConnected();
  const { data: brief } = useQuery({ queryKey: ['mission-brief'], queryFn: api.missionBrief, refetchInterval: 30_000 });
- const now=useClock(); const loc=useQuery({queryKey:['location'],queryFn:api.location,retry:false}); const heater=useQuery({queryKey:['heater'],queryFn:api.heater,refetchInterval:5000,retry:false});
+ const loc=useQuery({queryKey:['location'],queryFn:api.location,retry:false}); const heater=useQuery({queryKey:['heater'],queryFn:api.heater,refetchInterval:5000,retry:false});
  const solarSeries=useSparkBuffer<SolarPayload>('solar',p=>p.watts),voltSeries=useSparkBuffer<BatteryPayload>('battery',p=>p.voltage);
  const bp=battery.payload,sp=solar.payload,ep=energy.payload,wp=weather.payload,hs=heater.data?.state??{};
  const heaterOn=hs.state===0x8||Boolean(hs.igniting); const heaterLabel=!heater.data?.available?'No signal':hs.error_code?`Fault ${hs.error_code}`:hs.igniting?'Igniting':hs.cooling_down?'Cooling down':heaterOn?'Heating':'Off';
- const ratio=wp?.tomorrow_vs_today_radiation_ratio; const weatherDescription=wp?.current_weather_description; const cameraTimestamp=Math.floor(now.getTime()/5000)*5000; const satCount=loc.data?.satellites;
+ const ratio=wp?.tomorrow_vs_today_radiation_ratio; const weatherDescription=wp?.current_weather_description; const satCount=loc.data?.satellites;
  const batteryState=bp==null?DASH:bp.charging?'CHARGING':bp.current_a!=null&&Math.abs(bp.current_a)<0.2?'RESTING':'DISCHARGING';
  const topPred = brief?.predictions?.[0];
  const predictedUsage = topPred?.value == null ? DASH : `${topPred.value}${topPred.unit ? ` ${topPred.unit}` : ''}`;
  return <div className="vm-page">
-  <section className="vm-hero"><div className="vm-hero-photo"><div className="vm-hero-image" style={{backgroundImage:`url(${api.cameraSnapshotUrl(cameraTimestamp)})`}}/><div className="vm-hero-fallback"/><div className="vm-hero-overlay"/>
+  <section className="vm-hero"><div className="vm-hero-photo"><div className="vm-hero-image" style={heroCameraUrl ? {backgroundImage:`url(${heroCameraUrl})`} : undefined}/><div className="vm-hero-fallback"/><div className="vm-hero-overlay"/>
    <div className="vm-hero-top"><span><Camera size={15}/> VAN CAMERA</span><span className={`vm-live ${connected?'live':'offline'}`}><i/> {connected?'LIVE SNAPSHOT':'OFFLINE'}</span></div>
    <div className="vm-hero-copy"><span className="vm-eyebrow">MAZDA BONGO · VANOS</span><h2>Adventure<br/>looks good<br/>on you.</h2><div className="vm-hero-rule"/><p>Explore · Relax · Disconnect · Repeat</p></div>
    <div className="vm-quote">“Not all those who wander<br/>are lost.”<small>J.R.R. Tolkien</small></div>
