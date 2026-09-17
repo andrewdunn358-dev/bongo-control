@@ -151,3 +151,40 @@
    happened to be taller than the drawing. */
 .vm-page .vm-card .vm-battery-main > svg,
 .vm-page .vm-card .vm-solar-visual > svg { height: 100%; width: auto; }
+
+/* The action tile's decoration scales; the tile itself does not (see
+   index.css). The icon ring and the copy insets are what give the tile
+   its height, so scaling THEM is what lets a touch control get compact
+   without the control itself shrinking below a thumb-sized floor.
+   Both floored: a 36px ring still reads as a ring, and 10px of inset
+   still reads as padding. Measured content at the tablet's --fit: a
+   37px ring inside 2x12px of inset = 61px, which the 64px floor in
+   index.css then holds up - so the copy has room instead of
+   overflowing the top of the tile by 2px as it did before. */
+.vm-page .vm-action-icon {
+  width: max(36px, calc(48px * var(--fit)));
+  height: max(36px, calc(48px * var(--fit)));
+}
+.vm-page .vm-action-copy {
+  inset: auto max(10px, calc(16px * var(--fit))) max(10px, calc(16px * var(--fit)));
+}
+
+/* The arrow goes when the tile is compact (17 Sep 2026).
+   MEASURED PER TILE, which is how this was found at all: Heater and
+   Camera have one-line statuses and their copy is 42px, but Roof
+   ("Open - hold - release") and Switches ("Manage van systems") wrap to
+   TWO lines, making their copy 57px - so those two, and only those two,
+   pushed their title out of the top of the tile. A height that fits the
+   average tile is not a fix.
+   The arrow is the one thing in the row that carries no information:
+   the whole tile is the link, so the chevron is an affordance hint, not
+   a label or a reading. Dropping it returns ~30px of width to the text,
+   which is enough to keep those statuses on one line - so the status
+   text is KEPT rather than truncated, and the copy comes back to 42px.
+   Keyed to the tile's own height so it follows the tile rather than the
+   viewport, same mechanism as the hero: the tile carries an explicit
+   height, so container-type:size is safe on it. */
+.vm-page .vm-action { container-type: size; container-name: tile; }
+@container tile (max-height: 70px) {
+  .vm-page .vm-action .vm-action-arrow { display: none; }
+}

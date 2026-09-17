@@ -612,7 +612,26 @@ html[data-cockpit-theme='adventure'] {
     gap: calc(14px * var(--fit));
     min-height: 0;
   }
-  .vm-page .vm-action { height: calc(80px * var(--fit)); min-height: 0; }
+  /* ACTION TILES ARE TOUCH CONTROLS (17 Sep 2026)
+     Their HEIGHT no longer scales with --fit. It used to, which
+     contradicted this block's own comment three paragraphs up saying
+     touch targets are never scaled, and drove them to 62px - measured
+     against a copy row that needs 65px (a 48px icon ring plus its 17px
+     inset), so the title clipped off the top of "Roof" and "Switches".
+     Now the tile has a hard 64px floor it can never go under, whatever
+     --fit does. (Content-sizing it was tried first and cannot work
+     here: .vm-action-copy is position:absolute, so it contributes no
+     height and the tile collapsed straight onto the floor - taking the
+     desktop tile from 80px to 64px. Measured, then reverted.) What scales instead is the
+     DECORATION inside it: the icon ring and the insets, both floored
+     (see adventure.css). At full size that lands the tile at its
+     original 80px with nothing changed; at the tablet's --fit it lands
+     at the 64px floor with the whole title, status line and arrow
+     visible.
+     Deliberately NOT forced to a flat 80px everywhere - that would have
+     re-created 18px of the overflow this sequence has been removing.
+     The real cost here is 2px. */
+  .vm-page .vm-action { height: max(64px, calc(80px * var(--fit))); }
 
   /* 17 Sep - THE ACTUAL BUG BEHIND "fonts are wrong outside Instrument":
      adventure.css's own font-size declarations (hero headline, card
@@ -637,5 +656,10 @@ html[data-cockpit-theme='adventure'] {
   .vm-page .vm-battery-value strong { font-size: max(24px, calc(34px * var(--fit))); }
   .vm-page .vm-solar-visual strong { font-size: max(26px, calc(39px * var(--fit))); }
   .vm-page .vm-weather-main strong { font-size: max(32px, calc(49px * var(--fit))); }
-  .vm-page .vm-action-copy strong { font-size: max(14px, calc(19px * var(--fit))); }
+  /* A tile's title is a CONTROL LABEL, not a headline, so it does not
+     scale - it sits with the body text and the data-row labels on the
+     never-scaled side of the line. Fixed at 16px: the 19px desktop size
+     does not fit the compact tile, and the scaled 14.82px it was
+     rendering was smaller than any other label on the screen. */
+  .vm-page .vm-action-copy strong { font-size: 16px; }
 }
