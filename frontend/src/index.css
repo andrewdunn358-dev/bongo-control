@@ -377,29 +377,9 @@ html.light .maplibregl-ctrl-attrib a {
   .animate-live-pulse { animation: none !important; }
 }
 
-/* ── VanOS cockpit: fitting one viewport ───────────────────────────
-   WHAT ACTUALLY DRIVES THE HEIGHT: the main row is as tall as the
-   TALLER of its two columns, and the power column is two cards with
-   min-h-[250px] plus a 16px gap = 516px. Earlier attempts kept
-   shrinking the CAMERA's min-height, which could never work - the
-   power column was setting the floor, so the row stayed 516px
-   regardless. Capping the row itself and letting both columns shrink
-   into it is the fix.
-
-   Height-capped with vh, not a rigid root grid: an earlier attempt at
-   the latter collapsed the row to zero and took Battery, Solar and the
-   camera off the page. Worst case here is a slightly short camera,
-   never a blank one.
-
-   !important on the power cards because their min-h-[250px] is a
-   Tailwind utility at the same specificity as these rules - source
-   order alone decided the winner, which is exactly the ambiguity that
-   made earlier passes silently do nothing. */
-@media (min-width: 900px) {
-  .van-cockpit .van-main { height: min(516px, 46vh); }
-  .van-cockpit .van-powercard { min-height: 0 !important; }
-  .van-cockpit .van-camera { min-height: 0 !important; }
-}
+/* The van-* cockpit rules that used to live here are gone with the
+   cockpit they styled (17 Sep 2026). .van-shell and .van-mainel below
+   are the APP SHELL, not that cockpit, and stay. */
 
 
 
@@ -542,21 +522,11 @@ html[data-cockpit-theme='adventure'] {
    NOT - a control that is harder to hit, or a label that is harder to
    read, is the wrong thing to trade away on a screen used in a moving
    vehicle. Whitespace is the cheap thing to give up. */
-.van-cockpit,
 .vm-page {
   --fit: 1;
 }
 
 @media (min-width: 900px) {
-  .van-cockpit > :not([hidden]) ~ :not([hidden]) {
-    margin-top: calc(1.25rem * var(--fit));
-  }
-  .van-cockpit .van-status { padding-block: calc(1rem * var(--fit)); }
-  .van-cockpit .van-powercard { padding: calc(1.25rem * var(--fit)); }
-  .van-cockpit .van-brief { padding: calc(1.25rem * var(--fit)); }
-  .van-cockpit .van-supportcard { padding: calc(1rem * var(--fit)); }
-  .van-cockpit .van-spark { height: calc(38px * var(--fit)); }
-  .van-cockpit .van-main { height: calc(min(516px, 46vh) * var(--fit)); }
 
   /* min-height MUST be cleared as well as height. adventure.css sets
      .vm-hero-photo{min-height:330px} and .vm-card{min-height:295px},

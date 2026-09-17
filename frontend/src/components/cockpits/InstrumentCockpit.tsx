@@ -1,144 +1,63 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import {
-  ShieldCheck,
-  AlertTriangle,
-  XCircle,
-  Satellite,
-  Flame,
-  Cable,
-  Maximize2,
-} from 'lucide-react';
-
+import { ShieldCheck, AlertTriangle, XCircle, Battery as BatteryIcon, Sun, Thermometer, Zap, SunMedium, CloudSun, CloudOff, Navigation, Camera as CameraIcon } from 'lucide-react';
+import { GlassCard, CardHeader } from '@/components/primitives/GlassCard';
+import { SatelliteSky } from '@/components/SatelliteSky';
 import { StatusPill } from '@/components/primitives/StatusPill';
-import {
-  VanOSBattery,
-  VanOSSolar,
-  VanOSThermometer,
-  VanOSWeather,
-} from '@/components/VanOSGraphics';
-import { useAutoFit } from '@/lib/useAutoFit';
+import { GaugeRing } from '@/components/primitives/GaugeRing';
+import { Sparkline } from '@/components/primitives/Sparkline';
 import { api } from '@/lib/api';
-import {
-  useBattery,
-  useSolar,
-  useEnergy,
-  useEnvironment,
-  useWeather,
-  useConnected,
-  useSparkBuffer,
-} from '@/lib/telemetry';
-import { fmtVolt, fmtWatt, fmtTemp, fmtPct, DASH } from '@/lib/format';
+import { useBattery, useSolar, useEnergy, useEnvironment, useSparkBuffer, useConnected } from '@/lib/telemetry';
+import { hasShunt } from '@/lib/telemetry';
+import { fmtVolt, fmtWatt, fmtTemp, DASH } from '@/lib/format';
 import type { BatteryPayload, SolarPayload } from '@/lib/types';
+import { HOME } from '@/constants/testIds';
+
+/**
+ * INSTRUMENT - the 3x3 telemetry dashboard.
+ *
+ * RESTORED 17 Sep 2026. This layout is Andrew's 3x3 spec (commit
+ * dc46742, 15 Sep). On 16 Sep the theme-engine commit (3f18bfc) said it
+ * was moving "the existing cockpit" into the theme registry with
+ * "behaviour unchanged" - it did not. It registered an older van-*
+ * two-column layout under the name Instrument instead, and this 3x3 was
+ * left wired only to the under-900px path. That van-* cockpit is now
+ * deleted: it had drifted close enough to Adventure that the two were
+ * being made to look alike, which is what broke both.
+ *
+ * ONE COMPONENT, BOTH WIDTHS, deliberately. The lg: breakpoints below
+ * give the 3x3 grid on a tablet or desktop and a clean single-column
+ * stack on a phone, so the narrow path in Home.tsx renders this same
+ * component rather than a second copy that would drift out of step with
+ * it - which is exactly how the layouts diverged in the first place.
+ *
+ * Telemetry honesty, unchanged and not to be "simplified" back:
+ * BATTERY has two publishers (Victron MPPT and SmartShunt), so shunt
+ * presence is tested with hasShunt() and never by current_a alone - a
+ * bug that was fixed once already (db01329) and is asserted by
+ * tools/check_frontend_contract.py.
+ */
 
 const STATUS_META = {
-  green: {
-    label: 'READY',
-    icon: ShieldCheck,
-    colour: 'rgb(var(--status-green))',
-  },
-  amber: {
-    label: 'ATTENTION',
-    icon: AlertTriangle,
-    colour: 'rgb(var(--status-amber))',
-  },
-  red: {
-    label: 'CRITICAL',
-    icon: XCircle,
-    colour: 'rgb(var(--status-red))',
-  },
-} as const;
+  green: { tone: 'green' as const, label: 'GREEN', icon: ShieldCheck },
+  amber: { tone: 'amber' as const, label: 'AMBER', icon: AlertTriangle },
+  red: { tone: 'red' as const, label: 'RED', icon: XCircle },
+};
+
+const VERDICT_META = {
+  good: { tone: 'green' as const, label: 'GOOD', Icon: SunMedium },
+  normal: { tone: 'teal' as const, label: 'NORMAL', Icon: CloudSun },
+  low: { tone: 'amber' as const, label: 'LOW', Icon: CloudOff },
+};
 
 function useClock(): Date {
   const [now, setNow] = useState(() => new Date());
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-
+  useState(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  });
   return now;
-}
-
-
-function MiniSpark({
-  data,
-  stroke,
-  minRange,
-}: {
-  data: number[];
-  stroke: string;
-  minRange: number;
-}) {
-  if (data.length < 2) {
-    return <div className="h-6" />;
-  }
-
-  const lo = Math.min(...data);
-  const hi = Math.max(...data);
-  const span = Math.max(minRange, hi - lo);
-
-  const points = data
-    .map(
-      (value, index) =>
-        `${(index / (data.length - 1)) * 300},${
-          34 - Math.min(30, Math.max(2, ((value - lo) / span) * 30))
-        }`,
-    )
-    .join(' ');
-
-  return (
-    <svg
-      className="van-spark"
-      width="100%"
-      height="38"
-      viewBox="0 0 300 38"
-      preserveAspectRatio="none"
-      aria-hidden="true"
-    >
-      <polyline
-        fill="none"
-        stroke={stroke}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        points={points}
-      />
-    </svg>
-  );
-}
-
-function Panel({
-  children,
-  className = '',
-  raised = false,
-}: {
-  children: React.ReactNode;
-  className?: string;
-  raised?: boolean;
-}) {
-  return (
-    <div
-      className={[
-        'relative overflow-hidden rounded-[8px] border',
-        raised
-          ? 'border-[rgb(var(--line))] bg-[rgb(var(--surface-raised))] shadow-[0_8px_30px_rgba(0,0,0,.22)]'
-          : 'border-[rgb(var(--line) / 0.55)] bg-[rgb(var(--surface-sunken))]',
-        className,
-      ].join(' ')}
-    >
-      {children}
-    </div>
-  );
-}
-
-function MetricLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[rgb(var(--ink-muted))]">
-      {children}
-    </div>
-  );
 }
 
 export function InstrumentCockpit() {
@@ -147,512 +66,290 @@ export function InstrumentCockpit() {
     queryFn: api.missionBrief,
     refetchInterval: 30_000,
   });
-
   const battery = useBattery();
   const solar = useSolar();
   const energy = useEnergy();
   const env = useEnvironment();
-  const weather = useWeather();
   const connected = useConnected();
   const now = useClock();
 
-  const loc = useQuery({
-    queryKey: ['location'],
-    queryFn: api.location,
-    retry: false,
-  });
-
-  const heater = useQuery({
-    queryKey: ['heater'],
-    queryFn: api.heater,
-    refetchInterval: 5_000,
-    retry: false,
-  });
-
-  const fuel = useQuery({
-    queryKey: ['heater-fuel'],
-    queryFn: api.heaterFuel,
-    refetchInterval: 60_000,
-    retry: false,
-  });
+  const loc = useQuery({ queryKey: ['location'], queryFn: api.location, retry: false });
+  const sats = useQuery({ queryKey: ['gps-satellites'], queryFn: api.gpsSatellites, retry: false });
 
   const solarSeries = useSparkBuffer<SolarPayload>('solar', (p) => p.watts);
   const voltSeries = useSparkBuffer<BatteryPayload>('battery', (p) => p.voltage);
 
-  const status = STATUS_META[brief?.status ?? 'green'];
-  const StatusIcon = status.icon;
+  const meta = STATUS_META[brief?.status ?? 'green'];
+  const Icon = meta.icon;
 
-  const bp = battery.payload;
-  const netW = energy.payload?.net_watts ?? null;
-  const ratio = weather.payload?.tomorrow_vs_today_radiation_ratio ?? null;
+  const solarSig = brief?.signals?.find((s) => s.source === 'solar_verdict');
+  const vMeta = solarSig?.detail?.verdict ? VERDICT_META[solarSig.detail.verdict] : null;
+  const VIcon = vMeta?.Icon ?? Sun;
 
-  const batteryState =
-    bp == null
-      ? DASH
-      : bp.charging
-        ? 'Charging'
-        : bp.current_a != null && Math.abs(bp.current_a) < 0.2
-          ? 'Resting'
-          : 'Discharging';
+  const solarHist = brief?.signals?.find((s) => s.source === 'solar_history')?.detail as
+    | { today_wh?: number; avg_wh?: number; best_wh?: number; days?: number }
+    | undefined;
+  const kwh = (wh?: number) => (wh == null ? null : (wh / 1000).toFixed(wh >= 1000 ? 1 : 2));
 
-  const hs = heater.data?.state ?? {};
-  const heaterOn = hs.state === 0x8 || Boolean(hs.igniting);
-
-  const heaterLabel = !heater.data?.available
-    ? 'No signal'
-    : hs.error_code
-      ? 'Fault'
-      : hs.igniting
-        ? 'Igniting'
-        : hs.cooling_down
-          ? 'Cooling down'
-          : heaterOn
-            ? 'Heating'
-            : 'Off';
-
-  const topRec = brief?.recommendations?.[0];
-  const topPred = brief?.predictions?.[0];
-
-  const cameraTimestamp = Math.floor(now.getTime() / 5000) * 5000;
-  const fitRef = useAutoFit<HTMLDivElement>();
+  const satCount = loc.data?.satellites ?? (sats.data?.satellites?.filter((s) => s.snr != null).length ?? null);
 
   return (
-    <div ref={fitRef} className="van-cockpit mx-auto w-full max-w-[1280px] space-y-5">
-      {/* ============================================================
-          STATUS
-         ============================================================ */}
-      <Link to="/overview" className="block">
-        <Panel raised className="van-status px-5 py-4 transition-colors duration-150 hover:border-[rgb(var(--aurora-blue))]/60">
-          <div className="flex flex-wrap items-center justify-between gap-5">
-            <div className="flex min-w-0 items-center gap-4">
-              <StatusIcon
-                size={34}
-                strokeWidth={2}
-                style={{ color: status.colour }}
-                className="shrink-0"
-              />
+    <div data-testid={HOME.root} className="mx-auto max-w-[1600px]">
+      <div className="grid grid-cols-12 gap-4 lg:gap-5">
+        {/* Left column - battery/solar, each with real sparkline history */}
+        <div className="col-span-12 lg:col-span-3 flex flex-col gap-4">
+          <GlassCard level="hero" glow="teal" data-testid={HOME.batteryVoltage}>
+            <CardHeader label="Battery voltage" right={<BatteryIcon size={15} className="text-aurora-teal" />} />
+            <div className="num text-3xl font-bold">{fmtVolt(battery.payload?.voltage)}</div>
+            <div className="text-[11px] text-ink-faint mt-1">{battery.payload?.charging ? 'Charging' : 'Resting reading'}</div>
+            {/* State of charge, only when the shunt has actually
+                synchronised. Voltage stays the headline because it is
+                always available and always true; the bar is the thing
+                you read at a glance.
 
-              <div className="min-w-0">
+                Thresholds match the shunt's own 50% discharge floor:
+                below that an AGM takes permanent damage, so red means
+                "you are hurting the batteries", not merely "getting
+                low". Amber starts at 70% to give warning before that.
+
+                Deliberately absent rather than estimated when there is
+                no percentage - drawing a bar off voltage alone would be
+                exactly the guess this app has always refused to make. */}
+            {battery.payload?.soc_pct != null && (
+              <div className="mt-3">
+                <div className="flex items-baseline justify-between mb-1">
+                  <span className="text-[10px] uppercase tracking-wider text-ink-muted">State of charge</span>
+                  <span className="num text-sm font-semibold">{Math.round(battery.payload.soc_pct)}%</span>
+                </div>
                 <div
-                  className="text-[26px] font-bold leading-none tracking-[-0.03em]"
-                  style={{ color: status.colour }}
+                  className="h-2 rounded-full bg-white/10 overflow-hidden"
+                  role="progressbar"
+                  aria-valuenow={Math.round(battery.payload.soc_pct)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label="Battery state of charge"
                 >
-                  {status.label}
-                </div>
-
-                <div className="mt-1 truncate text-[13px] text-[rgb(var(--ink-soft))]">
-                  {brief?.summary || 'Assembling mission brief…'}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-x-7 gap-y-3">
-              <div>
-                <MetricLabel>
-                  <span className="inline-flex items-center gap-1">
-                    <Satellite size={10} /> GPS
-                  </span>
-                </MetricLabel>
-                <div className="mt-0.5 text-[13px] font-medium text-[rgb(var(--ink))]">
-                  {loc.data?.satellites != null
-                    ? `${loc.data.satellites} sats`
-                    : DASH}
-                  {loc.data?.hdop != null && (
-                    <span className="text-[rgb(var(--ink-muted))]">
-                      {' '}· HDOP {loc.data.hdop.toFixed(1)}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <MetricLabel>
-                  <span className="inline-flex items-center gap-1">
-                    <Cable size={10} /> Network
-                  </span>
-                </MetricLabel>
-                {/* The Pi is wired to the van router over ETHERNET, not
-                    Wi-Fi - no SSID, no signal strength, no Wi-Fi icon.
-                    Reachability comes from the live websocket: if this
-                    page is receiving telemetry the Pi-to-browser path is
-                    demonstrably up. The CONNECTIVITY telemetry domain is
-                    deliberately NOT used here - nothing in the backend
-                    publishes it (only plugins/simulation does), so it
-                    reported "Offline" permanently on the real van. */}
-                <div className="mt-0.5 text-[13px] font-medium text-[rgb(var(--ink))]">
-                  {connected ? (
-                    <>Ethernet <span className="text-[rgb(var(--ink-muted))]">· Connected</span></>
-                  ) : (
-                    <span className="text-[rgb(var(--ink-muted))]">Not reachable</span>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <MetricLabel>Time</MetricLabel>
-                <div className="mt-0.5 font-mono text-[13px] font-medium text-[rgb(var(--ink))]">
-                  {now.toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </div>
-              </div>
-
-              <StatusPill tone={connected ? 'teal' : 'red'}>
-                {connected ? 'LIVE' : 'OFFLINE'}
-              </StatusPill>
-            </div>
-          </div>
-        </Panel>
-      </Link>
-
-      {/* ============================================================
-          MAIN COCKPIT
-          40% power / 60% camera
-         ============================================================ */}
-      <div className="van-main grid min-h-0 grid-cols-1 gap-4 lg:grid-cols-[minmax(300px,40fr)_minmax(0,60fr)]">
-        {/* POWER COLUMN */}
-        <div className="grid min-h-0 gap-4 lg:grid-rows-2">
-          {/* BATTERY */}
-          <Link to="/power" className="block min-h-0">
-            <Panel
-              raised
-              className="van-powercard group flex h-full min-h-[250px] flex-col p-5 transition-colors duration-150 hover:border-[rgb(var(--aurora-blue))]/70"
-            >
-              <div className="flex items-start justify-between">
-                <MetricLabel>Battery</MetricLabel>
-                <VanOSBattery soc={bp?.soc_pct} charging={bp?.charging} />
-              </div>
-
-              <div className="mt-1 flex items-end gap-3">
-                <div className="font-mono text-[38px] font-bold leading-none tracking-[-0.05em] text-[rgb(var(--ink))]">
-                  {bp?.soc_pct != null ? `${Math.round(bp.soc_pct)}%` : DASH}
-                </div>
-                <div className="mb-1 font-mono text-[16px] text-[rgb(var(--ink-soft))]">
-                  {fmtVolt(bp?.voltage)}
-                </div>
-              </div>
-
-              {bp?.soc_pct != null && (
-                <div className="mt-4 h-2 overflow-hidden rounded-full bg-[rgb(var(--line) / 0.55)]">
                   <div
-                    className="h-full rounded-full transition-[width] duration-700"
-                    style={{
-                      width: `${Math.max(2, Math.min(100, bp.soc_pct))}%`,
-                      background:
-                        bp.soc_pct < 50
-                          ? 'rgb(var(--status-red))'
-                          : bp.soc_pct < 70
-                            ? 'rgb(var(--status-amber))'
-                            : 'rgb(var(--status-green))',
-                    }}
+                    className={`h-full rounded-full transition-[width] duration-700 ${
+                      battery.payload.soc_pct < 50
+                        ? 'bg-status-red'
+                        : battery.payload.soc_pct < 70
+                          ? 'bg-status-amber'
+                          : 'bg-status-green'
+                    }`}
+                    style={{ width: `${Math.max(2, Math.min(100, battery.payload.soc_pct))}%` }}
                   />
                 </div>
-              )}
+                {battery.payload.soc_pct < 50 && (
+                  <div className="text-[10px] text-status-red mt-1">Below the 50% floor — sustained time here shortens AGM life.</div>
+                )}
+              </div>
+            )}
+            <div className="mt-3"><Sparkline data={voltSeries} width={260} height={44} stroke="#22d3ee" fill="rgba(34,211,238,0.25)" minRange={0.4} /></div>
+            {/* useSparkBuffer holds only what has arrived over the
+                WebSocket since this page loaded, so the caption can only
+                honestly claim that window - not a fixed period. Seeding
+                the buffer from /api/history is a separate change. */}
+            <div className="text-[10px] text-ink-faint mt-2">
+              Since page load{!hasShunt(battery.payload) ? ' · no shunt · voltage only' : ''}
+            </div>
+          </GlassCard>
 
-              <div className="mt-4 flex items-baseline justify-between gap-3">
-                <div className="text-[13px] text-[rgb(var(--ink-soft))]">
-                  {batteryState}
-                  {bp?.charging_power_w != null && (
-                    <span className="text-[rgb(var(--ink-muted))]">
-                      {' '}· {fmtWatt(bp.charging_power_w)} in
-                    </span>
-                  )}
+          <GlassCard data-testid={HOME.solarWatts}>
+            <CardHeader label="Solar" right={<Sun size={15} className="text-brand-orange" />} />
+            <div className="num text-3xl font-bold">{fmtWatt(solar.payload?.watts)}</div>
+            <div className="text-[11px] text-ink-faint mt-1">
+              Peak today {fmtWatt(solar.payload?.peak_today_watts)} · {(solar.payload?.charge_state || 'off').toUpperCase()}
+            </div>
+            <div className="mt-3"><Sparkline data={solarSeries} width={260} height={44} stroke="#FF8A00" fill="rgba(255,138,0,0.22)" minRange={25} /></div>
+          </GlassCard>
+
+          <GlassCard>
+            <CardHeader label="Net energy" hint="solar − load" right={<Zap size={15} className="text-aurora-teal" />} />
+            <div className="num text-2xl font-semibold">{fmtWatt(energy.payload?.net_watts)}</div>
+            <div className="text-[11px] text-ink-faint mt-1">in {fmtWatt(energy.payload?.solar_watts)} · out {fmtWatt(energy.payload?.load_watts)}</div>
+          </GlassCard>
+        </div>
+
+        {/* Camera, the right column and the mission brief share a nested
+            grid. This exists purely so the right column's height is set
+            by the CAMERA and nothing else - Frankie asked for the GPS
+            card to line up with the bottom of the camera. In the outer
+            12-col grid every column stretches to the tallest of them, so
+            a flex-1 GPS card there would run down to whichever column
+            happened to be longest (the mission brief, or the battery
+            stack) rather than to the camera. Nesting makes row 1 exactly
+            camera-height; the brief then wraps to row 2 under the camera.
+            8/12 and 4/12 of a 9-col parent are 6 and 3 of the outer grid,
+            so the proportions are unchanged. */}
+        <div className="col-span-12 lg:col-span-9 grid grid-cols-12 gap-4 lg:gap-5 content-start">
+          <div className="col-span-12 lg:col-span-8 flex flex-col gap-4">
+            <div className="relative rounded-2xl overflow-hidden aspect-[16/10] ring-1 ring-white/10 shadow-2xl bg-black/50">
+            {/* 30s, raised from 15s. This is the SECOND consumer of a
+                camera that takes ~4.1s to produce a single frame (the
+                Camera page is the other), and both open the same device
+                through the same lock. Two pollers on a 15s clock is
+                already most of a duty cycle on this hardware, and it
+                stacks with whatever the Camera page is doing. The Home
+                tile is a glance, not a monitor - it does not need to be
+                fresher than the walk to the van. */}
+            <img
+              src={api.cameraSnapshotUrl(Math.floor(Date.now() / 30000))}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+            {/* Gradient scrims: the snapshot is arbitrary brightness, so
+                the overlaid labels need their own contrast rather than
+                relying on the image being dark. */}
+            <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/65 to-transparent z-10" />
+            <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/65 to-transparent z-10" />
+            <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
+              <CameraIcon size={15} className="text-ink-soft" />
+              <span className="text-[10px] tracking-[0.25em] uppercase font-semibold text-ink-soft">Camera</span>
+            </div>
+            <StatusPill tone={connected ? 'teal' : 'red'} className="absolute top-4 right-4 z-20">{connected ? 'LIVE' : 'OFFLINE'}</StatusPill>
+            <div className="absolute inset-x-0 bottom-4 text-center z-20">
+              <div className="num text-4xl font-bold text-white" style={{ textShadow: '0 2px 20px rgba(0,0,0,.6)' }}>
+                {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right column. Sits in ROW 1 alongside the camera, which is
+            the whole point of the nesting above: the row is exactly
+            camera-height, so flex-1 on the GPS card lands its bottom
+            edge level with the bottom of the camera. */}
+        <div className="col-span-12 lg:col-span-4 flex flex-col gap-4">
+          <GlassCard className="shrink-0">
+            <CardHeader label="Weather" />
+            <div className="num text-3xl font-bold">{fmtTemp(env.payload?.external_temp_c)}</div>
+            <div className="text-xs text-ink-soft mt-1">{DASH}</div>
+          </GlassCard>
+
+          {/* GPS, moved here from the centre hero. The SatelliteSky
+              animation is kept as the card's backdrop rather than
+              dropped - it is what makes this read as the sky view at a
+              glance - but the coordinates now sit inline instead of
+              floating over the middle of a large panel. min-h keeps it
+              sensible when the column is short (narrow screens, where
+              it stacks and there is no camera to match). */}
+          <GlassCard className="p-0 overflow-hidden relative flex-1 min-h-[190px]">
+            <SatelliteSky className="absolute inset-0 z-0 opacity-70" />
+            <div className="relative z-10 p-5">
+              <div className="text-[10px] tracking-[0.25em] text-status-green uppercase font-semibold">GPS Locked</div>
+              <div className="text-2xl font-bold mt-0.5">{satCount ?? DASH} Satellites</div>
+              {loc.data?.hdop != null && <div className="text-xs text-ink-soft mt-0.5">HDOP {loc.data.hdop.toFixed(1)}</div>}
+              {loc.data?.latitude != null && loc.data?.longitude != null && (
+                <div className="text-xs text-ink-soft mt-3 num" style={{ textShadow: '0 2px 12px rgba(0,0,0,.6)' }}>
+                  {loc.data.latitude.toFixed(4)}°, {loc.data.longitude.toFixed(4)}°
                 </div>
+              )}
+              <Link
+                to="/nearby"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-full pl-3.5 pr-2.5 py-1.5 text-xs font-medium bg-black/50 backdrop-blur-md ring-1 ring-white/15 hover:bg-black/65"
+              >
+                Navigate <Navigation size={12} />
+              </Link>
+            </div>
+          </GlassCard>
+        </div>
 
-                {netW != null && (
-                  <div
-                    className={[
-                      'font-mono text-[15px] font-semibold',
-                      netW > 0
-                        ? 'text-[rgb(var(--status-green))]'
-                        : netW < 0
-                          ? 'text-[rgb(var(--status-amber))]'
-                          : 'text-[rgb(var(--ink-soft))]',
-                    ].join(' ')}
-                  >
-                    {netW > 0 ? '+' : ''}
-                    {fmtWatt(netW)} net
+        {/* Mission brief - wraps to row 2, under the camera only, which
+            is where it sat before this row was nested. */}
+        <div className="col-span-12 lg:col-span-8">
+          <Link to="/overview" className="block">
+            {/* No glow. The battery card is this screen's hero and holds
+                the only glow on the page - two glowing cards is the
+                "everything is primary" problem in miniature. This one is
+                still clearly interactive: it is a Link with a hover ring
+                and a coloured GaugeRing carrying the status. */}
+            <GlassCard
+              className="hover:ring-aurora-teal/40 transition-colors"
+              data-testid={HOME.sitrepBadge}
+            >
+              <div className="flex items-start gap-3">
+                <GaugeRing tone={meta.tone} size={44} progress={meta.tone === 'green' ? 1 : meta.tone === 'amber' ? 0.6 : 0.3}>
+                  <Icon size={16} className={meta.tone === 'green' ? 'text-status-green' : meta.tone === 'amber' ? 'text-status-amber' : 'text-status-red'} />
+                </GaugeRing>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-ink-muted">Mission brief · tap for the full picture</div>
+                  <div className="text-sm md:text-base font-medium mt-0.5">{brief?.summary || 'Assembling mission brief…'}</div>
+                </div>
+              </div>
+            </GlassCard>
+          </Link>
+        </div>
+      </div>
+      </div>
+
+      {/* Secondary detail - solar verdict, temps, charging power */}
+      <div className="grid grid-cols-12 gap-4 lg:gap-5 mt-4 lg:mt-5">
+        {solarSig && (
+          <GlassCard className="col-span-12" data-testid={HOME.solarVerdict}>
+            <div className="flex items-start gap-4">
+              <div
+                className={`h-12 w-12 rounded-2xl grid place-items-center ring-1 ring-inset shrink-0 ${
+                  vMeta?.tone === 'green'
+                    ? 'bg-emerald-500/15 ring-emerald-400/30 text-status-green'
+                    : vMeta?.tone === 'amber'
+                    ? 'bg-amber-500/15 ring-amber-400/30 text-status-amber'
+                    : 'bg-aurora-teal/15 ring-aurora-teal/30 text-aurora-teal'
+                }`}
+              >
+                <VIcon size={22} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-ink-muted">Solar today</div>
+                  {vMeta && <StatusPill tone={vMeta.tone}>{vMeta.label}</StatusPill>}
+                </div>
+                <div className="text-base md:text-lg text-ink-soft mt-1.5">{solarSig.message}</div>
+                {solarSig.detail?.today_mj != null && (
+                  <div className="text-xs text-ink-faint mt-2 num">
+                    {solarSig.detail.today_mj} MJ/m² forecast
+                    {solarSig.detail.clearsky_mj != null ? ` · clear-sky ceiling ${solarSig.detail.clearsky_mj} MJ/m²` : ''}
+                    {solarSig.detail.yield_today_wh != null ? ` · ${solarSig.detail.yield_today_wh} Wh harvested` : ''}
+                  </div>
+                )}
+                {solarHist?.avg_wh != null && (
+                  <div className="text-xs text-ink-faint mt-1 num">
+                    Recent harvest: {kwh(solarHist.avg_wh)} kWh/day avg
+                    {solarHist.best_wh != null ? ` · best ${kwh(solarHist.best_wh)} kWh` : ''}
+                    {solarHist.today_wh ? ` · today ${kwh(solarHist.today_wh)} kWh` : ''}
+                    <span className="text-ink-faint/70"> (last {solarHist.days ?? 0} days)</span>
                   </div>
                 )}
               </div>
-
-              {netW != null && (
-                <div className="mt-1 text-[11px] text-[rgb(var(--ink-muted))]">
-                  {netW > 0
-                    ? 'Making more than using'
-                    : netW < 0
-                      ? 'Using more than making'
-                      : 'Balanced'}
-                  {' '}· in {fmtWatt(energy.payload?.solar_watts)}, out{' '}
-                  {fmtWatt(energy.payload?.load_watts)}
-                </div>
-              )}
-
-              <div className="van-sparkwrap mt-auto pt-4">
-                <MiniSpark
-                  data={voltSeries}
-                  stroke="rgb(var(--aurora-blue))"
-                  minRange={0.4}
-                />
-              </div>
-            </Panel>
-          </Link>
-
-          {/* SOLAR */}
-          <Link to="/weather" className="block min-h-0">
-            <Panel
-              raised
-              className="van-powercard group flex h-full min-h-[250px] flex-col p-5 transition-colors duration-150 hover:border-[rgb(var(--aurora-blue))]/70"
-            >
-              <div className="flex items-start justify-between">
-                <MetricLabel>Solar</MetricLabel>
-                <VanOSSolar />
-              </div>
-
-              <div className="mt-1 flex items-end gap-3">
-                <div className="font-mono text-[38px] font-bold leading-none tracking-[-0.05em] text-[rgb(var(--ink))]">
-                  {fmtWatt(solar.payload?.watts)}
-                </div>
-              </div>
-
-              <div className="mt-4 text-[13px] text-[rgb(var(--ink-soft))]">
-                Peak today {fmtWatt(solar.payload?.peak_today_watts)}
-              </div>
-
-              <div className="mt-1 text-[11px] uppercase tracking-[0.12em] text-[rgb(var(--ink-muted))]">
-                {(solar.payload?.charge_state || 'off').toUpperCase()}
-              </div>
-
-              {ratio != null && (
-                <div className="mt-4 border-t border-[rgb(var(--line) / 0.55)] pt-3 text-[12px] text-[rgb(var(--ink-soft))]">
-                  <span className="text-[rgb(var(--ink-muted))]">Tomorrow</span>{' '}
-                  <span className={ratio >= 1 ? 'text-[rgb(var(--status-green))]' : 'text-[rgb(var(--status-amber))]'}>
-                    {ratio >= 1 ? '↑' : '↓'} {Math.round(ratio * 100)}%
-                  </span>{' '}
-                  <span className="text-[rgb(var(--ink-muted))]">of today's radiation</span>
-                </div>
-              )}
-
-              <div className="van-sparkwrap mt-auto pt-4">
-                <MiniSpark
-                  data={solarSeries}
-                  stroke="rgb(var(--status-amber))"
-                  minRange={25}
-                />
-              </div>
-            </Panel>
-          </Link>
-        </div>
-
-        {/* CAMERA CENTREPIECE */}
-        <Link to="/camera" className="block min-h-0">
-          <Panel
-            raised
-            className="van-camera relative h-full min-h-[520px] overflow-hidden p-0 transition-colors duration-150 hover:border-[rgb(var(--aurora-blue))]/70"
-          >
-            <img
-              src={api.cameraSnapshotUrl(cameraTimestamp)}
-              alt="Van camera"
-              className="absolute inset-0 h-full w-full object-cover"
-              onError={(event) => {
-                (event.currentTarget as HTMLImageElement).style.display = 'none';
-              }}
-            />
-
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/70 to-transparent" />
-
-            <div className="absolute left-4 top-4 flex items-center gap-2 rounded-md border border-white/10 bg-black/55 px-3 py-2 backdrop-blur-sm">
-              <span
-                className={[
-                  'h-2 w-2 rounded-full',
-                  connected ? 'bg-[rgb(var(--status-green))]' : 'bg-[rgb(var(--status-red))]',
-                ].join(' ')}
-              />
-              <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white">
-                {connected ? 'LIVE' : 'OFFLINE'}
-              </span>
-              <span className="text-[11px] text-white/55">Van Camera</span>
             </div>
+          </GlassCard>
+        )}
 
-            <div className="absolute bottom-4 left-4">
-              <div className="text-[10px] uppercase tracking-[0.16em] text-white/45">
-                Van camera
-              </div>
-              <div className="mt-1 font-mono text-[12px] text-white/75">
-                {now.toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  second: '2-digit',
-                })}
-              </div>
+        <GlassCard level="quiet" className="col-span-6 md:col-span-3" data-testid={HOME.interiorTemp}>
+          <CardHeader label="Interior" hint="1-Wire probe" right={<Thermometer size={16} className="text-aurora-teal" />} />
+          <div className="num text-3xl font-semibold">{fmtTemp(env.payload?.internal_temp_c)}</div>
+        </GlassCard>
+
+        <GlassCard level="quiet" className="col-span-6 md:col-span-3" data-testid={HOME.externalTemp}>
+          <CardHeader label="Outside" hint="1-Wire probe" right={<Sun size={16} className="text-brand-orange" />} />
+          <div className="num text-3xl font-semibold">{fmtTemp(env.payload?.external_temp_c)}</div>
+        </GlassCard>
+
+        <GlassCard level="quiet" className="col-span-12 md:col-span-6">
+          <div className="flex flex-wrap items-center gap-6">
+            <div className="flex items-center gap-2">
+              <BatteryIcon size={14} className="text-ink-muted" />
+              <span className="text-xs text-ink-muted uppercase tracking-widest">charging power</span>
+              <span className="num text-lg ml-1">{fmtWatt(battery.payload?.charging_power_w ?? null)}</span>
             </div>
-
-            <div className="absolute bottom-4 right-4 rounded-md border border-white/10 bg-black/45 p-2 text-white/75">
-              <Maximize2 size={14} />
+            <div className="text-ink-faint text-xs">
+              {hasShunt(battery.payload)
+                ? 'Solar in, from the MPPT. Net battery flow is measured by the shunt.'
+                : "From the MPPT — total van draw isn't measurable without a shunt."}
             </div>
-          </Panel>
-        </Link>
-      </div>
-
-      {/* ============================================================
-          INTELLIGENCE
-         ============================================================ */}
-      <Link to="/overview" className="block">
-        <Panel
-          raised
-          className="transition-colors duration-150 hover:border-[rgb(var(--aurora-blue))]/70"
-        >
-          <div className="van-brief grid gap-5 p-5 md:grid-cols-[minmax(0,1fr)_minmax(240px,320px)] md:items-center">
-            <div className="min-w-0">
-              <MetricLabel>What you need to know</MetricLabel>
-
-              <div className="mt-2 text-[17px] font-semibold leading-6 text-[rgb(var(--ink))]">
-                {brief?.summary || 'Assembling mission brief…'}
-              </div>
-
-              {topRec && (
-                <div className="mt-4 border-l-2 border-[rgb(var(--aurora-blue))] pl-4">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[rgb(var(--aurora-blue))]">
-                    Recommendation
-                  </div>
-                  <div className="mt-1 text-[13px] leading-5 text-[rgb(var(--ink-soft))]">
-                    {topRec}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {topPred && (
-              <div className="border-l border-[rgb(var(--line) / 0.55)] pl-5 md:text-right">
-                <MetricLabel>{topPred.label}</MetricLabel>
-                <div className="mt-2 font-mono text-[24px] font-semibold text-[rgb(var(--ink))]">
-                  {topPred.value == null
-                    ? DASH
-                    : `${topPred.value}${topPred.unit ? ` ${topPred.unit}` : ''}`}
-                </div>
-              </div>
-            )}
           </div>
-        </Panel>
-      </Link>
-
-      {/* ============================================================
-          SUPPORTING INFORMATION
-         ============================================================ */}
-      <div className="van-support grid gap-4 md:grid-cols-3">
-        <Link to="/weather" className="block">
-          <Panel className="van-supportcard h-full p-4 transition-colors duration-150 hover:border-[rgb(var(--line))]">
-            <div className="flex items-center justify-between">
-              <MetricLabel>Environment</MetricLabel>
-              <VanOSWeather condition={weather.payload?.current_weather_description} size={26} />
-            </div>
-
-            <div className="mt-4 grid grid-cols-3 gap-3">
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <VanOSThermometer temperature={env.payload?.internal_temp_c} size={20} />
-                  <span className="font-mono text-[20px] font-semibold text-[rgb(var(--ink))]">
-                    {fmtTemp(env.payload?.internal_temp_c)}
-                  </span>
-                </div>
-                <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-[rgb(var(--ink-muted))]">
-                  Inside
-                </div>
-              </div>
-
-              <div>
-                <div className="font-mono text-[20px] font-semibold text-[rgb(var(--ink))]">
-                  {fmtTemp(env.payload?.external_temp_c)}
-                </div>
-                <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-[rgb(var(--ink-muted))]">
-                  Outside
-                </div>
-              </div>
-
-              <div className="min-w-0">
-                <div className="font-mono text-[15px] text-[rgb(var(--ink-soft))]">
-                  {fmtTemp(weather.payload?.current_temp_c)}
-                </div>
-                <div className="mt-1 truncate text-[10px] text-[rgb(var(--ink-muted))]">
-                  {weather.payload?.current_weather_description || 'No reading'}
-                </div>
-              </div>
-            </div>
-          </Panel>
-        </Link>
-
-        <Link to="/heater" className="block">
-          <Panel className="van-supportcard h-full p-4 transition-colors duration-150 hover:border-[rgb(var(--line))]">
-            <div className="flex items-center justify-between">
-              <MetricLabel>Heater</MetricLabel>
-              <Flame
-                size={16}
-                className={heaterOn ? 'text-[rgb(var(--status-amber))]' : 'text-[rgb(var(--ink-muted))]'}
-              />
-            </div>
-
-            <div className="mt-4 flex items-center justify-between gap-3">
-              <StatusPill
-                tone={hs.error_code ? 'red' : heaterOn ? 'amber' : 'slate'}
-              >
-                {heaterLabel}
-              </StatusPill>
-
-              {hs.target != null && (
-                <span className="font-mono text-[15px] text-[rgb(var(--ink-soft))]">
-                  {hs.target}{hs.mode === 2 ? '°C' : ''}
-                </span>
-              )}
-            </div>
-
-            <div className="mt-3 text-[11px] text-[rgb(var(--ink-muted))]">
-              Body {fmtTemp(hs.body_temperature_c)} · Cabin{' '}
-              {fmtTemp(hs.cabin_temperature_c)}
-            </div>
-
-            {fuel.data?.tank_remaining_litres != null &&
-              fuel.data?.tank_litres != null && (
-                <div className="mt-1 text-[11px] text-[rgb(var(--ink-muted))]">
-                  Fuel ~
-                  {fmtPct(
-                    (fuel.data.tank_remaining_litres /
-                      fuel.data.tank_litres) *
-                      100,
-                  )}{' '}
-                  estimated
-                </div>
-              )}
-          </Panel>
-        </Link>
-
-        <Link to="/nearby" className="block">
-          <Panel className="van-supportcard h-full p-4 transition-colors duration-150 hover:border-[rgb(var(--line))]">
-            <div className="flex items-center justify-between">
-              <MetricLabel>Location</MetricLabel>
-              <Satellite size={16} className="text-[rgb(var(--aurora-blue))]" />
-            </div>
-
-            <div className="mt-4 flex items-baseline gap-2">
-              <span className="font-mono text-[22px] font-semibold text-[rgb(var(--ink))]">
-                {loc.data?.satellites ?? DASH}
-              </span>
-              <span className="text-[12px] text-[rgb(var(--ink-soft))]">satellites</span>
-            </div>
-
-            {loc.data?.hdop != null && (
-              <div className="mt-1 text-[11px] text-[rgb(var(--ink-muted))]">
-                HDOP {loc.data.hdop.toFixed(1)}
-              </div>
-            )}
-
-            {loc.data?.latitude != null && loc.data?.longitude != null && (
-              <div className="mt-3 font-mono text-[11px] text-[rgb(var(--ink-muted))]">
-                {loc.data.latitude.toFixed(4)}°, {loc.data.longitude.toFixed(4)}°
-              </div>
-            )}
-          </Panel>
-        </Link>
+        </GlassCard>
       </div>
     </div>
   );
