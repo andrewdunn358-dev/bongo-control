@@ -44,6 +44,8 @@ export interface CustomTheme {
   /** Logical name -> asset path inside the package, e.g. hero -> assets/hero.jpg */
   assets?: Record<string, string>;
   previewPath?: string;
+  /** Set for themes stored on the Pi; used to build asset URLs. */
+  serverId?: string;
 }
 
 /** Tokens a theme file is allowed to set.

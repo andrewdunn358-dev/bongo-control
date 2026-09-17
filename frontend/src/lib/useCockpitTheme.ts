@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { DEFAULT_COCKPIT_THEME, getCockpitTheme } from '@/lib/cockpitThemes';
 import { applyCustomTheme, loadCustomThemes } from '@/lib/customThemes';
+import { getServerThemes, refreshServerThemes, onServerThemesChanged } from '@/lib/serverThemes';
 import type { CockpitTheme, CockpitThemeId } from '@/lib/cockpitThemes';
 
 const STORAGE_KEY = 'vanos-cockpit-theme';
@@ -32,6 +33,17 @@ export function useCockpitTheme(): {
 } {
   const [themeId, setThemeIdState] = useState<CockpitThemeId>(read);
 
+  // The server list arrives asynchronously, so a selected server theme
+  // cannot be applied on the very first paint. Re-running when it lands
+  // is what makes it appear, rather than the app looking unthemed until
+  // the next navigation.
+  const [serverTick, setServerTick] = useState(0);
+  useEffect(() => {
+    void refreshServerThemes();
+    return onServerThemesChanged(() => setServerTick((n) => n + 1));
+  }, []);
+
+
   // Apply the theme to <html> so its token overrides in index.css reach
   // EVERY screen, not just the Home cockpit. Power, Weather, History and
   // the rest never reference a theme - they use --surface and --ink via
@@ -43,14 +55,19 @@ export function useCockpitTheme(): {
     // cannot supply one - so the base attribute is still set, and the
     // custom tokens are applied as inline properties on <html>, which
     // win over the stylesheet by specificity.
+    // Server themes first, then legacy browser-local ones. Local
+    // themes from before themes moved to the Pi keep working rather
+    // than silently disappearing.
     const custom = themeId.startsWith('custom:')
-      ? loadCustomThemes().find((t) => t.id === themeId) ?? null
+      ? getServerThemes().find((t) => t.id === themeId)
+        ?? loadCustomThemes().find((t) => t.id === themeId)
+        ?? null
       : null;
 
     const base = custom ? DEFAULT_COCKPIT_THEME : getCockpitTheme(themeId).id;
     document.documentElement.setAttribute('data-cockpit-theme', base);
     applyCustomTheme(custom);
-  }, [themeId]);
+  }, [themeId, serverTick]);
 
   useEffect(() => {
     const onLocal = (id: CockpitThemeId) => setThemeIdState(id);

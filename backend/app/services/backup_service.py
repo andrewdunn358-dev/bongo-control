@@ -114,6 +114,15 @@ class BackupService:
                     found_any = True
             zf.writestr("env-backup.txt", self._env_snapshot())
 
+            # Installed theme packages. They live on the Pi rather than
+            # in each browser, so without this a rebuilt SD card loses
+            # every theme with nothing to restore them from.
+            themes_dir = DATA_DIR / "themes"
+            if themes_dir.is_dir():
+                for pkg in sorted(themes_dir.glob("*.vanos-theme")):
+                    zf.write(pkg, arcname=f"themes/{pkg.name}")
+                    found_any = True
+
             # Host config, via the read-only mounts in docker-compose.yml.
             # These are the files that made a restored card fail silently:
             # without them you get relays energised through boot, no
@@ -269,6 +278,21 @@ class BackupService:
             if filename in names:
                 with zf.open(filename) as src, open(DATA_DIR / filename, "wb") as dst:
                     shutil.copyfileobj(src, dst)
+
+        # Theme packages, restored before the host files so a failure
+        # there still leaves the themes in place.
+        themes_restored = 0
+        themes_dir = DATA_DIR / "themes"
+        for name in names:
+            if not name.startswith("themes/") or not name.endswith(".vanos-theme"):
+                continue
+            if "/" in name[len("themes/"):] or ".." in name:
+                continue  # never write outside the themes directory
+            themes_dir.mkdir(parents=True, exist_ok=True)
+            (themes_dir / Path(name).name).write_bytes(zf.read(name))
+            themes_restored += 1
+        if themes_restored:
+            logger.warning("Restored %d theme package(s)", themes_restored)
 
         host_restored, host_skipped = self._restore_host_files(zf, names)
         for line in host_restored:

@@ -388,4 +388,53 @@ export const api = {
     }
     return (await res.json()) as { ok: boolean; message: string };
   },
+
+  /* ---- Theme packages ------------------------------------------------
+     Installed themes live on the PI, not in the browser, so a theme
+     imported on the desktop appears on the mounted tablet and the phone
+     without importing it three times. Which theme a device has SELECTED
+     is still local - the tablet may want a bright theme in daylight
+     while a phone stays dark at night. */
+  themes: () => request<{ themes: ServerTheme[] }>('/themes'),
+
+  installTheme: async (file: File) => {
+    if (isDemo) throw new ApiError(400, 'Themes cannot be installed in the demo.');
+    const form = new FormData();
+    form.append('file', file);
+    const headers = new Headers();
+    const token = getToken();
+    if (token) headers.set('X-App-Token', token);
+    const res = await fetch(`${API_BASE}/themes`, { method: 'POST', body: form, headers, credentials: 'same-origin' });
+    if (!res.ok) {
+      let msg = res.statusText;
+      try { const j = await res.json(); if (j?.detail) msg = String(j.detail); } catch { /* ignore */ }
+      throw new ApiError(res.status, msg);
+    }
+    return (await res.json()) as { ok: boolean; theme: ServerTheme };
+  },
+
+  deleteTheme: (id: string) => request<{ ok: boolean }>(`/themes/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  /** URL for one packaged image. Served by the Pi with a fixed
+   *  Content-Type from an allow-list; used as an <img> src or a CSS
+   *  background, never inlined. */
+  themeAssetUrl: (id: string, path: string) => {
+    const t = getToken();
+    return `${API_BASE}/themes/${encodeURIComponent(id)}/assets/${path.split('/').map(encodeURIComponent).join('/')}${t ? `?token=${encodeURIComponent(t)}` : ''}`;
+  },
 };
+
+export interface ServerTheme {
+  id: string;
+  name: string;
+  author?: string | null;
+  description?: string | null;
+  preview?: string | null;
+  formatVersion: number;
+  tokens: Record<string, string>;
+  typography?: Record<string, string> | null;
+  shape?: Record<string, string> | null;
+  density?: string | null;
+  assets?: Record<string, string> | null;
+  sizeBytes: number;
+}
