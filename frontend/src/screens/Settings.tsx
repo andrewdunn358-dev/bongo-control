@@ -1439,7 +1439,7 @@ export function Settings() {
         <GlassCard className="col-span-12 lg:col-span-5 p-6">
           <CardHeader label="Cockpit theme" hint="tablet and desktop only · phones always use the mobile layout" />
           <p className="text-xs text-ink-faint mb-3">
-            How the home cockpit is laid out. Every theme shows the same real telemetry \u2014 only the
+            How the home cockpit is laid out. Every theme shows the same real telemetry — only the
             arrangement and styling differ.
           </p>
           <div role="radiogroup" aria-label="Cockpit theme" className="flex flex-col gap-1 rounded-xl bg-ink/[0.03] ring-1 ring-ink/10 p-1">

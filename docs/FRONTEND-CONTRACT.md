@@ -179,3 +179,55 @@ no deploy — it applies immediately. See `docs/themes/example-highland.json`.
 
 Every value is validated before it reaches the DOM, and applied via
 `style.setProperty()` — never by injecting CSS. A theme file cannot break the app.
+
+---
+
+## 10. Auto-fit — do not write viewport tiers
+
+The cockpit **measures itself**. `useAutoFit` compares the real rendered height
+against the space available and, if it overflows, lowers a `--fit` variable
+(1 → 0.78) that the cockpit CSS multiplies its spacing by.
+
+**So do not add `@media (max-height: ...)` tiers to a cockpit or theme.** Every
+viewport failure on this project came from estimating how tall cards render and
+getting it wrong — a tier sized for a height the device never reported, a
+`min-height` on the element that wasn't setting the row height, card heights guessed
+optimistically twice over. The browser already knows. Ask it.
+
+### What this means when you build a cockpit or theme
+
+- **Express spacing so it can scale.** Use `calc(<value> * var(--fit))` for gaps,
+  padding and decorative heights. A hardcoded `padding: 20px` cannot be fitted.
+- **Never scale touch targets or body text.** A control that is harder to hit, or a
+  label harder to read, is the wrong thing to trade away in a moving vehicle.
+  Whitespace is the cheap thing to give up.
+- **Never use `transform: scale()`** to make something fit. It blurs text at
+  non-integer scales — bad on a screen read at a glance while driving — and breaks
+  `position: fixed` descendants.
+- **It cannot rescue a layout that is fundamentally too tall.** Auto-fit stops at
+  0.78 and lets the page scroll rather than becoming unreadable. If your cockpit
+  needs 900px of content at a 613px viewport, the layout needs redesigning — no
+  amount of scaling fixes that.
+
+### Verify against the real device
+
+Measured, in kiosk mode on the target tablet:
+
+| Context | CSS viewport |
+|---|---|
+| Chrome tab | 1143 × 532 |
+| Installed PWA | 1143 × 628 |
+| **Fully Kiosk fullscreen** | **1143 × 685** ← the real target |
+
+**Settings → Viewport** shows live dimensions in whichever mode the app is running.
+Use it. Estimating card heights was wrong every single time it was tried.
+
+### Themes and colour
+
+A theme sets tokens, not layout. If a cockpit is built with hardcoded hex — as both
+cockpits originally were — **no theme can change it**. Colours must come from the
+tokens (`--ink*`, `--surface*`, `--line`, `--aurora-*`) or from a private palette
+that itself resolves to them, e.g. `--vm-panel: rgb(var(--surface))`.
+
+Status colours (`--status-green/amber/red`) and `--brand-orange` are **not**
+themeable, by design. A fault must stay readable whatever theme is loaded.

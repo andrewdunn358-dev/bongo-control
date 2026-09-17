@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, BatteryCharging, Camera, Flame, MapPin, Sun, Thermometer, ToggleRight, Zap } from 'lucide-react';
 import { VanOSBattery, VanOSSolar, VanOSWeather } from '@/components/VanOSGraphics';
+import { useAutoFit } from '@/lib/useAutoFit'
 import { api } from '@/lib/api';
 import { useBattery, useSolar, useEnergy, useEnvironment, useWeather, useConnected, useSparkBuffer } from '@/lib/telemetry';
 import { fmtVolt, fmtWatt, fmtTemp, fmtPct, DASH } from '@/lib/format';
@@ -50,7 +51,8 @@ export function AdventureCockpit() {
  const batteryState=bp==null?DASH:bp.charging?'CHARGING':bp.current_a!=null&&Math.abs(bp.current_a)<0.2?'RESTING':'DISCHARGING';
  const topPred = brief?.predictions?.[0];
  const predictedUsage = topPred?.value == null ? DASH : `${topPred.value}${topPred.unit ? ` ${topPred.unit}` : ''}`;
- return <div className="vm-page">
+ const fitRef = useAutoFit<HTMLDivElement>();
+ return <div className="vm-page" ref={fitRef}>
   <section className="vm-hero"><div className="vm-hero-photo"><div className="vm-hero-image" style={heroCameraUrl ? {backgroundImage:`url(${heroCameraUrl})`} : undefined}/><div className="vm-hero-fallback"/><div className="vm-hero-overlay"/>
    <div className="vm-hero-top"><span><Camera size={15}/> VAN CAMERA</span><span className={`vm-live ${connected?'live':'offline'}`}><i/> {connected?'LIVE SNAPSHOT':'OFFLINE'}</span></div>
    <div className="vm-hero-copy"><span className="vm-eyebrow">MAZDA BONGO · VANOS</span><h2>Adventure<br/>looks good<br/>on you.</h2><div className="vm-hero-rule"/><p>Explore · Relax · Disconnect · Repeat</p></div>
