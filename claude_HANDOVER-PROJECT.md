@@ -388,16 +388,35 @@ that size without either shrinking things it shouldn't or reflowing.
   `applying`-flag pattern, generalised to both axes) rather than being
   replaced by a second competing hook.
 
-**Computed, not yet render-verified:** 1143×685 → scale 1.00 (ref);
-1143×628 (PWA) → 0.917; 844×390 (phone landscape) → scale 0.569 driven
-by height, action tiles still ≈82px (above the touch floor) so no
-reflow forced on touch grounds alone, though width-based container
-query reflow (4→2 columns) still fires independently.
+**RENDER VERIFIED 17 Sep (headless Chromium, demo build, real device
+sizes) — the earlier estimate below was wrong:** at 1143×628 (the
+actual PWA size on the real tablet), `.vm-page`'s measured
+`scrollHeight` is **~999px** against **~532px** available by
+`useAutoFit`'s own arithmetic (`window.innerHeight - top - 12`) — even
+with `--fit` already pinned at its floor (0.78). That's Adventure's
+hero heading rendering **partially clipped above the visible
+viewport** in the screenshot (first line "Adventure" gone entirely,
+only "looks good / on you." visible). Confirmed at 1143×685 and
+1143×532 too — same clipping, same floor-pinned `--fit`.
 
-**Testing plan when this is built:** Playwright + headless Chromium at
-the four viewports above — the same method that caught the
-`fitBounds`/tile-index bugs in the offline-maps work — asserting
-`--scale` and that no element's `scrollHeight` exceeds its container.
+Caveat: measured against the `VITE_DEMO=true` build, which adds a
+~80px "Simulated data" warning banner not present against real
+hardware — true gap on real hardware is probably ~80px smaller, but
+this is a ~400px shortfall, not a ~24px one. Font/spacing scaling
+within touch-safe bounds (0.78 floor, per `MIN_FIT` in `useAutoFit.ts`)
+cannot close a gap this size — this needs the **reflow** piece the
+architecture below already anticipated, and it's needed at the
+*reference* size, not just at the phone-landscape edge case originally
+assumed. Not yet built.
+
+The old estimate (1143×685 → scale 1.00; 1143×628 → ~0.92; 844×390 →
+~0.57, "should fit") is superseded by the measurement above — it was
+arithmetic, never rendered, and was wrong. Testing plan when the
+reflow work above is built: Playwright + headless Chromium at the four
+reference viewports — the same method that caught the
+`fitBounds`/tile-index bugs in the offline-maps work — asserting the
+scale/fit variable and that no element's `scrollHeight` exceeds its
+container. (Also the method used to find the overflow above.)
 
 ---
 
