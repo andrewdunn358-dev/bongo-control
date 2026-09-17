@@ -32,6 +32,18 @@ export interface CustomTheme {
   name: string;
   author?: string;
   tokens: Record<string, string>;
+  /** 0 = legacy plain-JSON colour theme, 1 = .vanos-theme package.
+   *  Absent on themes stored before packages existed, which is exactly
+   *  why the check below treats undefined as 0 rather than failing. */
+  formatVersion?: 0 | 1;
+  description?: string;
+  /** Package extras. All optional - a v0 theme has none of them. */
+  typography?: Partial<Record<'sans' | 'display' | 'mono', string>>;
+  shape?: Partial<Record<'sm' | 'md' | 'lg' | 'xl' | '2xl', string>>;
+  density?: 'compact' | 'normal' | 'spacious';
+  /** Logical name -> asset path inside the package, e.g. hero -> assets/hero.jpg */
+  assets?: Record<string, string>;
+  previewPath?: string;
 }
 
 /** Tokens a theme file is allowed to set.
@@ -58,6 +70,23 @@ export const THEMEABLE_TOKENS = [
 ] as const;
 
 const TOKEN_SET = new Set<string>(THEMEABLE_TOKENS);
+
+/** Font stacks a theme may CHOOSE from. A theme names one of these; it
+ *  cannot supply its own family string. That is deliberate: no remote
+ *  font loading, so the van's dashboard never depends on someone else's
+ *  CDN being reachable, and a theme cannot inject arbitrary CSS through
+ *  a font-family value. */
+export const FONT_CHOICES: Record<string, string> = {
+  grotesk: '"Space Grotesk", ui-sans-serif, system-ui, sans-serif',
+  system: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+  humanist: 'Inter, "Segoe UI", ui-sans-serif, system-ui, sans-serif',
+  mono: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
+};
+
+/** Radii are a bounded set of lengths, not free-form CSS. */
+const RADIUS = /^(0|[0-9]{1,2}(\.[0-9]{1,2})?(px|rem))$/;
+const DENSITIES = new Set(['compact', 'normal', 'spacious']);
+const DENSITY_SCALE: Record<string, string> = { compact: '0.8', normal: '1', spacious: '1.25' };
 
 /** "R G B", 0-255 each - the form Tailwind's <alpha-value> syntax needs. */
 const RGB_TRIPLET = /^\d{1,3}\s+\d{1,3}\s+\d{1,3}$/;
@@ -103,9 +132,18 @@ export function parseThemeFile(raw: string): CustomTheme {
   if (!name) throw new ThemeFileError('The theme file has no "name".');
   if (name.length > 40) throw new ThemeFileError('That theme name is too long (40 characters max).');
 
+  return parseThemeDefinition(name, obj);
+}
+
+/**
+ * Validates the token half of a theme, shared by BOTH the legacy plain
+ * JSON path and the .vanos-theme package path. One validator means the
+ * two formats can never drift apart on what a valid colour is.
+ */
+export function parseThemeDefinition(name: string, obj: Record<string, unknown>): CustomTheme {
   const rawTokens = obj.tokens;
   if (typeof rawTokens !== 'object' || rawTokens === null || Array.isArray(rawTokens)) {
-    throw new ThemeFileError('The theme file has no "tokens" object.');
+    throw new ThemeFileError('The theme has no "tokens" object.');
   }
 
   const tokens: Record<string, string> = {};
@@ -152,6 +190,84 @@ export function parseThemeFile(raw: string): CustomTheme {
     name,
     author: typeof obj.author === 'string' ? obj.author.slice(0, 60) : undefined,
     tokens,
+    formatVersion: 0,
+  };
+}
+
+/**
+ * Builds a CustomTheme from a validated .vanos-theme package.
+ *
+ * Every field is checked here rather than trusted from the package:
+ * parseThemePackage() proves the ZIP is structurally safe, this proves
+ * the CONTENT is meaningful. Unknown keys are dropped; invalid values
+ * reject the whole import rather than being silently ignored, so a
+ * theme never half-applies.
+ */
+export function themeFromPackage(
+  manifest: { name: string; author?: string; description?: string; preview?: string },
+  definition: Record<string, unknown>,
+  assetPaths: string[],
+): CustomTheme {
+  const base = parseThemeDefinition(manifest.name, definition);
+
+  const typography: CustomTheme['typography'] = {};
+  const rawType = definition.typography;
+  if (rawType && typeof rawType === 'object' && !Array.isArray(rawType)) {
+    for (const [slot, choice] of Object.entries(rawType as Record<string, unknown>)) {
+      if (!['sans', 'display', 'mono'].includes(slot)) continue;
+      if (typeof choice !== 'string' || !FONT_CHOICES[choice]) {
+        throw new ThemeFileError(
+          `Unknown font "${String(choice).slice(0, 20)}". Choose one of: ${Object.keys(FONT_CHOICES).join(', ')}.`,
+        );
+      }
+      typography[slot as 'sans' | 'display' | 'mono'] = choice;
+    }
+  }
+
+  const shape: CustomTheme['shape'] = {};
+  const rawShape = definition.shape;
+  if (rawShape && typeof rawShape === 'object' && !Array.isArray(rawShape)) {
+    for (const [k, v] of Object.entries(rawShape as Record<string, unknown>)) {
+      if (!['sm', 'md', 'lg', 'xl', '2xl'].includes(k)) continue;
+      if (typeof v !== 'string' || !RADIUS.test(v.trim())) {
+        throw new ThemeFileError(`Invalid radius for "${k}" - use a value like "12px" or "0.75rem".`);
+      }
+      shape[k as keyof NonNullable<CustomTheme['shape']>] = v.trim();
+    }
+  }
+
+  let density: CustomTheme['density'];
+  if (typeof definition.density === 'string') {
+    if (!DENSITIES.has(definition.density)) {
+      throw new ThemeFileError('density must be one of: compact, normal, spacious.');
+    }
+    density = definition.density as CustomTheme['density'];
+  }
+
+  // Asset references must point at files the package actually contains.
+  // A dangling reference would render as a broken image with no clue why.
+  const assets: Record<string, string> = {};
+  const rawAssets = definition.assets;
+  if (rawAssets && typeof rawAssets === 'object' && !Array.isArray(rawAssets)) {
+    for (const [role, path] of Object.entries(rawAssets as Record<string, unknown>)) {
+      if (typeof path !== 'string') continue;
+      if (!assetPaths.includes(path)) {
+        throw new ThemeFileError(`The theme references an asset that is not in the package: ${path.slice(0, 60)}`);
+      }
+      assets[role.slice(0, 30)] = path;
+    }
+  }
+
+  return {
+    ...base,
+    formatVersion: 1,
+    author: manifest.author ?? base.author,
+    description: manifest.description,
+    typography: Object.keys(typography).length ? typography : undefined,
+    shape: Object.keys(shape).length ? shape : undefined,
+    density,
+    assets: Object.keys(assets).length ? assets : undefined,
+    previewPath: manifest.preview,
   };
 }
 
@@ -162,12 +278,30 @@ export function parseThemeFile(raw: string): CustomTheme {
  *  even if one slipped through. */
 export function applyCustomTheme(theme: CustomTheme | null): void {
   const root = document.documentElement;
-  for (const token of THEMEABLE_TOKENS) {
-    root.style.removeProperty(`--${token}`);
-  }
+
+  // Clear everything a theme could have set, so switching themes never
+  // leaves a previous theme's value behind.
+  for (const token of THEMEABLE_TOKENS) root.style.removeProperty(`--${token}`);
+  for (const slot of ['sans', 'display', 'mono']) root.style.removeProperty(`--font-${slot}`);
+  for (const r of ['sm', 'md', 'lg', 'xl', '2xl']) root.style.removeProperty(`--radius-${r}`);
+  root.style.removeProperty('--density');
+
   if (!theme) return;
+
   for (const [token, value] of Object.entries(theme.tokens)) {
     if (TOKEN_SET.has(token)) root.style.setProperty(`--${token}`, value);
+  }
+  // A theme names a font CHOICE; the stack itself comes from our table,
+  // never from the file.
+  for (const [slot, choice] of Object.entries(theme.typography ?? {})) {
+    const stack = FONT_CHOICES[choice];
+    if (stack) root.style.setProperty(`--font-${slot}`, stack);
+  }
+  for (const [k, v] of Object.entries(theme.shape ?? {})) {
+    root.style.setProperty(`--radius-${k}`, v);
+  }
+  if (theme.density) {
+    root.style.setProperty('--density', DENSITY_SCALE[theme.density] ?? '1');
   }
 }
 

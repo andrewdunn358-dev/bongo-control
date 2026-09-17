@@ -1,0 +1,21 @@
+{
+  "tokens": {
+    "ink": "18 45 74",
+    "ink-soft": "54 83 112",
+    "ink-muted": "91 119 145",
+    "ink-faint": "137 161 181",
+    "surface": "255 255 255",
+    "surface-raised": "248 252 255",
+    "surface-sunken": "235 243 249",
+    "line": "205 220 232",
+    "aurora-teal": "14 165 233",
+    "aurora-blue": "37 99 235",
+    "aurora-purple": "124 92 246",
+    "aurora-pink": "236 72 153",
+    "aurora-lime": "16 185 129",
+    "aurora-base": "linear-gradient(135deg, #ffffff 0%, #f4faff 48%, #e7f4ff 100%)"
+  },
+  "typography": { "sans": "humanist", "display": "humanist", "mono": "mono" },
+  "shape": { "sm": "8px", "md": "12px", "lg": "16px", "xl": "18px", "2xl": "24px" },
+  "density": "normal"
+}

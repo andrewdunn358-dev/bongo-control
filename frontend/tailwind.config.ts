@@ -5,10 +5,13 @@ const config: Config = {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      // Fonts likewise. A theme picks from a SAFE BUILT-IN list only -
+      // no remote font loading, so a theme cannot make the van's
+      // dashboard depend on someone else's CDN being up.
       fontFamily: {
-        sans: ['"Space Grotesk"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        display: ['"Space Grotesk"', 'ui-sans-serif', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+        sans: 'var(--font-sans)',
+        display: 'var(--font-display)',
+        mono: 'var(--font-mono)',
       },
       colors: {
         // Theme-aware ink (white in dark, near-black in light). Use these
@@ -50,10 +53,16 @@ const config: Config = {
           orange: 'rgb(var(--brand-orange) / <alpha-value>)',
         },
       },
+      // Radius resolves through CSS variables for the same reason the
+      // colours do: a cockpit theme can then restyle every rounded-*
+      // in the app (188 usages) without touching a single component.
+      // Defaults in index.css preserve the current appearance exactly.
       borderRadius: {
-        lg: '0.9rem',
-        md: '0.7rem',
-        sm: '0.5rem',
+        sm: 'var(--radius-sm)',
+        md: 'var(--radius-md)',
+        lg: 'var(--radius-lg)',
+        xl: 'var(--radius-xl)',
+        '2xl': 'var(--radius-2xl)',
       },
       keyframes: {
         'aurora-pulse': {
