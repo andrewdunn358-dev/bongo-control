@@ -42,6 +42,13 @@ function swVersion() {
 // The frontend code uses `import.meta.env.DEV ? "/api/ws/telemetry" : "/ws/telemetry"`
 // (see src/lib/config.ts) so prod nginx serves the WS at its canonical path.
 export default defineConfig({
+  // GitHub Pages serves this repo from /bongo-control/, not from the
+  // domain root, so every emitted asset URL has to carry that prefix or
+  // the page loads and then 404s on its own scripts - a white screen with
+  // nothing obviously wrong in the HTML. Set ONLY by the Pages workflow;
+  // unset everywhere else, so the Pi's own build keeps serving from '/'
+  // exactly as before. Nothing about the deploy changes.
+  base: process.env.VITE_BASE ?? '/',
   plugins: [react(), swVersion()],
   resolve: {
     alias: {
