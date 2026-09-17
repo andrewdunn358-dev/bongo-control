@@ -38,6 +38,30 @@
     /* Aurora aesthetic base gradient (dark) */
     --aurora-base: linear-gradient(180deg, #0a1628 0%, #0f2942 100%);
 
+    /* Shape and typography, now themeable. These defaults reproduce the
+       previous hardcoded Tailwind values EXACTLY, so nothing moves until
+       a theme overrides them:
+         rounded-sm/md/lg were 0.5/0.7/0.9rem in tailwind.config.ts;
+         xl and 2xl were Tailwind's own 0.75rem and 1rem. */
+    --radius-sm: 0.5rem;
+    --radius-md: 0.7rem;
+    --radius-lg: 0.9rem;
+    --radius-xl: 0.75rem;
+    --radius-2xl: 1rem;
+
+    /* Font stacks are declared here rather than in a theme file: a theme
+       CHOOSES one of these, it does not supply its own. No remote font
+       loading - the van's dashboard must not depend on someone else's
+       CDN being reachable. */
+    --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+    --font-display: "Space Grotesk", ui-sans-serif, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    /* Density multiplier for themes that want a tighter or airier feel.
+       Applied to card padding only - never to touch-target sizes, which
+       stay large enough to hit on a moving vehicle. */
+    --density: 1;
+
     /* Accent colours - unchanged from their original fixed values.
        These look right on the dark navy surface they were designed
        against (see the html.light block below for why they can't
