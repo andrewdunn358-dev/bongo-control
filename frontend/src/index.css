@@ -161,13 +161,20 @@
      by surface brightness and shadow depth, which reads at a glance and
      costs nothing on the Pi's GPU.
      ------------------------------------------------------------------ */
+  /* Surfaces are expressed through the --surface* tokens rather than as
+     literal rgba, so a cockpit theme can actually restyle the cards.
+     They were hardcoded, which meant a theme could change the page
+     background and the text but NOT the cards - i.e. most of what you
+     actually look at. The values below are the same colours the literals
+     encoded (24 56 90 ~ --surface-raised, 16 38 64 ~ --surface), so the
+     default appearance is unchanged. */
   .glass-hero {
-    background: linear-gradient(180deg, rgba(24, 56, 90, 0.92) 0%, rgba(16, 38, 64, 0.94) 100%);
+    background: linear-gradient(180deg, rgb(var(--surface-raised) / 0.92) 0%, rgb(var(--surface) / 0.94) 100%);
     box-shadow: 0 8px 40px -12px rgba(0, 0, 0, 0.55), inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
   }
 
   .glass-quiet {
-    background: linear-gradient(180deg, rgba(14, 34, 56, 0.72) 0%, rgba(10, 26, 45, 0.76) 100%);
+    background: linear-gradient(180deg, rgb(var(--surface) / 0.72) 0%, rgb(var(--surface-sunken) / 0.76) 100%);
     box-shadow: 0 2px 12px -6px rgba(0, 0, 0, 0.4);
   }
 

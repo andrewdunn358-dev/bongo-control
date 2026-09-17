@@ -1403,7 +1403,7 @@ export function Settings() {
         <ViewportReadout />
 
         <GlassCard className="col-span-12 lg:col-span-5 p-6">
-          <CardHeader label="Cockpit theme" hint="tablet and desktop only \u00b7 phones always use the mobile layout" />
+          <CardHeader label="Cockpit theme" hint="tablet and desktop only · phones always use the mobile layout" />
           <p className="text-xs text-ink-faint mb-3">
             How the home cockpit is laid out. Every theme shows the same real telemetry \u2014 only the
             arrangement and styling differ.
@@ -1445,7 +1445,7 @@ export function Settings() {
                     {t.name}
                   </div>
                   <div className="text-[11px] text-ink-faint mt-0.5 truncate">
-                    Custom{t.author ? ` \u00b7 ${t.author}` : ''} \u00b7 {Object.keys(t.tokens).length} tokens
+                    Custom{t.author ? ` · ${t.author}` : ''} · {Object.keys(t.tokens).length} tokens
                   </div>
                 </button>
                 <button
@@ -1475,7 +1475,7 @@ export function Settings() {
                   e.target.value = '';
                 }}
               />
-              <span className="rounded-lg px-3 py-1.5 bg-ink/[0.05] ring-1 ring-ink/10">Add theme file\u2026</span>
+              <span className="rounded-lg px-3 py-1.5 bg-ink/[0.05] ring-1 ring-ink/10">Add theme file…</span>
             </label>
             {themeError && <div className="text-[11px] text-status-red mt-2">{themeError}</div>}
             <p className="text-[11px] text-ink-faint mt-2">
