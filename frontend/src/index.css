@@ -583,8 +583,24 @@ html[data-cockpit-theme='adventure'] {
     padding: calc(14px * var(--fit));
     min-height: 0;
   }
+  /* 17 Sep - FIXED: this rule used to also set
+     `height: calc(80px * var(--fit))` on .vm-actions, the grid
+     CONTAINER. That was written when the actions were always a single
+     row, where container height and row height are the same number. At
+     1143px wide the max-width:1250px media query in adventure.css puts
+     the four tiles into 2 columns x 2 ROWS - 136px of content (two
+     62px rows + a 11px gap at --fit 0.78) inside a container told it
+     was 62px tall, with overflow visible. So the second row rendered
+     OUTSIDE its own container, on top of .vm-footer-bar, and the
+     cockpit's scrollHeight under-reported the real content by 74px -
+     which is why measurements of this layout did not add up.
+     Measured at 1143x628 before the fix: container 62px, content
+     136px, row 2 top 951px vs footer top 955px = overlapping.
+     A grid container must size to its rows; only the TILES carry a
+     height. Removing the container height fixes both the overlap and
+     the under-reporting, at every column count. The gap stays scaled -
+     that is whitespace and legitimately auto-fit's business. */
   .vm-page .vm-actions {
-    height: calc(80px * var(--fit));
     gap: calc(14px * var(--fit));
     min-height: 0;
   }
