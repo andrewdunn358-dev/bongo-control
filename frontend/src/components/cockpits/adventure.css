@@ -113,6 +113,37 @@
   .vm-page .vm-card .vm-solar-visual { height: max(76px, calc(100px * var(--fit))); }
   .vm-page .vm-card .vm-flow-visual  { height: max(84px, calc(112px * var(--fit))); }
   .vm-page .vm-card .vm-weather-main { margin: 14px 2px 12px; }
+
+  /* POWER FLOW IN A NARROW CARD (17 Sep 2026)
+     MEASURED, not eyeballed: in a 211px card the flow visual gets 187px
+     of content box and its three nodes need 205px, so the row overflowed
+     by 18px and pushed the Solar and Systems nodes outside their own
+     card - which is what clipped the "SYSTEMS" label on screen.
+     The cause is two hard floors that cannot yield: the nodes carry
+     min-width:52px and each animated connector min-width:24px, so the
+     row physically cannot compress into the space a 4-up card gives it.
+     Both are relaxed here rather than removed. Deleting the connectors
+     would have been the easy 48px, but they are what makes this a FLOW
+     rather than three unrelated numbers, and the direction of energy
+     movement is the whole point of the card. Narrower connectors still
+     read as connectors; absent ones do not.
+     3x50 nodes + 2x10 connectors + 4x2 gaps = 178px into 187px, with
+     9px of slack measured after the change. No font size, no icon and
+     no value is touched - Solar, Battery, Systems and NET BALANCE all
+     still render at full size. */
+  .vm-page .vm-card .vm-flow-visual { gap: 2px; }
+  .vm-page .vm-card .vm-flow-visual > div:not(.vm-flow-line) { min-width: 50px; }
+  .vm-page .vm-card .vm-flow-line { min-width: 10px; }
+  /* Caught by measuring the dots rather than trusting the screenshot:
+     narrowing the connector did not narrow the dots, it SQUASHED them -
+     they are flex children and went from 4px wide to 1px, which is not
+     a connector, it is dust. Keeping four 1px marks would have been a
+     worse lie than showing fewer honest ones. So the dots hold their
+     real size and the row simply carries two of them instead of four:
+     2x4px + one 3px gap = 11px inside the 14px connector. Still
+     animates, still reads as movement, at a size you can actually see. */
+  .vm-page .vm-card .vm-flow-line i { flex: 0 0 auto; }
+  .vm-page .vm-card .vm-flow-line i:nth-child(n + 3) { display: none; }
 }
 /* Let the drawings fill whatever height the rules above settled on.
    Applies at every width: the attribute-vs-container mismatch is not
