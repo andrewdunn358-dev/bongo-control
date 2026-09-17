@@ -53,8 +53,8 @@ export function AdventureCockpit() {
  return <div className="vm-page">
   <section className="vm-hero"><div className="vm-hero-photo"><div className="vm-hero-image" style={heroCameraUrl ? {backgroundImage:`url(${heroCameraUrl})`} : undefined}/><div className="vm-hero-fallback"/><div className="vm-hero-overlay"/>
    <div className="vm-hero-top"><span><Camera size={15}/> VAN CAMERA</span><span className={`vm-live ${connected?'live':'offline'}`}><i/> {connected?'LIVE SNAPSHOT':'OFFLINE'}</span></div>
-   <div className="vm-hero-copy"><span className="vm-eyebrow">MAZDA BONGO · VANOS</span><h2>Adventure<br/>looks good<br/>on you.</h2><div className="vm-hero-rule"/><p>Explore · Relax · Disconnect · Repeat</p></div>
-   <div className="vm-quote">“Not all those who wander<br/>are lost.”<small>J.R.R. Tolkien</small></div>
+   <div className="vm-hero-copy"><span className="vm-eyebrow">FORD FREEDA · VANOS</span><h2>Freedom<br/>starts here.</h2><div className="vm-hero-rule"/><p>Explore · Relax · Disconnect · Repeat</p></div>
+   <div className="vm-quote">“Same roads.<br/>Different views.”<small>Built for the road ahead</small></div>
   </div></section>
   <section className="vm-core-grid">
    <Link to="/power" className="vm-card vm-battery-card"><div className="vm-card-head"><div><span className="vm-eyebrow">POWER CORE</span><h3>Battery <em>{bp?.charging?'Charging':''}</em></h3></div><BatteryCharging size={25} className={bp?.charging?'vm-green':''}/></div>
