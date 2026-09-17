@@ -1,14 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-// Imported rather than referenced as /brand-mark.png from public/.
-// Reported live: after deploying a new badge the app still showed the
-// old one. Not caching bad luck - the service worker serves everything
-// same-origin outside /assets/ stale-while-revalidate, so an
-// unversioned filename is ALWAYS served from cache first and only
-// updates on a later load. Importing it puts the file through Vite,
-// which content-hashes the filename, so changing the image changes the
-// URL and the old one can never be served in its place.
 import brandMark from '../assets/brand-mark.png';
 import {
   Home,
@@ -42,13 +34,9 @@ import { api } from '@/lib/api';
 import { useBattery, useEnvironment } from '@/lib/telemetry';
 import { fmtVolt, fmtTemp, DASH } from '@/lib/format';
 
-// `letter` used to live here too - the "V" placeholder shown before
-// there was a real logo. Removed with it; the badge is brand-mark.png now.
 const BRAND = { sub: isDemo ? 'campervan dashboard' : 'van cockpit' };
 function BrandName() {
-  return (
-    <>Van<span className="text-aurora-teal">OS</span></>
-  );
+  return <>Van<span className="text-aurora-teal">OS</span></>;
 }
 
 interface NavLinkDef {
@@ -77,8 +65,6 @@ const LINKS: NavLinkDef[] = [
   { to: '/settings', label: 'Settings', short: 'Set', icon: SettingsIcon, testId: NAV.settings },
 ];
 
-/** Live clock, ticking every second - the reference's top bar shows a
- *  real running clock, not a static render-time timestamp. */
 function useClock(): Date {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -88,25 +74,20 @@ function useClock(): Date {
   return now;
 }
 
-
-/** The existing floating dock, extracted verbatim so its appearance is
- *  unchanged - this is a refactor, not a restyle. */
 function BottomNavigation() {
   return (
     <nav className="fixed bottom-4 inset-x-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 z-40 md:w-auto">
-      <ul className="flex overflow-x-auto scrollbar-hide gap-1 rounded-2xl bg-white dark:bg-[#0a1628] ring-1 ring-slate-300 dark:ring-white/10 px-2 py-2 shadow-xl dark:shadow-2xl md:justify-center">
+      <ul className="flex overflow-x-auto scrollbar-hide gap-1 rounded-2xl bg-surface-raised ring-1 ring-line/40 px-2 py-2 shadow-xl md:justify-center">
         {LINKS.map(({ to, short, icon: Icon, testId, end }) => (
           <li key={to} className="shrink-0">
             <NavLink
               to={to}
               end={end}
               data-testid={`${testId}-mobile`}
-              className={({ isActive }) =>
-                cn(
-                  'flex flex-col items-center justify-center gap-0.5 py-1.5 px-3 rounded-xl text-[10px] transition-colors',
-                  isActive ? 'text-brand-orange bg-brand-orange/15' : 'text-ink-muted hover:text-ink-soft',
-                )
-              }
+              className={({ isActive }) => cn(
+                'flex flex-col items-center justify-center gap-0.5 py-1.5 px-3 rounded-xl text-[10px] transition-colors',
+                isActive ? 'text-brand-orange bg-brand-orange/15' : 'text-ink-muted hover:text-ink-soft',
+              )}
             >
               <Icon size={17} />
               <span className="leading-none">{short}</span>
@@ -118,20 +99,11 @@ function BottomNavigation() {
   );
 }
 
-/** Fixed left rail. Same LINKS, same routes, same orange active
- *  treatment as the dock - only the arrangement differs. Collapsed
- *  state persists so the rail doesn't reset on every navigation. */
-function SidebarNavigation({
-  expanded,
-  onToggle,
-}: {
-  expanded: boolean;
-  onToggle: () => void;
-}) {
+function SidebarNavigation({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
   return (
     <nav
       className={cn(
-        'fixed left-0 top-0 bottom-0 z-40 flex flex-col border-r border-slate-300 dark:border-white/8 bg-white dark:bg-[#0a1628]',
+        'fixed left-0 top-0 bottom-0 z-40 flex flex-col border-r border-line/40 bg-surface-raised',
         'transition-[width] duration-200 ease-out',
         expanded ? 'w-[220px]' : 'w-[78px]',
       )}
@@ -155,13 +127,11 @@ function SidebarNavigation({
               end={end}
               title={!expanded ? label : undefined}
               data-testid={`${testId}-sidebar`}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] transition-colors',
-                  !expanded && 'justify-center px-0',
-                  isActive ? 'text-brand-orange bg-brand-orange/15' : 'text-ink-muted hover:text-ink-soft',
-                )
-              }
+              className={({ isActive }) => cn(
+                'flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] transition-colors',
+                !expanded && 'justify-center px-0',
+                isActive ? 'text-brand-orange bg-brand-orange/15' : 'text-ink-muted hover:text-ink-soft',
+              )}
             >
               <Icon size={18} className="shrink-0" />
               {expanded && <span className="truncate">{label}</span>}
@@ -192,14 +162,8 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
   const now = useClock();
   const loc = useQuery({ queryKey: ['location'], queryFn: api.location, retry: false });
   const { effectiveStyle } = useNavigationStyle();
-  // Called here, not only in Home, because NavShell wraps EVERY route.
-  // The hook sets data-cockpit-theme on <html>, and that attribute is
-  // what makes the theme's token overrides reach Power, Weather and the
-  // rest. Without it here, landing directly on a non-Home route would
-  // render untimed - the theme would only apply after visiting Home.
   useCockpitTheme();
-  // Collapsed state is remembered so the rail doesn't reset on every
-  // navigation. Separate from the dock/sidebar preference itself.
+
   const [sidebarExpanded, setSidebarExpanded] = useState(() => {
     try {
       return window.localStorage.getItem('vanos-sidebar-expanded') !== 'false';
@@ -230,57 +194,13 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
         sidebarOn && (sidebarExpanded ? 'pl-[220px]' : 'pl-[78px]'),
       )}
     >
-      {sidebarOn && (
-        <SidebarNavigation expanded={sidebarExpanded} onToggle={toggleSidebar} />
-      )}
-      {/* Top status bar - real data throughout. No fabricated cellular/
-          WiFi-speed pills here (this van has no modem - WiFi + Cloudflare
-          Tunnel only), unlike the reference this was matched against -
-          only showing numbers this van's actual hardware can back up.
+      {sidebarOn && <SidebarNavigation expanded={sidebarExpanded} onToggle={toggleSidebar} />}
 
-          No backdrop-blur here or on the bottom nav dock below -
-          reported "horribly slow" rendering, general navigation,
-          everywhere, on a budget Android phone; fine on desktop, the
-          classic signature of a GPU-bound cost a desktop shrugs off and
-          a phone GPU can't. This bar and the dock are both sticky/
-          fixed - permanently on screen, continuously compositing
-          against whatever's underneath, on every single screen in the
-          app.
-
-          Follow-up fix, real regression from the change above: opacity
-          alone (0.85/0.90, not fully opaque) turned out not to be
-          enough - scrolled page content faintly showed through as
-          ghost text behind the header on a real phone. Blur used to
-          smear any bleed-through into an unreadable haze; without it,
-          15% see-through was just visible enough to notice and read.
-          Both now fully opaque, matching the page's own dark theme
-          base colour (--aurora-base's top stop, #0a1628) rather than a
-          flat black, so it still blends in as intentional rather than
-          switching to a jarring plain dark box.
-
-          Light mode gets its own opaque surface rather than inheriting
-          the dark one - it was hardcoded #0a1628, so light mode showed
-          a near-black bar and dock against a pale page. The opacity
-          requirement above is unchanged and applies to both: solid, no
-          blur. */}
       <header
         data-testid={NAV.root}
-        className="sticky top-0 z-40 flex items-center justify-between gap-3 px-4 md:px-6 py-3 bg-white dark:bg-[#0a1628] border-b border-slate-300 dark:border-white/8 flex-wrap"
+        className="sticky top-0 z-40 flex items-center justify-between gap-3 px-4 md:px-6 py-3 bg-surface-raised border-b border-line/40 flex-wrap"
       >
         <div data-testid={NAV.brand} className="flex items-center gap-2.5 shrink-0">
-          {/* Was a CSS gradient square with the letter "V" in it - a
-              placeholder from before there was a real logo. Now
-              Frankie's own artwork, cropped to the gold van from the
-              crest at the top of it. The crop is the point: the full
-              artwork carries a wordmark and a whole photographic
-              scene, and at 36px that is an unreadable smudge (checked
-              by rendering it, not assumed). The van is the one element
-              that still reads at this size, and the wordmark would be
-              redundant anyway - "VanOS" is printed as text right
-              beside this. Plain <img> so it stays out of the JS bundle
-              and is cached by the service worker like any other
-              same-origin asset. Corners are rounded by CSS below, so
-              the file itself is a plain square. */}
           <img
             src={brandMark}
             alt=""
@@ -301,16 +221,16 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
 
         <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
           {loc.data?.satellites != null && (
-            <span className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs bg-white/[0.04] ring-1 ring-white/10 text-ink-soft">
+            <span className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs bg-surface-sunken ring-1 ring-line/30 text-ink-soft">
               <Satellite size={12} className="text-aurora-teal" /> GPS {loc.data.satellites}
             </span>
           )}
           {env.payload?.external_temp_c != null && (
-            <span className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs bg-white/[0.04] ring-1 ring-white/10 text-ink-soft">
+            <span className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs bg-surface-sunken ring-1 ring-line/30 text-ink-soft">
               <Thermometer size={12} /> {fmtTemp(env.payload.external_temp_c)}
             </span>
           )}
-          <span className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs bg-white/[0.04] ring-1 ring-white/10 text-ink-soft">
+          <span className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs bg-surface-sunken ring-1 ring-line/30 text-ink-soft">
             <BatteryCharging size={12} className={battery.payload?.charging ? 'text-status-green' : ''} />
             {battery.payload?.voltage != null ? fmtVolt(battery.payload.voltage) : DASH}
           </span>
@@ -322,8 +242,6 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
             <StatusPill
               tone={wsConnected ? 'teal' : 'red'}
               data-testid={NAV.wsIndicator}
-              // Hovering the pill says WHY, rather than making someone
-              // open the console to find out.
               title={wsConnected ? 'Live telemetry connected' : getTelemetryCloseReason() ?? 'Connecting…'}
             >{wsConnected ? 'LIVE' : 'OFFLINE'}</StatusPill>
           )}
