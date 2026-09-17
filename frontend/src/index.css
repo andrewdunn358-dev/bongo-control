@@ -571,8 +571,16 @@ html[data-cockpit-theme='adventure'] {
      because forcing content into a fixed box is what made the battery
      card's sparkline and current row render outside it. Text, icons and
      touch targets are never scaled. */
+  /* 17 Sep - the hero yields height FIRST. 34vh -> 30vh: the hero is
+     branding and the cards are telemetry, so when space is short this
+     is the right thing to shed before anything with a number in it.
+     Measured saving at the three tablet sizes: 182->160, 167->147,
+     141->124px. Desktop is unaffected (the 300px cap still binds at
+     1080px tall). The floor is the hero's own container queries in
+     adventure.css, which shed the copy's decoration as this box
+     shrinks, so a shorter hero stays legible instead of overflowing. */
   .vm-page .vm-hero-photo {
-    height: calc(min(34vh, 300px) * var(--fit));
+    height: calc(min(30vh, 300px) * var(--fit));
     min-height: 0;
   }
   .vm-page .vm-core-grid {
