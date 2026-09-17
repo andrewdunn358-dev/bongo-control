@@ -565,18 +565,28 @@ html[data-cockpit-theme='adventure'] {
      a 613px viewport however much auto-fit scaled the gaps. That is why
      the tablet still overflowed: auto-fit was working and being
      overruled. */
+  /* Adventure: auto-fit manages WHITESPACE and the two genuinely
+     decorative heights (hero photo, action tiles). It does NOT set a
+     height on the cards or the grid - those size to their content now,
+     because forcing content into a fixed box is what made the battery
+     card's sparkline and current row render outside it. Text, icons and
+     touch targets are never scaled. */
   .vm-page .vm-hero-photo {
-    height: calc(min(30vh, 190px) * var(--fit));
+    height: calc(min(34vh, 300px) * var(--fit));
     min-height: 0;
   }
   .vm-page .vm-core-grid {
-    height: calc(min(42vh, 265px) * var(--fit));
+    gap: calc(14px * var(--fit));
     min-height: 0;
   }
   .vm-page .vm-card {
     padding: calc(14px * var(--fit));
     min-height: 0;
   }
-  .vm-page .vm-actions { height: calc(80px * var(--fit)); min-height: 0; }
+  .vm-page .vm-actions {
+    height: calc(80px * var(--fit));
+    gap: calc(14px * var(--fit));
+    min-height: 0;
+  }
   .vm-page .vm-action { height: calc(80px * var(--fit)); min-height: 0; }
 }

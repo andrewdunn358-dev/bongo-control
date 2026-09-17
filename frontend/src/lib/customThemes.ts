@@ -48,6 +48,9 @@ export interface CustomTheme {
   serverId?: string;
   /** false = hero shows the theme's own image, camera stays in its tile. */
   heroCamera?: boolean;
+  /** Built-in cockpit layout this theme renders in. Validated against
+   *  the registry; unknown or absent falls back to the default. */
+  cockpit?: string;
 }
 
 /** Tokens a theme file is allowed to set.

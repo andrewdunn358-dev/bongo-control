@@ -63,6 +63,13 @@ ASSET_TYPES: dict[str, str] = {
 # colours and brand orange: those mean charging, attention, fault and
 # active-nav, and a theme must not be able to make a fault harder to
 # spot.
+# Cockpit layouts a theme may choose. Mirrors the frontend registry in
+# lib/cockpitThemes.ts. A theme NAMES one of these; it can never supply a
+# component or a layout - the same bounded-choice pattern already used
+# for fonts. An unknown or absent value falls back to the default, so a
+# theme naming a cockpit this build does not have still works.
+COCKPIT_LAYOUTS = {"instrument", "adventure"}
+
 THEMEABLE_TOKENS = {
     "ink", "ink-soft", "ink-muted", "ink-faint",
     "surface", "surface-raised", "surface-sunken", "line",
@@ -224,6 +231,11 @@ def validate_package(data: bytes) -> dict[str, Any]:
         # live camera - the camera then appears in its own Home tile,
         # which is where it belongs. Anything else in "home" is ignored;
         # general layout variants are still deferred.
+        "cockpit": (
+            definition["cockpit"]
+            if isinstance(definition.get("cockpit"), str) and definition["cockpit"] in COCKPIT_LAYOUTS
+            else None
+        ),
         "heroCamera": (
             bool(definition["home"]["heroCamera"])
             if isinstance(definition.get("home"), dict) and isinstance(definition["home"].get("heroCamera"), bool)
