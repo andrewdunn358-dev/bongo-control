@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, BatteryCharging, Camera, Flame, MapPin, Sun, Thermometer, ToggleRight, Zap } from 'lucide-react';
@@ -6,43 +5,17 @@ import { VanOSBattery, VanOSSolar, VanOSWeather } from '@/components/VanOSGraphi
 import { useAutoFit } from '@/lib/useAutoFit'
 import { useThemeAssets } from '@/lib/useThemeAssets'
 import { api } from '@/lib/api';
-import { useBattery, useSolar, useEnergy, useEnvironment, useWeather, useConnected, useSparkBuffer } from '@/lib/telemetry';
+import { useBattery, useSolar, useEnergy, useEnvironment, useWeather, useSparkBuffer } from '@/lib/telemetry';
 import { fmtVolt, fmtWatt, fmtTemp, fmtPct, DASH } from '@/lib/format';
 import type { BatteryPayload, SolarPayload } from '@/lib/types';
 import './adventure.css';
 
-function useHeroCamera() {
- const [url, setUrl] = useState<string | null>(null);
- useEffect(() => {
-  let cancelled = false;
-  let objectUrl: string | null = null;
-  const load = async () => {
-   try {
-    const res = await fetch(api.cameraSnapshotUrl(Date.now()));
-    if (!res.ok) throw new Error(`Camera snapshot ${res.status}`);
-    const blob = await res.blob();
-    if (cancelled) return;
-    const nextUrl = URL.createObjectURL(blob);
-    if (objectUrl) URL.revokeObjectURL(objectUrl);
-    objectUrl = nextUrl;
-    setUrl(nextUrl);
-   } catch {
-    if (!cancelled) setUrl(null);
-   }
-   if (!cancelled) window.setTimeout(load, 5000);
-  };
-  void load();
-  return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
- }, []);
- return url;
-}
 function Spark({data,kind}:{data:number[];kind:'battery'|'solar'}) { if(data.length<2)return null; const lo=Math.min(...data),hi=Math.max(...data),span=Math.max(kind==='battery'?0.4:25,hi-lo); const points=data.map((v,i)=>`${(i/(data.length-1))*300},${34-Math.max(2,((v-lo)/span)*30)}`).join(' '); return <svg className="vm-spark" viewBox="0 0 300 38" preserveAspectRatio="none" aria-hidden="true"><polyline points={points}/></svg>; }
 function DataRow({label,value}:{label:string;value:string}) { return <div className="vm-data-row"><span>{label}</span><strong>{value}</strong></div>; }
 function ActionTile({to,title,subtitle,image,children}:{to:string;title:string;subtitle:string;image:string;children:React.ReactNode}) { return <Link to={to} className="vm-action"><div className="vm-action-image" style={{backgroundImage:`url(${image})`}}/><div className="vm-action-shade"/><div className="vm-action-copy"><div className="vm-action-icon">{children}</div><div><strong>{title}</strong><span>{subtitle}</span></div><ArrowRight className="vm-action-arrow" size={22}/></div></Link>; }
 
 export function AdventureCockpit() {
- const heroCameraUrl = useHeroCamera();
- const battery=useBattery(),solar=useSolar(),energy=useEnergy(),env=useEnvironment(),weather=useWeather(),connected=useConnected();
+ const battery=useBattery(),solar=useSolar(),energy=useEnergy(),env=useEnvironment(),weather=useWeather();
  const { data: brief } = useQuery({ queryKey: ['mission-brief'], queryFn: api.missionBrief, refetchInterval: 30_000 });
  const loc=useQuery({queryKey:['location'],queryFn:api.location,retry:false}); const heater=useQuery({queryKey:['heater'],queryFn:api.heater,refetchInterval:5000,retry:false});
  const solarSeries=useSparkBuffer<SolarPayload>('solar',p=>p.watts),voltSeries=useSparkBuffer<BatteryPayload>('battery',p=>p.voltage);
@@ -55,10 +28,24 @@ export function AdventureCockpit() {
  const fitRef = useAutoFit<HTMLDivElement>();
  // A theme may supply its own imagery; each call falls back to the
  // built-in picture, so a theme with no images looks unchanged.
- const { asset, heroCamera } = useThemeAssets();
+ const { asset } = useThemeAssets();
  return <div className="vm-page" ref={fitRef}>
-  <section className="vm-hero"><div className="vm-hero-photo"><div className="vm-hero-image" style={heroCamera && heroCameraUrl ? {backgroundImage:`url(${heroCameraUrl})`} : undefined}/><div className="vm-hero-fallback" style={{backgroundImage:`url(${asset('hero', '/hero/snow_night.jpg')})`}}/><div className="vm-hero-overlay"/>
-   <div className="vm-hero-top"><span><Camera size={15}/> VAN CAMERA</span><span className={`vm-live ${connected?'live':'offline'}`}><i/> {connected?'LIVE SNAPSHOT':'OFFLINE'}</span></div>
+  {/* STATIC HERO, 17 Sep 2026. The hero used to render the live camera
+      over the top of this image. Removed: on the real tablet it made the
+      camera the largest thing on the cockpit while duplicating the
+      Camera tile and the Camera page, both of which are untouched. The
+      hierarchy is now hero = identity, cards = live readings, tiles =
+      actions, Camera page = the live view.
+      The camera's status strip went with it. Its "VAN CAMERA" label
+      would now be false, and its LIVE/OFFLINE pill was never camera
+      state at all - it was the WebSocket's, which NavShell already
+      shows in the header, so nothing is lost by dropping the duplicate.
+      This is the same end state as a theme setting home.heroCamera:
+      false; no new configuration was added for it. Note the consequence:
+      a theme package asking for heroCamera:true no longer gets a camera
+      hero in this cockpit. Deliberate - this is an experiment, and the
+      camera layer is one revert away if the static hero reads worse. */}
+  <section className="vm-hero"><div className="vm-hero-photo"><div className="vm-hero-fallback" style={{backgroundImage:`url(${asset('hero', '/hero/snow_night.jpg')})`}}/><div className="vm-hero-overlay"/>
    <div className="vm-hero-copy"><span className="vm-eyebrow">MAZDA BONGO · VANOS</span><h2>Adventure<br/>looks good<br/>on you.</h2><div className="vm-hero-rule"/><p>Explore · Relax · Disconnect · Repeat</p></div>
    <div className="vm-quote">“Not all those who wander<br/>are lost.”<small>J.R.R. Tolkien</small></div>
   </div></section>
