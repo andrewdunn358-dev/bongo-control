@@ -127,11 +127,7 @@
     letter-spacing: -0.005em;
   }
   ::selection {
-    background: rgba(34, 211, 238, 0.35);
-    color: rgb(var(--ink));
-  }
-  html.light ::selection {
-    background: rgba(168, 85, 247, 0.25);
+    background: rgb(var(--aurora-teal) / 0.35);
     color: rgb(var(--ink));
   }
 }
@@ -202,25 +198,12 @@
     box-shadow: 0 2px 12px -6px rgba(0, 0, 0, 0.4);
   }
 
-  html.light .glass-hero {
-    background: #ffffff;
-    box-shadow: 0 2px 4px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.1);
-  }
-
-  html.light .glass-quiet {
-    /* Light mode inverts the logic: on a pale page a QUIETER card is a
-       slightly greyer one, not a more transparent one - translucency
-       here is what made light mode unreadable in the first place. */
-    background: #f8fafc;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-  }
-
   .glass {
     /* More opaque (was 0.55/0.58): at ~55% the bright aurora bled through
        and washed out the muted label text, worst where a bright ribbon
        passed behind a card. ~0.85 keeps the glass look but restores the
        near-solid navy the text-contrast ratios were designed against. */
-    background: linear-gradient(180deg, rgba(18, 45, 74, 0.85) 0%, rgba(12, 30, 52, 0.88) 100%);
+    background: linear-gradient(180deg, rgb(var(--surface-raised) / 0.85) 0%, rgb(var(--surface) / 0.88) 100%);
     /* No backdrop-filter at all now, not even a light one - was
        blur(16px) saturate(140%), then halved to blur(8px) with
        saturate dropped (see below). Still not enough: reported
@@ -236,36 +219,9 @@
        alone). If this reads as too flat without it, the fix is more
        border/shadow definition, not bringing blur back.
     */
-    border: 1px solid rgba(34, 211, 238, 0.22);
-    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.05), 0 0 22px rgba(34, 211, 238, 0.07), 0 16px 38px rgba(2, 8, 20, 0.5);
+    border: 1px solid rgb(var(--aurora-teal) / 0.22);
+    box-shadow: 0 0 0 1px rgb(var(--aurora-teal) / 0.05), 0 0 22px rgb(var(--aurora-teal) / 0.07), 0 16px 38px rgb(var(--surface-sunken) / 0.5);
     border-radius: 1rem;
-  }
-  html.light .glass {
-    /* OPAQUE, not translucent. This was rgba white at 0.88 -> 0.72 over
-       a backdrop that had no light variant, so the photo composited
-       straight through the card face and dark body text sat on moving
-       scenery. Screenshots, 17 Aug: unreadable, not merely low-contrast.
-       Dark mode gets away with translucency because its scrim is
-       near-black and the content on top is light; the same trick
-       inverted does not work.
-
-       Border is a neutral slate, not the teal that was here before. A
-       teal at 0.28 alpha on near-white measures 1.21:1 against the card
-       - close to invisible, so cards read as having no edge at all.
-
-       slate-400 (2.56:1) rather than the usual slate-200/300 (1.23:1 /
-       1.48:1) because of where this is used: a screen in a van, in
-       daylight, often at an angle. A border that reads fine on a desk
-       monitor disappears in glare, and the card edge is the only thing
-       separating one reading from the next. Deliberately heavier than a
-       web default.
-
-       No outer glow. The 18px teal halo that was here reads as depth on
-       dark and as a printing artefact on light. Depth in light mode
-       comes from a plain shadow, which is what shadows are for. */
-    background: #ffffff;
-    border: 1px solid rgb(148 163 184);
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.06);
   }
 
   /* The accent glows are a dark-mode device - on a white card they wash
@@ -278,10 +234,10 @@
   }
 
   .glow-teal {
-    box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.35), 0 0 60px -20px rgba(34, 211, 238, 0.7);
+    box-shadow: inset 0 0 0 1px rgb(var(--aurora-teal) / 0.35), 0 0 60px -20px rgb(var(--aurora-teal) / 0.7);
   }
   .glow-purple {
-    box-shadow: inset 0 0 0 1px rgba(168, 85, 247, 0.35), 0 0 60px -20px rgba(168, 85, 247, 0.7);
+    box-shadow: inset 0 0 0 1px rgb(var(--aurora-purple) / 0.35), 0 0 60px -20px rgb(var(--aurora-purple) / 0.7);
   }
   .glow-orange {
     box-shadow: inset 0 0 0 1px rgb(var(--brand-orange) / 0.4), 0 0 60px -20px rgba(255, 138, 0, 0.7);
@@ -289,16 +245,11 @@
 
   .grid-bg {
     background-image:
-      linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+      linear-gradient(rgb(var(--ink) / 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(var(--ink) / 0.05) 1px, transparent 1px);
     background-size: 48px 48px;
     -webkit-mask-image: radial-gradient(80% 60% at 50% 40%, black 40%, transparent 100%);
             mask-image: radial-gradient(80% 60% at 50% 40%, black 40%, transparent 100%);
-  }
-  html.light .grid-bg {
-    background-image:
-      linear-gradient(rgba(15, 41, 66, 0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(15, 41, 66, 0.05) 1px, transparent 1px);
   }
 
   /* Flowing northern-lights bands for the background (see
@@ -356,7 +307,7 @@
 /* MapLibre attribution */
 .maplibregl-ctrl-attrib,
 .maplibregl-ctrl-attrib a {
-  background: rgba(10, 22, 40, 0.7) !important;
+  background: rgb(var(--surface) / 0.85) !important;
   color: rgb(var(--ink-muted)) !important;
   font-size: 10px !important;
 }
