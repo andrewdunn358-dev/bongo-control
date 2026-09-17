@@ -1,6 +1,20 @@
 # VanOS / bongo-control — full project handover
 
-_Written 11 Sep 2026. For a fresh chat picking this up from scratch._
+_Written 11 Sep 2026. Amended 17 Sep 2026 (relay polarity, CI safety
+gate, theme system, viewport-architecture status — see the amendment
+notes and new sections below). For a fresh chat picking this up from
+scratch._
+
+> **Keep this file current.** Frankie's explicit complaint: chats end,
+> context resets, and this file had drifted stale enough to actively
+> mislead (wrong relay polarity, no mention of the CI gate that now
+> exists). The fix is not a bigger document written once — it's this
+> one, edited every session a change lands. Before ending a session
+> that changed anything durable (a merged fix, a new architecture
+> decision, a status change on in-progress work), update the relevant
+> section here — or add a new `claude_*.md` and link it from the
+> reading-order table below — **in the same session, before handing
+> back.** Don't leave it as a TODO for whoever opens the next chat.
 
 ---
 
@@ -131,10 +145,12 @@ docker cp backend/tools/thing.py $(docker compose ps -q backend):/app/tools/
 **Amended 17 Sep 2026:** the three files this table previously pointed
 to here (`claude_working-preferences.md`, `claude_handover-2026-07.md`,
 `claude_hardware-switch-panel.md`) do not exist in this repo — dropped.
-Sessions after 11 Sep (relay in-use/alarms, a cleanup pass, the theme
-system merged in PR #12, a viewport-fit architecture under review) are
-not yet written up as a `claude_*.md` file here. `git log --oneline`
-and the PR list are the current source of truth until one is.
+Sessions after 11 Sep (relay in-use/alarms, a cleanup pass) are not yet
+written up as a `claude_*.md` file here — `git log --oneline` and the
+PR list are the source of truth for those until one is. The theme
+system (PR #12) and the viewport-architecture proposal now have their
+own sections in this same file (9 and 10) rather than living only in
+chat history.
 
 ---
 
@@ -182,6 +198,27 @@ and the PR list are the current source of truth until one is.
 - **Camera:** USB webcam via **uStreamer** on the host (not ffmpeg).
   1280x720 @ 30fps.
 - **Heater:** Hcalory 2kW, plumbed into the **vehicle fuel tank**.
+
+---
+
+# 4b. Telemetry honesty rules
+
+CI (`tools/check_frontend_contract.py`) enforces these; don't rely on
+memory for them:
+
+| Item | Actual truth |
+|---|---|
+| Relay state | Commanded only, never measured |
+| Roof position | Unknown — no position sensor exists |
+| Heater fuel | Estimated from runtime — no tank sender |
+| Battery SoC | Genuine SmartShunt measurement (when a shunt is present) |
+| Pi connectivity | Ethernet — no production `CONNECTIVITY` domain, derive from `useConnected()` |
+| Mobile/WiFi signal | Not measured anywhere |
+
+`BATTERY` has two publishers (Victron MPPT and SmartShunt) — never
+test `current_a` alone to decide whether a shunt exists; use
+`hasShunt()` from `lib/telemetry.ts`. A field's absence in the most
+recent message doesn't prove the hardware is absent.
 
 ---
 
@@ -275,3 +312,115 @@ debugging itself.
 **Measure before theorising.** Every wrong turn this week came from
 reasoning about a symptom instead of capturing evidence. `py-spy dump`
 and `btmon` each settled in one shot what hours of guessing had not.
+
+---
+
+# 9. Theme system (new since 11 Sep, PR #12 merged `afdeff5`)
+
+Portable theme packages, stored **centrally on the Pi** (not
+browser-local — that was the old system, gone). Routes:
+`GET/POST/DELETE /api/themes`, `GET /api/themes/{id}`,
+`GET /api/themes/{id}/assets/{path}`, `GET /api/themes/limits/info`.
+Packages live in `data/themes/` inside the `vanos-data` volume; browser
+validates for fast feedback, backend validates again (authoritative,
+zip-bomb/size guarded).
+
+A `.vanos-theme` package is **data and assets only** — no JS/TS/React,
+no arbitrary CSS that could take over the app. It can set colours,
+bounded typography/density, imagery (by logical role: `hero`, `camera`,
+`heater`, `roof`, `switches`, `preview` — a cockpit asks for a role and
+gets the theme asset or a built-in fallback), and a bounded
+`"cockpit": "instrument" | "adventure"` field (unknown/absent → safe
+fallback to instrument). A theme **names** an existing cockpit; it can
+never supply its own layout code.
+
+`home.heroCamera: false` (bounded boolean, real config — confirmed in
+`useThemeAssets.ts`) keeps the live camera in its own Home tile rather
+than becoming the hero image.
+
+**Freeda Burgundy** is the current portable theme in progress: light,
+airy, premium, burgundy + Ford-blue accents, not the dark-sci-fi
+default look. Needs `"cockpit": "adventure"` in its `theme.json` to
+land on Adventure rather than falling back to Instrument.
+
+---
+
+# 10. Current active work — viewport-aware cockpit architecture
+
+**Status as of 17 Sep: architecture proposed, not yet approved or
+implemented.** Do not start coding this from a fresh chat without
+re-confirming Andrew still wants this exact shape — check chat history
+first.
+
+**The problem:** PR #12 fixed Adventure's overflow (cards were forced
+into fixed heights shorter than their content) but exposed the same
+issue in Instrument — its main area needs ~727px at the real
+1143×685 kiosk target against ~609px available, and whitespace-only
+scaling (`useAutoFit`'s current `--fit`, 1.0→0.78) can't close a gap
+that size without either shrinking things it shouldn't or reflowing.
+
+**Proposed shape** (not yet implemented):
+- Reference design space `1143×685`.
+- Two independent axes: **height drives a continuous proportional
+  scale** (`scaleY = availableHeight / 685`, since height is the truly
+  finite resource in a no-scroll kiosk); **width drives structural
+  reflow** via CSS **container queries** on the cockpit root
+  (`container-type: inline-size`), replacing the existing
+  `adventure.css` viewport-width media queries (1250px/760px
+  breakpoints) — a container query responds to the cockpit's own
+  rendered box, not the raw window, which is the more correct "no
+  device tiers" mechanism.
+- `scale = min(scaleY, scaleX)`, floor at **~0.6** (well above the
+  ~0.33 ratio where the tightest real component — the 145px Adventure
+  action tiles — actually becomes touch-unsafe). Below the floor:
+  reflow (a `data-density` attribute the component's CSS responds to),
+  not further shrinking.
+- Sizing via a small set of CSS custom-property **design tokens**
+  (reference-pixel values) consumed as `calc(var(--token) *
+  var(--scale))`, replacing the current mix of hardcoded `text-[Npx]`,
+  ad-hoc `clamp(Npx, Nvw, Npx)`, and the existing `--fit` multiply.
+- **Touch targets are exempted from `--scale` entirely**, not just
+  floor-clamped — a real finding from reading the current code: the
+  `.vm-action` tiles' height is *already* on the `--fit`-scaled list
+  today, contradicting the file's own comment that touch targets don't
+  scale. Fix that as part of this work.
+- `useAutoFit` evolves into `useViewportFit` (same anti-oscillation
+  `applying`-flag pattern, generalised to both axes) rather than being
+  replaced by a second competing hook.
+
+**Computed, not yet render-verified:** 1143×685 → scale 1.00 (ref);
+1143×628 (PWA) → 0.917; 844×390 (phone landscape) → scale 0.569 driven
+by height, action tiles still ≈82px (above the touch floor) so no
+reflow forced on touch grounds alone, though width-based container
+query reflow (4→2 columns) still fires independently.
+
+**Testing plan when this is built:** Playwright + headless Chromium at
+the four viewports above — the same method that caught the
+`fitBounds`/tile-index bugs in the offline-maps work — asserting
+`--scale` and that no element's `scrollHeight` exceeds its container.
+
+---
+
+# 11. Verification discipline
+
+**Always distinguish BUILD VERIFIED from RENDER VERIFIED.** A clean
+`tsc`/`vite build` proves the code compiles; it does not prove a
+cockpit visually fits or looks right. State plainly which one you did
+when reporting work — never imply a screenshot check happened when
+only the arithmetic did.
+
+**Before committing anything touching hardware/frontend contracts:**
+
+```bash
+python3 tools/check_hardware_contract.py
+python3 tools/check_frontend_contract.py
+cd frontend && npx tsc -b && npm run build && VITE_DEMO=true npm run build
+```
+
+If a guard fails, find the real cause — do not work around it. If the
+physical van genuinely changed, update `EXPECTED` in
+`tools/check_hardware_contract.py` in the *same* commit and say why.
+
+**Never commit:** secrets, `.env`, `config.json`, encrypted backups,
+credentials, or private configuration. The `secrets` CI job blocks the
+obvious cases but isn't a substitute for not doing it.
