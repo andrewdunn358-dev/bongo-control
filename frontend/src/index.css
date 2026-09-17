@@ -589,9 +589,25 @@ html[data-cockpit-theme='adventure'] {
   .van-cockpit .van-spark { height: calc(38px * var(--fit)); }
   .van-cockpit .van-main { height: calc(min(516px, 46vh) * var(--fit)); }
 
-  .vm-page .vm-hero-photo { height: calc(min(30vh, 190px) * var(--fit)); }
-  .vm-page .vm-core-grid { height: calc(min(42vh, 265px) * var(--fit)); }
-  .vm-page .vm-card { padding: calc(14px * var(--fit)); }
-  .vm-page .vm-actions { height: calc(80px * var(--fit)); }
-  .vm-page .vm-action { height: calc(80px * var(--fit)); }
+  /* min-height MUST be cleared as well as height. adventure.css sets
+     .vm-hero-photo{min-height:330px} and .vm-card{min-height:295px},
+     and min-height beats height - so overriding height alone left the
+     hero pinned at 330px and four cards at 295px each, which cannot fit
+     a 613px viewport however much auto-fit scaled the gaps. That is why
+     the tablet still overflowed: auto-fit was working and being
+     overruled. */
+  .vm-page .vm-hero-photo {
+    height: calc(min(30vh, 190px) * var(--fit));
+    min-height: 0;
+  }
+  .vm-page .vm-core-grid {
+    height: calc(min(42vh, 265px) * var(--fit));
+    min-height: 0;
+  }
+  .vm-page .vm-card {
+    padding: calc(14px * var(--fit));
+    min-height: 0;
+  }
+  .vm-page .vm-actions { height: calc(80px * var(--fit)); min-height: 0; }
+  .vm-page .vm-action { height: calc(80px * var(--fit)); min-height: 0; }
 }
