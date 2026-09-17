@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, BatteryCharging, Camera, Flame, MapPin, Sun, Thermometer, ToggleRight, Zap } from 'lucide-react';
 import { VanOSBattery, VanOSSolar, VanOSWeather } from '@/components/VanOSGraphics';
 import { useAutoFit } from '@/lib/useAutoFit'
+import { useThemeAssets } from '@/lib/useThemeAssets'
 import { api } from '@/lib/api';
 import { useBattery, useSolar, useEnergy, useEnvironment, useWeather, useConnected, useSparkBuffer } from '@/lib/telemetry';
 import { fmtVolt, fmtWatt, fmtTemp, fmtPct, DASH } from '@/lib/format';
@@ -52,8 +53,11 @@ export function AdventureCockpit() {
  const topPred = brief?.predictions?.[0];
  const predictedUsage = topPred?.value == null ? DASH : `${topPred.value}${topPred.unit ? ` ${topPred.unit}` : ''}`;
  const fitRef = useAutoFit<HTMLDivElement>();
+ // A theme may supply its own imagery; each call falls back to the
+ // built-in picture, so a theme with no images looks unchanged.
+ const { asset, heroCamera } = useThemeAssets();
  return <div className="vm-page" ref={fitRef}>
-  <section className="vm-hero"><div className="vm-hero-photo"><div className="vm-hero-image" style={heroCameraUrl ? {backgroundImage:`url(${heroCameraUrl})`} : undefined}/><div className="vm-hero-fallback"/><div className="vm-hero-overlay"/>
+  <section className="vm-hero"><div className="vm-hero-photo"><div className="vm-hero-image" style={heroCamera && heroCameraUrl ? {backgroundImage:`url(${heroCameraUrl})`} : undefined}/><div className="vm-hero-fallback" style={{backgroundImage:`url(${asset('hero', '/hero/snow_night.jpg')})`}}/><div className="vm-hero-overlay"/>
    <div className="vm-hero-top"><span><Camera size={15}/> VAN CAMERA</span><span className={`vm-live ${connected?'live':'offline'}`}><i/> {connected?'LIVE SNAPSHOT':'OFFLINE'}</span></div>
    <div className="vm-hero-copy"><span className="vm-eyebrow">MAZDA BONGO · VANOS</span><h2>Adventure<br/>looks good<br/>on you.</h2><div className="vm-hero-rule"/><p>Explore · Relax · Disconnect · Repeat</p></div>
    <div className="vm-quote">“Not all those who wander<br/>are lost.”<small>J.R.R. Tolkien</small></div>
@@ -74,7 +78,7 @@ export function AdventureCockpit() {
     <div className="vm-weather-main"><div><strong>{fmtTemp(env.payload?.external_temp_c)}</strong><span>{weatherDescription??'Environment telemetry'}</span></div><Thermometer size={25}/></div><div className="vm-weather-data"><DataRow label="Tomorrow radiation" value={ratio==null?DASH:`${Math.round(ratio*100)}% of today`}/><DataRow label="GPS" value={satCount==null?DASH:`${satCount} satellites`}/></div>
    </Link>
   </section>
-  <section className="vm-actions"><ActionTile to="/heater" title="Heater" subtitle={heaterLabel} image="/hero/desert_dusk.jpg"><Flame size={29}/></ActionTile><ActionTile to="/roof" title="Roof" subtitle="Open · hold · release" image="/hero/coast_sunset.jpg"><span className="vm-roof-icon">△</span></ActionTile><ActionTile to="/switches" title="Switches" subtitle="Manage van systems" image="/hero/forest_dawn.jpg"><ToggleRight size={31}/></ActionTile><ActionTile to="/camera" title="Camera" subtitle="Live view" image="/hero/lake_night.jpg"><Camera size={30}/></ActionTile></section>
+  <section className="vm-actions"><ActionTile to="/heater" title="Heater" subtitle={heaterLabel} image={asset('heater', '/hero/desert_dusk.jpg')}><Flame size={29}/></ActionTile><ActionTile to="/roof" title="Roof" subtitle="Open · hold · release" image={asset('roof', '/hero/coast_sunset.jpg')}><span className="vm-roof-icon">△</span></ActionTile><ActionTile to="/switches" title="Switches" subtitle="Manage van systems" image={asset('switches', '/hero/forest_dawn.jpg')}><ToggleRight size={31}/></ActionTile><ActionTile to="/camera" title="Camera" subtitle="Live view" image={asset('camera', '/hero/lake_night.jpg')}><Camera size={30}/></ActionTile></section>
   <section className="vm-footer-bar"><Link to="/nearby" className="vm-location"><MapPin size={16}/><span>{loc.data?.latitude!=null&&loc.data?.longitude!=null?`${loc.data.latitude.toFixed(4)}°, ${loc.data.longitude.toFixed(4)}°`:'Location unavailable'}</span><small>{satCount==null?'GPS waiting':`${satCount} satellites locked`}</small></Link><div className="vm-footer-meta"><span>VanOS</span><b>v2</b><span>Open Source</span><span>Built for Adventure</span></div><div className="vm-footer-slogan">SIMPLE TRAVELS · BIGGER STORIES</div></section>
  </div>;
 }
