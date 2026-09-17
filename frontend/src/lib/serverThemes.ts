@@ -40,6 +40,7 @@ function toCustomTheme(s: ServerTheme): CustomTheme {
     /** Bare id, needed to build asset URLs against the Pi. */
     serverId: s.id,
     heroCamera: s.heroCamera ?? undefined,
+    cockpit: s.cockpit ?? undefined,
   } as CustomTheme;
 }
 

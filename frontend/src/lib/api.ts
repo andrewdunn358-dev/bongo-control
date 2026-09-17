@@ -436,6 +436,8 @@ export interface ServerTheme {
   shape?: Record<string, string> | null;
   density?: string | null;
   assets?: Record<string, string> | null;
+  /** Which built-in cockpit layout this theme uses. null = default. */
+  cockpit?: string | null;
   /** null = use the cockpit's default (live camera in the hero). */
   heroCamera?: boolean | null;
   sizeBytes: number;

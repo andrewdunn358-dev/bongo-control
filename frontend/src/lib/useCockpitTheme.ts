@@ -64,7 +64,7 @@ export function useCockpitTheme(): {
         ?? null
       : null;
 
-    const base = custom ? DEFAULT_COCKPIT_THEME : getCockpitTheme(themeId).id;
+    const base = custom ? getCockpitTheme(custom.cockpit ?? DEFAULT_COCKPIT_THEME).id : getCockpitTheme(themeId).id;
     document.documentElement.setAttribute('data-cockpit-theme', base);
     applyCustomTheme(custom);
   }, [themeId, serverTick]);
@@ -95,6 +95,17 @@ export function useCockpitTheme(): {
 
   // A custom theme has no component of its own, so it renders the
   // default cockpit layout wearing its colours.
-  const theme = getCockpitTheme(themeId.startsWith('custom:') ? DEFAULT_COCKPIT_THEME : themeId);
+  // A custom theme renders the built-in cockpit it NAMES, falling back
+  // to the default when it names none or names one this build does not
+  // have. Previously every custom theme was forced into the default
+  // cockpit, which is why a theme asking for Adventure's hero behaviour
+  // never got it - it was not rendering Adventure at all.
+  const custom = themeId.startsWith('custom:')
+    ? getServerThemes().find((t) => t.id === themeId) ?? loadCustomThemes().find((t) => t.id === themeId)
+    : undefined;
+  const layoutId = themeId.startsWith('custom:')
+    ? (custom?.cockpit ?? DEFAULT_COCKPIT_THEME)
+    : themeId;
+  const theme = getCockpitTheme(layoutId);
   return { themeId, theme, setTheme };
 }
