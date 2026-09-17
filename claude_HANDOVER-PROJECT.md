@@ -125,6 +125,8 @@ docker cp backend/tools/thing.py $(docker compose ps -q backend):/app/tools/
 | `claude_relay-inuse-alarms-energy-balance.md` | Relay in-use flags, battery alarms, daily energy balance |
 | `claude_cleanup-2026-08-31.md` | Dead-code/orphaned-service cleanup pass |
 | `claude_issue-diesel-heater-ble.md` | Draft issue, not yet posted |
+| `.github/workflows/safety.yml` + `tools/check_*.py` | **The actual enforcement.** Not just docs — CI fails the build if GPIO map, polarity, boot guard, roof watchdog/ceiling, roof interlock, position honesty, or heater guards change; see below |
+| `docs/FRONTEND-CONTRACT.md` | The reasoning behind each frontend-contract rule the CI checks |
 
 **Amended 17 Sep 2026:** the three files this table previously pointed
 to here (`claude_working-preferences.md`, `claude_handover-2026-07.md`,
@@ -144,12 +146,28 @@ and the PR list are the current source of truth until one is.
   (corrected 17 Sep — this doc previously said low-trigger/False, which
   is wrong; verified directly against `DEFAULT_CONFIG["relays"]` in
   `configuration_service.py` and `relay_service.py`'s own comments,
-  matching every session back to 31 Jul). A boot-guard line driving
-  `dh` instead of `dl` on this board would energise every circuit
-  through the boot window — get the polarity from the code, not from
-  this file. Wired in parallel with two-way wall switches, so relay
-  state is **"commanded", never "actual"** — the code is deliberate
-  about this.
+  matching every session back to 31 Jul). This exact fact — plus the
+  boot guard, GPIO map, roof watchdog/ceiling and heater guards — is
+  now asserted **by value** in CI (`tools/check_hardware_contract.py`),
+  which fails the build if any of it drifts. That is the actual source
+  of truth, not this file. Wired in parallel with two-way wall
+  switches, so relay state is **"commanded", never "actual"** — the
+  code is deliberate about this.
+- **CI safety gate (`.github/workflows/safety.yml`), added since this
+  doc was last accurate:** five jobs on every push to `main` and every
+  PR — `hardware-contract` (GPIO map, polarity, boot guard, roof
+  watchdog/ceiling/interlock, roof position honesty, heater guards),
+  `frontend-contract` (the honesty rules in `docs/FRONTEND-CONTRACT.md`
+  — e.g. no `useConnectivity()`, no `current_a` tested alone, roof
+  screen must say UNKNOWN, Switches screen must disclose commanded-not-
+  measured), `secrets` (blocks committed keys/`.env`/config backups),
+  `backend` (byte-compile + the six safety test suites), `frontend`
+  (`tsc -b` + `npm run build`, real and demo). Run any check locally
+  before pushing with `python3 tools/check_hardware_contract.py` /
+  `check_frontend_contract.py` — cheaper than waiting for CI to say no.
+  If a check fails legitimately (the van genuinely changed), update
+  `EXPECTED` in the same commit and say why — that's the intended path,
+  not a workaround.
 - **GPIO map is in `DEFAULT_CONFIG["relays"]`** in
   `configuration_service.py`. That is the source of truth; docs have
   been wrong before. **GPIO 25 / physical pin 22 is dead** on this

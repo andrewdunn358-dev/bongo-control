@@ -36,7 +36,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # ── The frozen contract ────────────────────────────────────────────
 # Every value verified against the physical van. See the audit in
-# docs/FRONTEND-CONTRACT.md and claude_hardware-switch-panel.md.
+# docs/FRONTEND-CONTRACT.md and claude_HANDOVER-PROJECT.md.
 
 EXPECTED_GPIO = {
     1: 17,   # TV        (30A fused. NOTE: channel has a hardware fault)
