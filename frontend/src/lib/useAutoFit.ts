@@ -44,10 +44,17 @@ export function useAutoFit<T extends HTMLElement>(enabled = true) {
 
     let frame = 0;
     let cancelled = false;
+    // measure() writes --fit, which resizes the element, which fires the
+    // ResizeObserver, which calls measure() again - and because measure
+    // starts by resetting --fit to 1, it oscillated between fitted and
+    // unfitted forever and often settled UNFITTED. This flag makes the
+    // observer ignore resizes this hook caused itself.
+    let applying = false;
 
     const measure = () => {
       if (cancelled || !ref.current) return;
       const node = ref.current;
+      applying = true;
 
       // Space between the top of the cockpit and the bottom of the
       // viewport, less a small margin so the last card never sits flush
@@ -70,6 +77,11 @@ export function useAutoFit<T extends HTMLElement>(enabled = true) {
         // than the stale one.
         void node.offsetHeight;
       }
+
+      // Released on the next frame: the observer fires asynchronously
+      // after layout, so clearing it synchronously here would still let
+      // this pass's own resize through.
+      requestAnimationFrame(() => { applying = false; });
     };
 
     const schedule = () => {
@@ -81,7 +93,10 @@ export function useAutoFit<T extends HTMLElement>(enabled = true) {
 
     // ResizeObserver catches content changes (a longer recommendation,
     // a camera image loading) that no resize event would report.
-    const ro = new ResizeObserver(schedule);
+    const ro = new ResizeObserver(() => {
+      if (applying) return;
+      schedule();
+    });
     ro.observe(el);
     window.addEventListener('resize', schedule);
     window.addEventListener('orientationchange', schedule);
