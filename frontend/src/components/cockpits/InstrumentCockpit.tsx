@@ -35,17 +35,17 @@ const STATUS_META = {
   green: {
     label: 'READY',
     icon: ShieldCheck,
-    colour: '#32d583',
+    colour: 'rgb(var(--status-green))',
   },
   amber: {
     label: 'ATTENTION',
     icon: AlertTriangle,
-    colour: '#f2b84b',
+    colour: 'rgb(var(--status-amber))',
   },
   red: {
     label: 'CRITICAL',
     icon: XCircle,
-    colour: '#f0645b',
+    colour: 'rgb(var(--status-red))',
   },
 } as const;
 
@@ -122,8 +122,8 @@ function Panel({
       className={[
         'relative overflow-hidden rounded-[8px] border',
         raised
-          ? 'border-[#304050] bg-[#121a23] shadow-[0_8px_30px_rgba(0,0,0,.22)]'
-          : 'border-[#202b36] bg-[#0d131a]',
+          ? 'border-[rgb(var(--line))] bg-[rgb(var(--surface-raised))] shadow-[0_8px_30px_rgba(0,0,0,.22)]'
+          : 'border-[rgb(var(--line) / 0.55)] bg-[rgb(var(--surface-sunken))]',
         className,
       ].join(' ')}
     >
@@ -134,7 +134,7 @@ function Panel({
 
 function MetricLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#647382]">
+    <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[rgb(var(--ink-muted))]">
       {children}
     </div>
   );
@@ -220,7 +220,7 @@ export function InstrumentCockpit() {
           STATUS
          ============================================================ */}
       <Link to="/overview" className="block">
-        <Panel raised className="van-status px-5 py-4 transition-colors duration-150 hover:border-[#3b9cff]/60">
+        <Panel raised className="van-status px-5 py-4 transition-colors duration-150 hover:border-[rgb(var(--aurora-blue))]/60">
           <div className="flex flex-wrap items-center justify-between gap-5">
             <div className="flex min-w-0 items-center gap-4">
               <StatusIcon
@@ -238,7 +238,7 @@ export function InstrumentCockpit() {
                   {status.label}
                 </div>
 
-                <div className="mt-1 truncate text-[13px] text-[#9aa8b6]">
+                <div className="mt-1 truncate text-[13px] text-[rgb(var(--ink-soft))]">
                   {brief?.summary || 'Assembling mission brief…'}
                 </div>
               </div>
@@ -251,12 +251,12 @@ export function InstrumentCockpit() {
                     <Satellite size={10} /> GPS
                   </span>
                 </MetricLabel>
-                <div className="mt-0.5 text-[13px] font-medium text-[#f1f5f9]">
+                <div className="mt-0.5 text-[13px] font-medium text-[rgb(var(--ink))]">
                   {loc.data?.satellites != null
                     ? `${loc.data.satellites} sats`
                     : DASH}
                   {loc.data?.hdop != null && (
-                    <span className="text-[#647382]">
+                    <span className="text-[rgb(var(--ink-muted))]">
                       {' '}· HDOP {loc.data.hdop.toFixed(1)}
                     </span>
                   )}
@@ -277,18 +277,18 @@ export function InstrumentCockpit() {
                     deliberately NOT used here - nothing in the backend
                     publishes it (only plugins/simulation does), so it
                     reported "Offline" permanently on the real van. */}
-                <div className="mt-0.5 text-[13px] font-medium text-[#f1f5f9]">
+                <div className="mt-0.5 text-[13px] font-medium text-[rgb(var(--ink))]">
                   {connected ? (
-                    <>Ethernet <span className="text-[#647382]">· Connected</span></>
+                    <>Ethernet <span className="text-[rgb(var(--ink-muted))]">· Connected</span></>
                   ) : (
-                    <span className="text-[#647382]">Not reachable</span>
+                    <span className="text-[rgb(var(--ink-muted))]">Not reachable</span>
                   )}
                 </div>
               </div>
 
               <div>
                 <MetricLabel>Time</MetricLabel>
-                <div className="mt-0.5 font-mono text-[13px] font-medium text-[#f1f5f9]">
+                <div className="mt-0.5 font-mono text-[13px] font-medium text-[rgb(var(--ink))]">
                   {now.toLocaleTimeString([], {
                     hour: '2-digit',
                     minute: '2-digit',
@@ -315,7 +315,7 @@ export function InstrumentCockpit() {
           <Link to="/power" className="block min-h-0">
             <Panel
               raised
-              className="van-powercard group flex h-full min-h-[250px] flex-col p-5 transition-colors duration-150 hover:border-[#3b9cff]/70"
+              className="van-powercard group flex h-full min-h-[250px] flex-col p-5 transition-colors duration-150 hover:border-[rgb(var(--aurora-blue))]/70"
             >
               <div className="flex items-start justify-between">
                 <MetricLabel>Battery</MetricLabel>
@@ -323,36 +323,36 @@ export function InstrumentCockpit() {
               </div>
 
               <div className="mt-1 flex items-end gap-3">
-                <div className="font-mono text-[38px] font-bold leading-none tracking-[-0.05em] text-[#f1f5f9]">
+                <div className="font-mono text-[38px] font-bold leading-none tracking-[-0.05em] text-[rgb(var(--ink))]">
                   {bp?.soc_pct != null ? `${Math.round(bp.soc_pct)}%` : DASH}
                 </div>
-                <div className="mb-1 font-mono text-[16px] text-[#9aa8b6]">
+                <div className="mb-1 font-mono text-[16px] text-[rgb(var(--ink-soft))]">
                   {fmtVolt(bp?.voltage)}
                 </div>
               </div>
 
               {bp?.soc_pct != null && (
-                <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#202b36]">
+                <div className="mt-4 h-2 overflow-hidden rounded-full bg-[rgb(var(--line) / 0.55)]">
                   <div
                     className="h-full rounded-full transition-[width] duration-700"
                     style={{
                       width: `${Math.max(2, Math.min(100, bp.soc_pct))}%`,
                       background:
                         bp.soc_pct < 50
-                          ? '#f0645b'
+                          ? 'rgb(var(--status-red))'
                           : bp.soc_pct < 70
-                            ? '#f2b84b'
-                            : '#32d583',
+                            ? 'rgb(var(--status-amber))'
+                            : 'rgb(var(--status-green))',
                     }}
                   />
                 </div>
               )}
 
               <div className="mt-4 flex items-baseline justify-between gap-3">
-                <div className="text-[13px] text-[#9aa8b6]">
+                <div className="text-[13px] text-[rgb(var(--ink-soft))]">
                   {batteryState}
                   {bp?.charging_power_w != null && (
-                    <span className="text-[#647382]">
+                    <span className="text-[rgb(var(--ink-muted))]">
                       {' '}· {fmtWatt(bp.charging_power_w)} in
                     </span>
                   )}
@@ -363,10 +363,10 @@ export function InstrumentCockpit() {
                     className={[
                       'font-mono text-[15px] font-semibold',
                       netW > 0
-                        ? 'text-[#32d583]'
+                        ? 'text-[rgb(var(--status-green))]'
                         : netW < 0
-                          ? 'text-[#f2b84b]'
-                          : 'text-[#9aa8b6]',
+                          ? 'text-[rgb(var(--status-amber))]'
+                          : 'text-[rgb(var(--ink-soft))]',
                     ].join(' ')}
                   >
                     {netW > 0 ? '+' : ''}
@@ -376,7 +376,7 @@ export function InstrumentCockpit() {
               </div>
 
               {netW != null && (
-                <div className="mt-1 text-[11px] text-[#647382]">
+                <div className="mt-1 text-[11px] text-[rgb(var(--ink-muted))]">
                   {netW > 0
                     ? 'Making more than using'
                     : netW < 0
@@ -390,7 +390,7 @@ export function InstrumentCockpit() {
               <div className="van-sparkwrap mt-auto pt-4">
                 <MiniSpark
                   data={voltSeries}
-                  stroke="#3b9cff"
+                  stroke="rgb(var(--aurora-blue))"
                   minRange={0.4}
                 />
               </div>
@@ -401,7 +401,7 @@ export function InstrumentCockpit() {
           <Link to="/weather" className="block min-h-0">
             <Panel
               raised
-              className="van-powercard group flex h-full min-h-[250px] flex-col p-5 transition-colors duration-150 hover:border-[#3b9cff]/70"
+              className="van-powercard group flex h-full min-h-[250px] flex-col p-5 transition-colors duration-150 hover:border-[rgb(var(--aurora-blue))]/70"
             >
               <div className="flex items-start justify-between">
                 <MetricLabel>Solar</MetricLabel>
@@ -409,33 +409,33 @@ export function InstrumentCockpit() {
               </div>
 
               <div className="mt-1 flex items-end gap-3">
-                <div className="font-mono text-[38px] font-bold leading-none tracking-[-0.05em] text-[#f1f5f9]">
+                <div className="font-mono text-[38px] font-bold leading-none tracking-[-0.05em] text-[rgb(var(--ink))]">
                   {fmtWatt(solar.payload?.watts)}
                 </div>
               </div>
 
-              <div className="mt-4 text-[13px] text-[#9aa8b6]">
+              <div className="mt-4 text-[13px] text-[rgb(var(--ink-soft))]">
                 Peak today {fmtWatt(solar.payload?.peak_today_watts)}
               </div>
 
-              <div className="mt-1 text-[11px] uppercase tracking-[0.12em] text-[#647382]">
+              <div className="mt-1 text-[11px] uppercase tracking-[0.12em] text-[rgb(var(--ink-muted))]">
                 {(solar.payload?.charge_state || 'off').toUpperCase()}
               </div>
 
               {ratio != null && (
-                <div className="mt-4 border-t border-[#202b36] pt-3 text-[12px] text-[#9aa8b6]">
-                  <span className="text-[#647382]">Tomorrow</span>{' '}
-                  <span className={ratio >= 1 ? 'text-[#32d583]' : 'text-[#f2b84b]'}>
+                <div className="mt-4 border-t border-[rgb(var(--line) / 0.55)] pt-3 text-[12px] text-[rgb(var(--ink-soft))]">
+                  <span className="text-[rgb(var(--ink-muted))]">Tomorrow</span>{' '}
+                  <span className={ratio >= 1 ? 'text-[rgb(var(--status-green))]' : 'text-[rgb(var(--status-amber))]'}>
                     {ratio >= 1 ? '↑' : '↓'} {Math.round(ratio * 100)}%
                   </span>{' '}
-                  <span className="text-[#647382]">of today's radiation</span>
+                  <span className="text-[rgb(var(--ink-muted))]">of today's radiation</span>
                 </div>
               )}
 
               <div className="van-sparkwrap mt-auto pt-4">
                 <MiniSpark
                   data={solarSeries}
-                  stroke="#f5c451"
+                  stroke="rgb(var(--status-amber))"
                   minRange={25}
                 />
               </div>
@@ -447,7 +447,7 @@ export function InstrumentCockpit() {
         <Link to="/camera" className="block min-h-0">
           <Panel
             raised
-            className="van-camera relative h-full min-h-[520px] overflow-hidden p-0 transition-colors duration-150 hover:border-[#3b9cff]/70"
+            className="van-camera relative h-full min-h-[520px] overflow-hidden p-0 transition-colors duration-150 hover:border-[rgb(var(--aurora-blue))]/70"
           >
             <img
               src={api.cameraSnapshotUrl(cameraTimestamp)}
@@ -464,7 +464,7 @@ export function InstrumentCockpit() {
               <span
                 className={[
                   'h-2 w-2 rounded-full',
-                  connected ? 'bg-[#32d583]' : 'bg-[#f0645b]',
+                  connected ? 'bg-[rgb(var(--status-green))]' : 'bg-[rgb(var(--status-red))]',
                 ].join(' ')}
               />
               <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white">
@@ -499,22 +499,22 @@ export function InstrumentCockpit() {
       <Link to="/overview" className="block">
         <Panel
           raised
-          className="transition-colors duration-150 hover:border-[#3b9cff]/70"
+          className="transition-colors duration-150 hover:border-[rgb(var(--aurora-blue))]/70"
         >
           <div className="van-brief grid gap-5 p-5 md:grid-cols-[minmax(0,1fr)_minmax(240px,320px)] md:items-center">
             <div className="min-w-0">
               <MetricLabel>What you need to know</MetricLabel>
 
-              <div className="mt-2 text-[17px] font-semibold leading-6 text-[#f1f5f9]">
+              <div className="mt-2 text-[17px] font-semibold leading-6 text-[rgb(var(--ink))]">
                 {brief?.summary || 'Assembling mission brief…'}
               </div>
 
               {topRec && (
-                <div className="mt-4 border-l-2 border-[#3b9cff] pl-4">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#3b9cff]">
+                <div className="mt-4 border-l-2 border-[rgb(var(--aurora-blue))] pl-4">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[rgb(var(--aurora-blue))]">
                     Recommendation
                   </div>
-                  <div className="mt-1 text-[13px] leading-5 text-[#9aa8b6]">
+                  <div className="mt-1 text-[13px] leading-5 text-[rgb(var(--ink-soft))]">
                     {topRec}
                   </div>
                 </div>
@@ -522,9 +522,9 @@ export function InstrumentCockpit() {
             </div>
 
             {topPred && (
-              <div className="border-l border-[#202b36] pl-5 md:text-right">
+              <div className="border-l border-[rgb(var(--line) / 0.55)] pl-5 md:text-right">
                 <MetricLabel>{topPred.label}</MetricLabel>
-                <div className="mt-2 font-mono text-[24px] font-semibold text-[#f1f5f9]">
+                <div className="mt-2 font-mono text-[24px] font-semibold text-[rgb(var(--ink))]">
                   {topPred.value == null
                     ? DASH
                     : `${topPred.value}${topPred.unit ? ` ${topPred.unit}` : ''}`}
@@ -540,7 +540,7 @@ export function InstrumentCockpit() {
          ============================================================ */}
       <div className="van-support grid gap-4 md:grid-cols-3">
         <Link to="/weather" className="block">
-          <Panel className="van-supportcard h-full p-4 transition-colors duration-150 hover:border-[#304050]">
+          <Panel className="van-supportcard h-full p-4 transition-colors duration-150 hover:border-[rgb(var(--line))]">
             <div className="flex items-center justify-between">
               <MetricLabel>Environment</MetricLabel>
               <VanOSWeather condition={weather.payload?.current_weather_description} size={26} />
@@ -550,29 +550,29 @@ export function InstrumentCockpit() {
               <div>
                 <div className="flex items-center gap-1.5">
                   <VanOSThermometer temperature={env.payload?.internal_temp_c} size={20} />
-                  <span className="font-mono text-[20px] font-semibold text-[#f1f5f9]">
+                  <span className="font-mono text-[20px] font-semibold text-[rgb(var(--ink))]">
                     {fmtTemp(env.payload?.internal_temp_c)}
                   </span>
                 </div>
-                <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-[#647382]">
+                <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-[rgb(var(--ink-muted))]">
                   Inside
                 </div>
               </div>
 
               <div>
-                <div className="font-mono text-[20px] font-semibold text-[#f1f5f9]">
+                <div className="font-mono text-[20px] font-semibold text-[rgb(var(--ink))]">
                   {fmtTemp(env.payload?.external_temp_c)}
                 </div>
-                <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-[#647382]">
+                <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-[rgb(var(--ink-muted))]">
                   Outside
                 </div>
               </div>
 
               <div className="min-w-0">
-                <div className="font-mono text-[15px] text-[#9aa8b6]">
+                <div className="font-mono text-[15px] text-[rgb(var(--ink-soft))]">
                   {fmtTemp(weather.payload?.current_temp_c)}
                 </div>
-                <div className="mt-1 truncate text-[10px] text-[#647382]">
+                <div className="mt-1 truncate text-[10px] text-[rgb(var(--ink-muted))]">
                   {weather.payload?.current_weather_description || 'No reading'}
                 </div>
               </div>
@@ -581,12 +581,12 @@ export function InstrumentCockpit() {
         </Link>
 
         <Link to="/heater" className="block">
-          <Panel className="van-supportcard h-full p-4 transition-colors duration-150 hover:border-[#304050]">
+          <Panel className="van-supportcard h-full p-4 transition-colors duration-150 hover:border-[rgb(var(--line))]">
             <div className="flex items-center justify-between">
               <MetricLabel>Heater</MetricLabel>
               <Flame
                 size={16}
-                className={heaterOn ? 'text-[#f2b84b]' : 'text-[#647382]'}
+                className={heaterOn ? 'text-[rgb(var(--status-amber))]' : 'text-[rgb(var(--ink-muted))]'}
               />
             </div>
 
@@ -598,20 +598,20 @@ export function InstrumentCockpit() {
               </StatusPill>
 
               {hs.target != null && (
-                <span className="font-mono text-[15px] text-[#9aa8b6]">
+                <span className="font-mono text-[15px] text-[rgb(var(--ink-soft))]">
                   {hs.target}{hs.mode === 2 ? '°C' : ''}
                 </span>
               )}
             </div>
 
-            <div className="mt-3 text-[11px] text-[#647382]">
+            <div className="mt-3 text-[11px] text-[rgb(var(--ink-muted))]">
               Body {fmtTemp(hs.body_temperature_c)} · Cabin{' '}
               {fmtTemp(hs.cabin_temperature_c)}
             </div>
 
             {fuel.data?.tank_remaining_litres != null &&
               fuel.data?.tank_litres != null && (
-                <div className="mt-1 text-[11px] text-[#647382]">
+                <div className="mt-1 text-[11px] text-[rgb(var(--ink-muted))]">
                   Fuel ~
                   {fmtPct(
                     (fuel.data.tank_remaining_litres /
@@ -625,27 +625,27 @@ export function InstrumentCockpit() {
         </Link>
 
         <Link to="/nearby" className="block">
-          <Panel className="van-supportcard h-full p-4 transition-colors duration-150 hover:border-[#304050]">
+          <Panel className="van-supportcard h-full p-4 transition-colors duration-150 hover:border-[rgb(var(--line))]">
             <div className="flex items-center justify-between">
               <MetricLabel>Location</MetricLabel>
-              <Satellite size={16} className="text-[#3b9cff]" />
+              <Satellite size={16} className="text-[rgb(var(--aurora-blue))]" />
             </div>
 
             <div className="mt-4 flex items-baseline gap-2">
-              <span className="font-mono text-[22px] font-semibold text-[#f1f5f9]">
+              <span className="font-mono text-[22px] font-semibold text-[rgb(var(--ink))]">
                 {loc.data?.satellites ?? DASH}
               </span>
-              <span className="text-[12px] text-[#9aa8b6]">satellites</span>
+              <span className="text-[12px] text-[rgb(var(--ink-soft))]">satellites</span>
             </div>
 
             {loc.data?.hdop != null && (
-              <div className="mt-1 text-[11px] text-[#647382]">
+              <div className="mt-1 text-[11px] text-[rgb(var(--ink-muted))]">
                 HDOP {loc.data.hdop.toFixed(1)}
               </div>
             )}
 
             {loc.data?.latitude != null && loc.data?.longitude != null && (
-              <div className="mt-3 font-mono text-[11px] text-[#647382]">
+              <div className="mt-3 font-mono text-[11px] text-[rgb(var(--ink-muted))]">
                 {loc.data.latitude.toFixed(4)}°, {loc.data.longitude.toFixed(4)}°
               </div>
             )}
