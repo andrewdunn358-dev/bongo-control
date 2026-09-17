@@ -122,9 +122,17 @@ docker cp backend/tools/thing.py $(docker compose ps -q backend):/app/tools/
 | `claude_scan-2026-09-10.md` | **The running to-do.** 19 items, most resolved, with what was tried and why |
 | `claude_build-cost.md` | Build times and deploy tiers |
 | `claude_hcalory-heater-plugin.md` | The whole heater story |
-| `claude_working-preferences.md` | Git/push behaviour, communication |
-| `claude_handover-2026-07.md`, `claude_hardware-switch-panel.md` | Wiring, relays, GPIO map |
+| `claude_relay-inuse-alarms-energy-balance.md` | Relay in-use flags, battery alarms, daily energy balance |
+| `claude_cleanup-2026-08-31.md` | Dead-code/orphaned-service cleanup pass |
 | `claude_issue-diesel-heater-ble.md` | Draft issue, not yet posted |
+
+**Amended 17 Sep 2026:** the three files this table previously pointed
+to here (`claude_working-preferences.md`, `claude_handover-2026-07.md`,
+`claude_hardware-switch-panel.md`) do not exist in this repo — dropped.
+Sessions after 11 Sep (relay in-use/alarms, a cleanup pass, the theme
+system merged in PR #12, a viewport-fit architecture under review) are
+not yet written up as a `claude_*.md` file here. `git log --oneline`
+and the PR list are the current source of truth until one is.
 
 ---
 
@@ -132,9 +140,16 @@ docker cp backend/tools/thing.py $(docker compose ps -q backend):/app/tools/
 
 - **Pi 2B**, 920MB RAM. Genuinely tight. Two CPU problems this week both
   came from work on the asyncio event loop.
-- **Relays:** 8-channel 12V **low-trigger** board, `active_high: false`.
-  Wired in parallel with two-way wall switches, so relay state is
-  **"commanded", never "actual"** — the code is deliberate about this.
+- **Relays:** 8-channel 12V **high-trigger** board, `active_high: True`
+  (corrected 17 Sep — this doc previously said low-trigger/False, which
+  is wrong; verified directly against `DEFAULT_CONFIG["relays"]` in
+  `configuration_service.py` and `relay_service.py`'s own comments,
+  matching every session back to 31 Jul). A boot-guard line driving
+  `dh` instead of `dl` on this board would energise every circuit
+  through the boot window — get the polarity from the code, not from
+  this file. Wired in parallel with two-way wall switches, so relay
+  state is **"commanded", never "actual"** — the code is deliberate
+  about this.
 - **GPIO map is in `DEFAULT_CONFIG["relays"]`** in
   `configuration_service.py`. That is the source of truth; docs have
   been wrong before. **GPIO 25 / physical pin 22 is dead** on this
