@@ -1,0 +1,9 @@
+{
+  "format": "vanos-theme",
+  "version": 1,
+  "name": "Freeda Bright",
+  "author": "VanOS",
+  "description": "A bright, modern campervan cockpit - white surfaces, clean blues, dark navy text. Built for daylight readability.",
+  "preview": "assets/preview.png",
+  "theme": "theme.json"
+}

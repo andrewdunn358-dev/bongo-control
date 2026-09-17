@@ -19,6 +19,9 @@ import {
   ThemeFileError,
 } from '@/lib/customThemes';
 import type { CustomTheme } from '@/lib/customThemes';
+import { themeFromPackage } from '@/lib/customThemes';
+import { parseThemePackage, ThemePackageError } from '@/lib/themePackage';
+import { putThemeAssets, deleteThemeAssets, hasRoomFor } from '@/lib/themeAssets';
 
 /** Live viewport readout. Temporary but genuinely useful: the cockpit's
  *  layout tiers are driven by CSS viewport HEIGHT, and that number
@@ -1276,8 +1279,39 @@ export function Settings() {
   };
 
   const onDeleteTheme = (id: string) => {
+    // Assets live in IndexedDB, not with the theme record, so they must
+    // be removed explicitly or they linger and consume quota forever.
+    void deleteThemeAssets(id);
     setCustomThemes(deleteCustomTheme(id));
     if (themeId === id) setTheme(COCKPIT_THEMES[0].id);
+  };
+
+  const onThemePackage = async (file: File | undefined) => {
+    if (!file) return;
+    setThemeError(null);
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const pkg = await parseThemePackage(bytes);
+
+      // Refuse up front rather than failing partway through the write.
+      const assetBytes = pkg.assets.reduce((n, a) => n + a.bytes.byteLength, 0);
+      if (!(await hasRoomFor(assetBytes))) {
+        throw new ThemePackageError('Not enough browser storage for this theme. Remove another theme and try again.');
+      }
+
+      const theme = themeFromPackage(pkg.manifest, pkg.definition, pkg.assets.map((a) => a.path));
+      await putThemeAssets(theme.id, pkg.assets);
+      setCustomThemes(saveCustomTheme(theme));
+      setTheme(theme.id);
+      toast.success(`Theme "${theme.name}" imported`);
+    } catch (e) {
+      const msg =
+        e instanceof ThemePackageError || e instanceof ThemeFileError
+          ? e.message
+          : 'Could not read that theme package.';
+      setThemeError(msg);
+      toast.error(msg);
+    }
   };
   const [distanceUnit, setDistanceUnitState] = useState<'mi' | 'km'>(() => getDistanceUnit());
   const [pwSsid, setPwSsid] = useState<string | null>(null);
@@ -1476,6 +1510,18 @@ export function Settings() {
                 }}
               />
               <span className="rounded-lg px-3 py-1.5 bg-ink/[0.05] ring-1 ring-ink/10">Add theme file…</span>
+            </label>
+            <label className="inline-flex items-center gap-2 text-xs text-ink-soft cursor-pointer hover:text-ink transition-colors ml-2">
+              <input
+                type="file"
+                accept=".vanos-theme,.zip,application/zip"
+                className="sr-only"
+                onChange={(e) => {
+                  void onThemePackage(e.target.files?.[0]);
+                  e.target.value = '';
+                }}
+              />
+              <span className="rounded-lg px-3 py-1.5 bg-ink/[0.05] ring-1 ring-ink/10">Import package…</span>
             </label>
             {themeError && <div className="text-[11px] text-status-red mt-2">{themeError}</div>}
             <p className="text-[11px] text-ink-faint mt-2">
