@@ -13,6 +13,8 @@ import { hasShunt } from '@/lib/telemetry';
 import { fmtVolt, fmtWatt, fmtTemp, DASH } from '@/lib/format';
 import type { BatteryPayload, SolarPayload } from '@/lib/types';
 import { HOME } from '@/constants/testIds';
+import { useAutoFit } from '@/lib/useAutoFit';
+import './instrument.css';
 
 /**
  * INSTRUMENT - the 3x3 telemetry dashboard.
@@ -61,6 +63,13 @@ function useClock(): Date {
 }
 
 export function InstrumentCockpit() {
+  // Same sizing mechanism as Adventure: measure the space this cockpit
+  // actually got and publish --fit, which instrument.css multiplies the
+  // DECORATIVE dimensions by. Instrument had no such hook at all, which
+  // is why it overflowed by a fixed 154px at the real device size no
+  // matter what the viewport did - it simply rendered its natural
+  // height and let the page scroll.
+  const fitRef = useAutoFit<HTMLDivElement>();
   const { data: brief } = useQuery({
     queryKey: ['mission-brief'],
     queryFn: api.missionBrief,
@@ -94,11 +103,11 @@ export function InstrumentCockpit() {
   const satCount = loc.data?.satellites ?? (sats.data?.satellites?.filter((s) => s.snr != null).length ?? null);
 
   return (
-    <div data-testid={HOME.root} className="mx-auto max-w-[1600px]">
-      <div className="grid grid-cols-12 gap-4 lg:gap-5">
+    <div ref={fitRef} data-testid={HOME.root} className="vi-page mx-auto max-w-[1600px]">
+      <div className="vi-grid grid grid-cols-12 gap-4 lg:gap-5">
         {/* Left column - battery/solar, each with real sparkline history */}
         <div className="col-span-12 lg:col-span-3 flex flex-col gap-4">
-          <GlassCard level="hero" glow="teal" data-testid={HOME.batteryVoltage}>
+          <GlassCard className="vi-card" level="hero" glow="teal" data-testid={HOME.batteryVoltage}>
             <CardHeader label="Battery voltage" right={<BatteryIcon size={15} className="text-aurora-teal" />} />
             <div className="num text-3xl font-bold">{fmtVolt(battery.payload?.voltage)}</div>
             <div className="text-[11px] text-ink-faint mt-1">{battery.payload?.charging ? 'Charging' : 'Resting reading'}</div>
@@ -155,7 +164,7 @@ export function InstrumentCockpit() {
             </div>
           </GlassCard>
 
-          <GlassCard data-testid={HOME.solarWatts}>
+          <GlassCard className="vi-card" data-testid={HOME.solarWatts}>
             <CardHeader label="Solar" right={<Sun size={15} className="text-brand-orange" />} />
             <div className="num text-3xl font-bold">{fmtWatt(solar.payload?.watts)}</div>
             <div className="text-[11px] text-ink-faint mt-1">
@@ -164,7 +173,7 @@ export function InstrumentCockpit() {
             <div className="mt-3"><Sparkline data={solarSeries} width={260} height={44} stroke="#FF8A00" fill="rgba(255,138,0,0.22)" minRange={25} /></div>
           </GlassCard>
 
-          <GlassCard>
+          <GlassCard className="vi-card">
             <CardHeader label="Net energy" hint="solar − load" right={<Zap size={15} className="text-aurora-teal" />} />
             <div className="num text-2xl font-semibold">{fmtWatt(energy.payload?.net_watts)}</div>
             <div className="text-[11px] text-ink-faint mt-1">in {fmtWatt(energy.payload?.solar_watts)} · out {fmtWatt(energy.payload?.load_watts)}</div>
@@ -210,7 +219,7 @@ export function InstrumentCockpit() {
             </div>
             <StatusPill tone={connected ? 'teal' : 'red'} className="absolute top-4 right-4 z-20">{connected ? 'LIVE' : 'OFFLINE'}</StatusPill>
             <div className="absolute inset-x-0 bottom-4 text-center z-20">
-              <div className="num text-4xl font-bold text-white" style={{ textShadow: '0 2px 20px rgba(0,0,0,.6)' }}>
+              <div className="num vi-num text-4xl font-bold text-white" style={{ textShadow: '0 2px 20px rgba(0,0,0,.6)' }}>
                 {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
@@ -222,7 +231,7 @@ export function InstrumentCockpit() {
             camera-height, so flex-1 on the GPS card lands its bottom
             edge level with the bottom of the camera. */}
         <div className="col-span-12 lg:col-span-4 flex flex-col gap-4">
-          <GlassCard className="shrink-0">
+          <GlassCard className="vi-card shrink-0">
             <CardHeader label="Weather" />
             <div className="num text-3xl font-bold">{fmtTemp(env.payload?.external_temp_c)}</div>
             <div className="text-xs text-ink-soft mt-1">{DASH}</div>
@@ -235,7 +244,7 @@ export function InstrumentCockpit() {
               floating over the middle of a large panel. min-h keeps it
               sensible when the column is short (narrow screens, where
               it stacks and there is no camera to match). */}
-          <GlassCard className="p-0 overflow-hidden relative flex-1 min-h-[190px]">
+          <GlassCard className="vi-card p-0 overflow-hidden relative flex-1 vi-sky min-h-[190px]">
             <SatelliteSky className="absolute inset-0 z-0 opacity-70" />
             <div className="relative z-10 p-5">
               <div className="text-[10px] tracking-[0.25em] text-status-green uppercase font-semibold">GPS Locked</div>
@@ -266,7 +275,7 @@ export function InstrumentCockpit() {
                 still clearly interactive: it is a Link with a hover ring
                 and a coloured GaugeRing carrying the status. */}
             <GlassCard
-              className="hover:ring-aurora-teal/40 transition-colors"
+              className="vi-card hover:ring-aurora-teal/40 transition-colors"
               data-testid={HOME.sitrepBadge}
             >
               <div className="flex items-start gap-3">
@@ -285,9 +294,9 @@ export function InstrumentCockpit() {
       </div>
 
       {/* Secondary detail - solar verdict, temps, charging power */}
-      <div className="grid grid-cols-12 gap-4 lg:gap-5 mt-4 lg:mt-5">
+      <div className="vi-grid vi-support grid grid-cols-12 gap-4 lg:gap-5 mt-4 lg:mt-5">
         {solarSig && (
-          <GlassCard className="col-span-12" data-testid={HOME.solarVerdict}>
+          <GlassCard className="vi-card col-span-12" data-testid={HOME.solarVerdict}>
             <div className="flex items-start gap-4">
               <div
                 className={`h-12 w-12 rounded-2xl grid place-items-center ring-1 ring-inset shrink-0 ${
@@ -326,17 +335,17 @@ export function InstrumentCockpit() {
           </GlassCard>
         )}
 
-        <GlassCard level="quiet" className="col-span-6 md:col-span-3" data-testid={HOME.interiorTemp}>
+        <GlassCard className="vi-card col-span-6 md:col-span-3" level="quiet" data-testid={HOME.interiorTemp}>
           <CardHeader label="Interior" hint="1-Wire probe" right={<Thermometer size={16} className="text-aurora-teal" />} />
           <div className="num text-3xl font-semibold">{fmtTemp(env.payload?.internal_temp_c)}</div>
         </GlassCard>
 
-        <GlassCard level="quiet" className="col-span-6 md:col-span-3" data-testid={HOME.externalTemp}>
+        <GlassCard className="vi-card col-span-6 md:col-span-3" level="quiet" data-testid={HOME.externalTemp}>
           <CardHeader label="Outside" hint="1-Wire probe" right={<Sun size={16} className="text-brand-orange" />} />
           <div className="num text-3xl font-semibold">{fmtTemp(env.payload?.external_temp_c)}</div>
         </GlassCard>
 
-        <GlassCard level="quiet" className="col-span-12 md:col-span-6">
+        <GlassCard className="vi-card col-span-12 md:col-span-6" level="quiet">
           <div className="flex flex-wrap items-center gap-6">
             <div className="flex items-center gap-2">
               <BatteryIcon size={14} className="text-ink-muted" />
