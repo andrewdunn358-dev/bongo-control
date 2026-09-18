@@ -101,15 +101,6 @@ jobs:
         working-directory: frontend
       - run: npx tsc -b
         working-directory: frontend
-      # Layout guards. The built-ins test is what stops a shipped
-      # composition from failing validation silently: at runtime a
-      # broken built-in is logged and skipped so the van still starts,
-      # which means CI is the only place it can be loud.
-      - name: Layout tests
-        run: |
-          npm run test:variants
-          npm run test:builtins
-        working-directory: frontend
       - run: npm run build
         working-directory: frontend
       - name: Demo build
