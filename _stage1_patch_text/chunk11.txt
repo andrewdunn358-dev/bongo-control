@@ -1,0 +1,185 @@
+turn the
+emergency composition after a built-in failure".
+
+Test only. No runtime change: 15 checks, up from 13.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01G3qgdXudr3fPyiuV2Ueo3g
+---
+ frontend/tests/builtin-compositions.test.mjs | 140 ++++++++++++++-----
+ 1 file changed, 103 insertions(+), 37 deletions(-)
+
+diff --git a/frontend/tests/builtin-compositions.test.mjs b/frontend/tests/builtin-compositions.test.mjs
+index 85c4345..f1e9592 100644
+--- a/frontend/tests/builtin-compositions.test.mjs
++++ b/frontend/tests/builtin-compositions.test.mjs
+@@ -43,29 +43,64 @@ const stubDom = {
+   },
+ };
+ 
+-const bundled = await build({
+-  stdin: {
+-    contents: `
+-      export { parseLayout } from '@/layout/schema';
+-      export { WIDGET_IDS } from '@/components/widgets/registry';
+-      export { resolveComposition } from '@/layout/ThemedHome';
+-      export { loadCompositions, EMERGENCY_COMPOSITION, builtinComposition } from '@/layout/builtins';
+-    `,
+-    resolveDir: root,
+-    loader: 'ts',
+-  },
+-  bundle: true,
+-  write: false,
+-  format: 'esm',
+-  platform: 'neutral',
+-  alias: { '@': join(root, 'src') },
+-  plugins: [stubDom],
+-  jsx: 'transform',
+-});
+-
+-const mod = await import(
+-  `data:text/javascript;base64,${Buffer.from(bundled.outputFiles[0].text).toString('base64')}`
+-);
++/** Replaces one built-in's JSON at bundle time. This is what lets the
++ *  REAL module-init path be tested: BUILTIN_COMPOSITIONS is built when
++ *  layout/builtins is first imported, so a broken built-in has to be
++ *  broken before that import, not after it. Calling loadCompositions
++ *  by hand exercises the function but not the wiring. */
++function replaceSource(file, json) {
++  return {
++    name: 'replace-builtin-source',
++    setup(b) {
++      b.onLoad({ filter: new RegExp(`builtins[/\\\\]${file}$`) }, () => ({
++        contents: JSON.stringify(json),
++        loader: 'json',
++      }));
++    },
++  };
++}
++
++async function load(extraPlugins = []) {
++  const bundled = await build({
++    stdin: {
++      contents: `
++        export { parseLayout } from '@/layout/schema';
++        export { WIDGET_IDS } from '@/components/widgets/registry';
++        export { resolveComposition } from '@/layout/ThemedHome';
++        export { loadCompositions, EMERGENCY_COMPOSITION, builtinComposition } from '@/layout/builtins';
++      `,
++      resolveDir: root,
++      loader: 'ts',
++    },
++    bundle: true,
++    write: false,
++    format: 'esm',
++    platform: 'neutral',
++    alias: { '@': join(root, 'src') },
++    plugins: [...extraPlugins, stubDom],
++    jsx: 'transform',
++  });
++  return import(
++    `data:text/javascript;base64,${Buffer.from(bundled.outputFiles[0].text).toString('base64')}`
++  );
++}
++
++/** Runs `fn` with console.error captured, for the cases whose failure
++ *  output is the expected result rather than a problem. The bundle runs
++ *  from a data: URL, so an uncaptured stack is a page of base64. */
++async function quietly(fn) {
++  const said = [];
++  const real = console.error;
++  console.error = (...a) =>
++    said.push(a.map((x) => (x instanceof Error ? x.message : String(x))).join(' '));
++  try {
++    return [await fn(), said];
++  } finally {
++    console.error = real;
++  }
++}
++
++const mod = await load();
+ const { parseLayout, WIDGET_IDS, resolveComposition } = mod;
+ const { loadCompositions, EMERGENCY_COMPOSITION, builtinComposition } = mod;
+ 
+@@ -167,14 +202,11 @@ assert.ok(EMERGENCY_COMPOSITION.items.length > 0, 'the emergency composition is
+ ok(`emergency composition validates (${EMERGENCY_COMPOSITION.items.length} items)`);
+ 
+ const BROKEN = { version: 1, items: [{ widget: 'battery', span: 99 }] };
+-// The failure is deliberate, so its console.error is expected output,
+-// not a problem - and the bundle runs from a data: URL, so its stack is
+-// a page of base64. Captured and asserted on instead of printed.
+-const said = [];
+-const realError = console.error;
+-console.error = (...a) => said.push(a.map((x) => (x instanceof Error ? x.message : String(x))).join(' '));
+-const degraded = loadCompositions({ adventure: BROKEN }, EMERGENCY_COMPOSITION);
+-console.error = realError;
++// The failure is deliberate, so its console.error is the expected
++// result rather than a problem.
++const [degraded, said] = await quietly(() =>
++  loadCompositions({ adventure: BROKEN }, EMERGENCY_COMPOSITION),
++);
+ 
+ assert.ok(
+   said.some((l) => l.includes('failed validation')),
+@@ -200,19 +232,53 @@ assert.deepEqual(
+ );
+ ok('invalid built-in -> emergency composition, not undefined');
+ 
+-// And it must survive the rest of the chain, not merely exist: what
+-// comes back has to be the thing ThemedHome renders.
++// AND IT MUST SURVIVE THE REAL RESOLUTION PATH, not merely exist in a
++// map. The map above is loadCompositions' return value; what decides
++// what ThemedHome draws is resolveComposition reading the module-level
++// BUILTIN_COMPOSITIONS, built once when layout/builtins is imported.
++//
++// So this loads a SECOND copy of the module graph with adventure's JSON
++// replaced by the broken layout at bundle time - the built-in is
++// therefore already broken when the module initialises, exactly as it
++// would be on a device that shipped a bad file - and then asks the real
++// resolver what Adventure resolves to.
++const [broken] = await quietly(() => load([replaceSource('adventure.home.json', BROKEN)]));
++const resolved = broken.resolveComposition('adventure', undefined);
++
++assert.notEqual(
++  resolved, undefined,
++  'with a broken built-in, resolution returned undefined - this is the blank-cockpit path',
++);
++assert.ok(resolved.items.length > 0, 'resolution returned an empty composition');
+ assert.deepEqual(
+-  resolveComposition('adventure', undefined) && degraded.adventure, degraded.adventure,
+-  'the degraded composition did not survive resolution',
++  resolved, broken.EMERGENCY_COMPOSITION,
++  'resolution did not return the emergency composition after a built-in failure',
+ );
+-const viaResolve = degraded.adventure;
++// Not vacuous: the emergency composition must differ from the built-in
++// it replaced, or this would pass even if the failure never happened.
++assert.notDeepEqual(
++  resolved,
++  parseLayout(
++    JSON.parse(readFileSync(join(builtinsDir, 'adventure.home.json'), 'utf8')), WIDGET_IDS,
++  ).layout,
++  'resolution returned the real Adventure composition, so the built-in was never broken',
++);
++ok('broken built-in -> resolveComposition returns the emergency composition');
++
+ assert.ok(
+-  viaResolve.items.every((i) => WIDGET_IDS.includes(i.widget)),
++  resolved.items.every((i) => WIDGET_IDS.includes(i.widget)),
+   'the emergency composition names a widget this build does not have',
+ );
+ ok('emergency composition is renderable - every widget is registered');
+ 
++// The same module must still give Instrument its component, so a broken
++// Adventure cannot take the other cockpits down with it.
++assert.equal(
++  broken.resolveComposition('instrument', undefined), undefined,
++  'a broken built-in changed what an unmigrated appearance resolves to',
++);
++ok('a broken built-in does not affect the unmigrated appearances');
++
+ // An appearance with NO built-in must still resolve to undefined, so
+ // Instrument and Control keep their own components. Conflating "failed
+ // to validate" with "has no built-in" would take that away from them.
+-- 
+2.43.0
