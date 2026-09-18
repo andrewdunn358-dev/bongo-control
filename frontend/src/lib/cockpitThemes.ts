@@ -26,12 +26,10 @@ import type { ComponentType, LazyExoticComponent } from 'react';
  * both ships in the bundle, so an unprefixed `.card` in one theme
  * would silently restyle the other.
  *
- * Mobile is NOT themed: below the wide-screen breakpoint Home always
- * renders the Instrument cockpit, whatever is selected here. A phone
- * layout has different constraints and is not something themes should
- * fragment. It is the same component the Instrument theme renders, not
- * a second phone copy - keeping one copy is deliberate, because when
- * this layout existed twice the two drifted apart.
+ * ORIENTATION NO LONGER OVERRIDES THE SELECTION. Portrait used to
+ * render Instrument whatever was chosen here, which silently discarded
+ * an installed package's composition on a phone held upright. Portrait
+ * is a surface now, and the renderer collapses a composition to suit it.
  */
 export type CockpitThemeId = string;
 
@@ -41,8 +39,13 @@ export interface CockpitTheme {
   name: string;
   /** One line under the name - what the theme is for, not how it looks. */
   description: string;
-  /** Lazy so only the selected theme's code and CSS are fetched. */
-  component: LazyExoticComponent<ComponentType>;
+  /** The hand-written component this cockpit is still drawn by, lazy so
+   *  only the selected one's code and CSS are fetched.
+   *
+   *  ABSENT means the cockpit is a COMPOSITION, drawn by the generic
+   *  renderer from validated layout data. That is the destination for
+   *  all of them; a component here is the remaining legacy path. */
+  component?: LazyExoticComponent<ComponentType>;
 }
 
 export const COCKPIT_THEMES: CockpitTheme[] = [
@@ -65,10 +68,8 @@ export const COCKPIT_THEMES: CockpitTheme[] = [
   {
     id: 'adventure',
     name: 'Adventure',
-    description: 'Camera hero, magazine styling, image action tiles',
-    component: lazy(() =>
-      import('@/components/cockpits/AdventureCockpit').then((m) => ({ default: m.AdventureCockpit })),
-    ),
+    description: 'Photographic hero, magazine styling, image action tiles',
+    // No component: Adventure is a composition. See layout/builtins/.
   },
 ];
 

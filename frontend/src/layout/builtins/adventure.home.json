@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "items": [
+    { "widget": "hero", "span": 12 },
+    { "widget": "battery", "span": 3 },
+    { "widget": "solar", "span": 3 },
+    { "widget": "power-flow", "span": 3 },
+    { "widget": "weather", "span": 3 },
+    { "widget": "action-heater", "span": 3 },
+    { "widget": "action-roof", "span": 3 },
+    { "widget": "action-switches", "span": 3 },
+    { "widget": "action-camera", "span": 3 },
+    { "widget": "footer", "span": 12 }
+  ]
+}

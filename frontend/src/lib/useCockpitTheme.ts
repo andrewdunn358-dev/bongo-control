@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { DEFAULT_COCKPIT_THEME, getCockpitTheme } from '@/lib/cockpitThemes';
-import { applyCustomTheme, loadCustomThemes } from '@/lib/customThemes';
+import { applyCustomTheme } from '@/lib/customThemes';
 import { getServerThemes, refreshServerThemes, onServerThemesChanged } from '@/lib/serverThemes';
+import type { CustomTheme } from '@/lib/customThemes';
 import type { CockpitTheme, CockpitThemeId } from '@/lib/cockpitThemes';
 import type { LayoutDefinition } from '@/layout/schema';
 
@@ -58,18 +59,12 @@ export function useCockpitTheme(): {
   // Tailwind, so they restyle automatically. This is what makes the
   // theme switch change the whole app.
   useEffect(() => {
-    // A custom theme layers ITS TOKENS on top of a built-in theme's
-    // layout. It never replaces the cockpit component - a data file
-    // cannot supply one - so the base attribute is still set, and the
-    // custom tokens are applied as inline properties on <html>, which
-    // win over the stylesheet by specificity.
-    // Server themes first, then legacy browser-local ones. Local
-    // themes from before themes moved to the Pi keep working rather
-    // than silently disappearing.
+    // A theme layers ITS TOKENS on top of the cockpit it names, so the
+    // base attribute is still set and the theme's tokens are applied as
+    // inline properties on <html>, which win over the stylesheet by
+    // specificity.
     const custom = themeId.startsWith('custom:')
-      ? getServerThemes().find((t) => t.id === themeId)
-        ?? loadCustomThemes().find((t) => t.id === themeId)
-        ?? null
+      ? getServerThemes().find((t: CustomTheme) => t.id === themeId) ?? null
       : null;
 
     const base = custom ? getCockpitTheme(custom.cockpit ?? DEFAULT_COCKPIT_THEME).id : getCockpitTheme(themeId).id;
@@ -101,33 +96,25 @@ export function useCockpitTheme(): {
     listeners.forEach((fn) => fn(id));
   }, []);
 
-  // A custom theme has no component of its own, so it renders the
-  // default cockpit layout wearing its colours.
-  // A custom theme renders the built-in cockpit it NAMES, falling back
-  // to the default when it names none or names one this build does not
-  // have. Previously every custom theme was forced into the default
-  // cockpit, which is why a theme asking for Adventure's hero behaviour
-  // never got it - it was not rendering Adventure at all.
-  const custom = themeId.startsWith('custom:')
-    ? getServerThemes().find((t) => t.id === themeId) ?? loadCustomThemes().find((t) => t.id === themeId)
-    : undefined;
-  const layoutId = themeId.startsWith('custom:')
-    ? (custom?.cockpit ?? DEFAULT_COCKPIT_THEME)
-    : themeId;
-  const theme = getCockpitTheme(layoutId);
-  // The Home composition the active theme defines, if any. Absent means
-  // the cockpit renders its built-in composition, so every theme made
-  // before layouts existed behaves exactly as it did.
-  const activeCustom = themeId.startsWith('custom:')
-    ? getServerThemes().find((t) => t.id === themeId) ?? loadCustomThemes().find((t) => t.id === themeId) ?? null
+  // An installed theme renders the built-in cockpit it NAMES, falling
+  // back to the default when it names none or names one this build does
+  // not have. Previously every installed theme was forced into the
+  // default cockpit, which is why a theme asking for Adventure's hero
+  // behaviour never got it - it was not rendering Adventure at all.
+  const installed = themeId.startsWith('custom:')
+    ? getServerThemes().find((t: CustomTheme) => t.id === themeId) ?? null
     : null;
+  const layoutId = installed ? (installed.cockpit ?? DEFAULT_COCKPIT_THEME) : themeId;
+  const theme = getCockpitTheme(layoutId);
 
   return {
     themeId,
     theme,
     setTheme,
-    homeLayout: activeCustom?.homeLayout,
-    unknownWidgets: activeCustom?.unknownWidgets,
-    widgetPresentation: activeCustom?.widgetPresentation,
+    // The Home composition the active theme defines, if any. Absent
+    // means Home renders the cockpit's built-in composition.
+    homeLayout: installed?.homeLayout,
+    unknownWidgets: installed?.unknownWidgets,
+    widgetPresentation: installed?.widgetPresentation,
   };
 }

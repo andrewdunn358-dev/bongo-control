@@ -63,11 +63,20 @@ ASSET_TYPES: dict[str, str] = {
 # colours and brand orange: those mean charging, attention, fault and
 # active-nav, and a theme must not be able to make a fault harder to
 # spot.
-# Cockpit layouts a theme may choose. Mirrors the frontend registry in
-# lib/cockpitThemes.ts. A theme NAMES one of these; it can never supply a
-# component or a layout - the same bounded-choice pattern already used
-# for fonts. An unknown or absent value falls back to the default, so a
-# theme naming a cockpit this build does not have still works.
+# The built-in Theme Definition a theme EXTENDS. Bounded choice, the
+# same pattern as fonts: a theme names one of these and can never supply
+# a component. Mirrors the frontend registry in lib/cockpitThemes.ts; an
+# unknown or absent value falls back to the default, so a theme naming
+# one this build does not have still works.
+#
+# This is temporary compatibility and inheritance metadata, NOT a
+# rendering decision, and the backend must not treat it as one. It
+# decides only which built-in composition and token set a theme inherits
+# when it brings none of its own; a theme carrying "homeLayout" has that
+# layout drawn whatever it names here. So nothing in this file may reject
+# or rewrite "homeLayout" on the basis of "cockpit" - the browser owns
+# the renderer and the widget registry, and a copy of either here would
+# go stale and start refusing valid themes.
 COCKPIT_LAYOUTS = {"instrument", "adventure", "control"}
 
 THEMEABLE_TOKENS = {

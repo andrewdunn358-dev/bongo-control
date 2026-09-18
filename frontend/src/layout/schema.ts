@@ -169,3 +169,28 @@ export function parseWidgetPresentation(
   }
   return { presentation: out, skipped };
 }
+
+/*
+ * THERE IS NO assertCompositionSupported, DELIBERATELY.
+ *
+ * One lived here. It refused, at import, a package carrying home.layout
+ * while naming a cockpit with no renderer path - on the reasoning that
+ * such a composition was validated, stored, delivered and then silently
+ * discarded, and that accepting data and dropping it is not one of the
+ * two legitimate outcomes.
+ *
+ * That reasoning described the code BEFORE the single themed path
+ * existed. It does not describe this one. resolveComposition is
+ * `themeLayout ?? builtinComposition(cockpitId)`, so a theme's own
+ * composition wins unconditionally, whatever it names, and Home has no
+ * cockpit test between resolution and render. Measured against the real
+ * modules: a definition naming `instrument` or `control` and carrying a
+ * layout resolves to THAT LAYOUT and is drawn by the generic renderer.
+ * Nothing is discarded, so there is nothing to refuse - the check was
+ * rejecting themes that work.
+ *
+ * `cockpit` is temporary compatibility and inheritance metadata: it says
+ * which built-in Theme Definition a package extends when it brings no
+ * composition of its own. It is not a rendering dependency and nothing
+ * below Validated Composition may consult it.
+ */

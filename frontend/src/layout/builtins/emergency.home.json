@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "items": [
+    { "widget": "battery", "span": 12 },
+    { "widget": "footer", "span": 12 }
+  ]
+}
