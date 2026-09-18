@@ -209,3 +209,36 @@
    legible. The headline, tagline and quote all sit on the image, so
    they are pinned light for the same reason the eyebrow above is. */
 .vm-page .vm-hero-photo .vm-hero-copy h2 { color: #f2f7fb; }
+
+/* THE COMPOSITION LADDER - Adventure's rungs.
+   The shared mechanism lives in useAutoFit and raises data-fit-step
+   only once --fit has hit its 0.78 floor and the cockpit still does not
+   fit. What a rung MEANS is decided here, per cockpit; the hook has no
+   opinion about either layout.
+
+   Adventure is close to fitting already (#13-#19 took it from 477px of
+   overflow to 23px at the real device size), so its rungs are small and
+   shed decoration only:
+
+   Rung 1: the footer's branding - the slogan and the version/meta line
+   - and a tighter footer. The LOCATION and satellite count stay: they
+   are a reading.
+   Rung 2: the Tolkien quote. Pure decoration, and the first thing a
+   narrow viewport already drops.
+
+   Nothing with a number in it is removed by either rung. */
+
+@media (min-width: 900px) {
+  .vm-page[data-fit-step="1"] .vm-footer-slogan,
+  .vm-page[data-fit-step="2"] .vm-footer-slogan,
+  .vm-page[data-fit-step="1"] .vm-footer-meta,
+  .vm-page[data-fit-step="2"] .vm-footer-meta { display: none; }
+
+  .vm-page[data-fit-step="1"] .vm-footer-bar,
+  .vm-page[data-fit-step="2"] .vm-footer-bar {
+    margin-top: calc(6px * var(--fit));
+    padding: calc(4px * var(--fit)) 4px;
+  }
+
+  .vm-page[data-fit-step="2"] .vm-quote { display: none; }
+}

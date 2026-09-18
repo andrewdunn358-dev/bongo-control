@@ -56,3 +56,45 @@
      the point of this cockpit is readability at arm's length. */
   .vi-page .vi-num { font-size: max(28px, calc(2.25rem * var(--fit))); }
 }
+
+/* THE COMPOSITION LADDER - Instrument's rungs.
+   Added 18 Sep 2026 alongside the shared mechanism in useAutoFit.
+
+   The hook raises data-fit-step ONLY once --fit has hit its 0.78 floor
+   and the cockpit still does not fit. At that point shrinking further
+   starts costing readability, which on a dashboard glanced at from the
+   driver's seat is the wrong trade. So the composition changes instead,
+   and THIS FILE decides what that means for Instrument - the hook has
+   no opinion about it.
+
+   Rung 1: the supporting row goes compact. Interior, Outside and
+   Charging Power are secondary readings; the primary column (battery,
+   solar, net energy) and the camera keep their full treatment. Their
+   VALUES stay - only padding and numeral size give way, and the numeral
+   floor is still double the label scale.
+
+   Rung 2: the satellite sky stops being drawn. It is an illustration:
+   the satellite count and fix quality beside it are the reading, and
+   they remain. NOTHING WITH A NUMBER IN IT is removed by a rung. */
+
+@media (min-width: 900px) {
+  .vi-page[data-fit-step="1"] .vi-grid,
+  .vi-page[data-fit-step="2"] .vi-grid { gap: calc(0.8rem * var(--fit)); }
+
+  .vi-page[data-fit-step="1"] .vi-support .vi-card,
+  .vi-page[data-fit-step="2"] .vi-support .vi-card { padding: calc(0.7rem * var(--fit)); }
+
+  .vi-page[data-fit-step="1"] .vi-support .vi-num,
+  .vi-page[data-fit-step="2"] .vi-support .vi-num { font-size: max(20px, calc(1.5rem * var(--fit))); }
+
+  /* The sparkline strips go at rung 1. They are SHAPE, not measurement:
+     the voltage and the wattage are printed full size directly above
+     them, and with no history buffered yet they draw nothing but a
+     placeholder anyway. Two strips at 44px plus their margins is the
+     single biggest saving available in the left column, which is the
+     column that sets the whole grid's height - measured, not guessed. */
+  .vi-page[data-fit-step="1"] .vi-spark,
+  .vi-page[data-fit-step="2"] .vi-spark { display: none; }
+
+  .vi-page[data-fit-step="2"] .vi-sky { display: none; }
+}
