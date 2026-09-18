@@ -33,6 +33,12 @@ export interface SolarGraphicProps {
 }
 
 /** WEATHER. A condition string from the forecast, or nothing. */
+export interface PowerFlowGraphicProps {
+  solarWatts: number | null | undefined;
+  loadWatts: number | null | undefined;
+  netWatts: number | null | undefined;
+}
+
 export interface WeatherGraphicProps {
   condition: string | null | undefined;
   size: number;
