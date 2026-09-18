@@ -2,6 +2,9 @@ import { BatteryWidget } from './BatteryWidget';
 import { SolarWidget } from './SolarWidget';
 import { PowerFlowWidget } from './PowerFlowWidget';
 import { WeatherWidget } from './WeatherWidget';
+import { HeroWidget } from './HeroWidget';
+import { FooterWidget } from './FooterWidget';
+import { HeaterActionWidget, RoofActionWidget, SwitchesActionWidget, CameraActionWidget } from './ActionWidget';
 import type { WidgetDefinition } from './types';
 
 /**
@@ -54,6 +57,60 @@ export const WIDGETS: WidgetDefinition[] = [
     truth: 'tomorrow\u2019s radiation is a forecast, labelled relative to today',
     priority: 'low',
     component: WeatherWidget,
+  },
+  {
+    id: 'hero',
+    name: 'Hero',
+    description: 'Themed identity panel with the van\u2019s name over a photograph',
+    domains: [],
+    truth: 'shows no reading, so it can state nothing false; deliberately carries no live camera',
+    priority: 'low',
+    component: HeroWidget,
+  },
+  {
+    id: 'action-heater',
+    name: 'Heater tile',
+    description: 'Opens the heater screen and shows the heater\u2019s reported state',
+    domains: ['heater'],
+    truth: 'says \u201cNo signal\u201d when the heater is unreachable rather than implying it is off',
+    priority: 'high',
+    component: HeaterActionWidget,
+  },
+  {
+    id: 'action-roof',
+    name: 'Roof tile',
+    description: 'Opens the roof screen',
+    domains: [],
+    truth: 'navigation only - claims nothing about roof position, which has no sensor',
+    priority: 'high',
+    component: RoofActionWidget,
+  },
+  {
+    id: 'action-switches',
+    name: 'Switches tile',
+    description: 'Opens the relay switch panel',
+    domains: [],
+    truth: 'navigation only - claims no relay state',
+    priority: 'high',
+    component: SwitchesActionWidget,
+  },
+  {
+    id: 'action-camera',
+    name: 'Camera tile',
+    description: 'Opens the live camera screen',
+    domains: [],
+    truth: 'navigation only',
+    priority: 'high',
+    component: CameraActionWidget,
+  },
+  {
+    id: 'footer',
+    name: 'Position footer',
+    description: 'GPS position, satellite count and the app marks',
+    domains: ['location'],
+    truth: 'shows \u201cLocation unavailable\u201d with no fix rather than a stale coordinate',
+    priority: 'medium',
+    component: FooterWidget,
   },
 ];
 

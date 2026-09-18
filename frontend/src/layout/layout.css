@@ -20,6 +20,9 @@
 
 .vl-grid[data-vl-state='compact'] { gap: 8px; }
 .vl-slot { min-width: 0; display: flex; }
+/* A widget that draws nothing in its current state leaves an empty
+   slot, and an empty slot must not still consume a row and a gap. */
+.vl-slot:empty { display: none; }
 .vl-slot > * { flex: 1 1 auto; min-width: 0; }
 
 /* COLLAPSE, expressed once here rather than by every layout author.
@@ -37,13 +40,19 @@
    a compact row that had no need to collapse, which measurement caught
    as a doubled grid height in landscape. */
 @container layout (max-width: 819px) {
-  .vl-grid:not([data-vl-state='compact']) > .vl-slot { grid-column: span 6 !important; }
+  .vl-grid:not([data-vl-state='compact']) > .vl-slot[data-vl-span='1'],
+  .vl-grid:not([data-vl-state='compact']) > .vl-slot[data-vl-span='2'],
+  .vl-grid:not([data-vl-state='compact']) > .vl-slot[data-vl-span='3'],
+  .vl-grid:not([data-vl-state='compact']) > .vl-slot[data-vl-span='4'] { grid-column: span 6 !important; }
 }
 @container layout (max-width: 429px) {
   .vl-grid:not([data-vl-state='compact']) > .vl-slot { grid-column: span 12 !important; }
 }
 @container layout (max-width: 599px) {
-  .vl-grid[data-vl-state='compact'] > .vl-slot { grid-column: span 6 !important; }
+  .vl-grid[data-vl-state='compact'] > .vl-slot[data-vl-span='1'],
+  .vl-grid[data-vl-state='compact'] > .vl-slot[data-vl-span='2'],
+  .vl-grid[data-vl-state='compact'] > .vl-slot[data-vl-span='3'],
+  .vl-grid[data-vl-state='compact'] > .vl-slot[data-vl-span='4'] { grid-column: span 6 !important; }
 }
 @container layout (max-width: 319px) {
   .vl-grid[data-vl-state='compact'] > .vl-slot { grid-column: span 12 !important; }
