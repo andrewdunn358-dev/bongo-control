@@ -68,7 +68,7 @@ ASSET_TYPES: dict[str, str] = {
 # component or a layout - the same bounded-choice pattern already used
 # for fonts. An unknown or absent value falls back to the default, so a
 # theme naming a cockpit this build does not have still works.
-COCKPIT_LAYOUTS = {"instrument", "adventure"}
+COCKPIT_LAYOUTS = {"instrument", "adventure", "control"}
 
 THEMEABLE_TOKENS = {
     "ink", "ink-soft", "ink-muted", "ink-faint",
