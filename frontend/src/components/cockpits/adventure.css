@@ -1,199 +1,49 @@
-:root{--vm-ink-soft:rgb(var(--ink-soft));--vm-ink-faint:rgb(var(--ink-faint));--vm-bg:rgb(var(--surface-sunken));--vm-panel:rgb(var(--surface));--vm-panel2:rgb(var(--surface-raised));--vm-line:rgb(var(--line) / .28);--vm-cyan:rgb(var(--aurora-teal));--vm-teal:rgb(var(--aurora-lime));--vm-blue:rgb(var(--aurora-blue));--vm-yellow:rgb(var(--status-amber));--vm-orange:rgb(var(--brand-orange));--vm-text:rgb(var(--ink));--vm-muted:rgb(var(--ink-muted))}.vm-page{width:100%;max-width:1560px;margin:0 auto;padding:0 0 24px;color:var(--vm-text);container-type:inline-size;container-name:cockpit}.vm-hero{margin-bottom:14px}.vm-hero-photo{position:relative;height:min(34vh,300px);min-height:0;overflow:hidden;border:1px solid var(--vm-line);border-radius:6px;background:var(--vm-bg);box-shadow:0 20px 60px rgba(0,0,0,.38);container-type:size;container-name:hero}.vm-hero-fallback{position:absolute;inset:0;background-size:cover;background-position:center}.vm-hero-fallback{z-index:0;background-image:url('/hero/coast_sunset.jpg')}.vm-hero-overlay{position:absolute;inset:0;z-index:2;background:linear-gradient(90deg,rgba(1,8,14,.82),rgba(1,8,14,.24) 47%,rgba(1,8,14,.12)),linear-gradient(180deg,rgba(1,8,14,.08),rgba(1,8,14,.80) 100%)}.vm-hero-copy{position:absolute;z-index:3;left:30px;bottom:35px}.vm-hero-copy h2{font-size:clamp(42px,5vw,70px);line-height:.92;letter-spacing:-.055em;margin:11px 0 17px;font-weight:850;text-shadow:0 4px 25px rgba(0,0,0,.45)}.vm-hero-copy p{margin:0;color:#d6e7f3;font-size:13px;letter-spacing:.05em}.vm-hero-rule{width:56px;height:4px;border-radius:5px;background:var(--vm-cyan);box-shadow:0 0 18px rgb(var(--aurora-teal) / .55);margin-bottom:14px}.vm-quote{position:absolute;z-index:3;right:32px;top:34px;text-align:right;font-size:19px;line-height:1.25;font-style:italic;color:#f5fbff;text-shadow:0 3px 18px #000}.vm-quote small{display:block;margin-top:8px;font-size:11px;letter-spacing:.12em;color:#d2e4ef;font-style:normal}.vm-actions{display:grid;grid-template-columns:1fr;gap:14px;margin-top:14px}.vm-action{position:relative;height:145px;overflow:hidden;border:1px solid var(--vm-line);border-radius:6px;color:white;text-decoration:none;background:var(--vm-bg);box-shadow:0 12px 30px rgba(0,0,0,.3);transition:transform .2s ease,border-color .2s ease}.vm-action:hover{transform:translateY(-2px);border-color:rgb(var(--aurora-teal) / .5)}.vm-action-image{position:absolute;inset:0;background-size:cover;background-position:center;filter:saturate(.75)}.vm-action-shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(2,10,17,.94),rgba(2,10,17,.48) 60%,rgba(2,10,17,.18)),linear-gradient(0deg,rgba(2,10,17,.9),transparent 65%)}.vm-action-copy{position:absolute;inset:auto 16px 16px;display:flex;align-items:center;gap:12px}.vm-action-icon{width:48px;height:48px;border:1px solid rgba(255,255,255,.18);border-radius:50%;display:grid;place-items:center;background:rgba(2,12,20,.55);color:#f0f8ff}.vm-action-copy strong{display:block;font-size:19px;letter-spacing:-.03em}.vm-action-copy span{display:block;margin-top:3px;color:#9eb4c5;font-size:10px}.vm-action-arrow{margin-left:auto;color:#c6e7f6}.vm-roof-icon{font-size:34px;line-height:1}.vm-footer-bar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-top:15px;padding:12px 4px;color:var(--vm-muted)}.vm-location{display:flex;align-items:center;gap:8px;color:var(--vm-muted);text-decoration:none;font-size:11px}.vm-location svg{color:var(--vm-cyan)}.vm-location small{color:var(--vm-ink-faint)}.vm-footer-meta{display:flex;gap:9px;align-items:center;font-size:10px;letter-spacing:.08em}.vm-footer-meta b{color:var(--vm-cyan);font-weight:700}.vm-footer-slogan{font-size:10px;letter-spacing:.2em;color:var(--vm-ink-faint)}@keyframes vmFlow{0%{opacity:.15;transform:translateX(-4px)}50%{opacity:1}100%{opacity:.15;transform:translateX(4px)}}@media(max-width:760px){.vm-page{padding-bottom:80px}.vm-hero-photo{height:390px}.vm-quote{display:none}.vm-hero-copy{left:20px;bottom:26px}.vm-hero-copy h2{font-size:43px}.vm-footer-bar{flex-direction:column;align-items:flex-start}.vm-footer-slogan{display:none}}@media(prefers-reduced-motion:reduce){.vm-card,.vm-action{transition:none}}
+/* ADVENTURE — the cockpit's SURFACE, and nothing else.
+   Phase 6, 18 Sep 2026.
 
-/* COLUMN COUNT IS A CONTAINER QUESTION, NOT A VIEWPORT ONE (17 Sep 2026)
-   Replaces the column half of the max-width:1250px / 760px viewport
-   queries above. Those asked "how wide is the browser?" when the thing
-   that actually decides whether four cards fit is "how wide is the
-   COCKPIT?" - and on this app those are different numbers. The nav
-   sidebar is 220px expanded and 78px collapsed AT RUNTIME, so the same
-   1143px tablet gives the cockpit 875px or 1017px depending on a button
-   the user just pressed. A viewport query cannot see that; a container
-   query can, and re-evaluates the moment it changes.
-   This is also the concrete bug being fixed: at 1143px the viewport
-   query matched max-width:1250px and forced 2 columns, so four cards
-   became two rows - measured at 614px instead of 331px, which is most
-   of why the cockpit did not fit its own screen.
-   Mobile-first on purpose: the base rule above is one column, and each
-   query only ever ADDS columns when the space is genuinely measured to
-   be there. A browser without container-query support degrades to the
-   single-column stack rather than to an overflowing four-across.
-   The 820px figure is derived, not taste: four cards at a 190px
-   readable minimum plus three 14px gaps needs 802px, rounded up for
-   breathing room. 430px is the same sum for two columns.
-   Height is deliberately NOT queried here - height drives continuous
-   scaling, width drives structure, and keeping them apart is what stops
-   the two mechanisms fighting each other. */
-@container cockpit (min-width: 430px) {
-  .vm-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@container cockpit (min-width: 820px) {
-  .vm-actions { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+   Everything that used to be here - the hero, the card styling, the
+   action tiles, the footer - is now owned by the widgets that draw it,
+   and their arrangement is layout data. What is left is the surface the
+   renderer measures and the private palette the widgets resolve against.
+
+   Rewritten by hand rather than pattern-matched out of the old file:
+   removing a grouped selector with a regex twice deleted rules that
+   were still needed, which measurement caught both times. */
+
+:root {
+  --vm-ink-soft: rgb(var(--ink-soft));
+  --vm-ink-faint: rgb(var(--ink-faint));
+  --vm-bg: rgb(var(--surface-sunken));
+  --vm-panel: rgb(var(--surface));
+  --vm-panel2: rgb(var(--surface-raised));
+  --vm-line: rgb(var(--line) / .28);
+  --vm-cyan: rgb(var(--aurora-teal));
+  --vm-teal: rgb(var(--aurora-lime));
+  --vm-blue: rgb(var(--aurora-blue));
+  --vm-yellow: rgb(var(--status-amber));
+  --vm-orange: rgb(var(--brand-orange));
+  --vm-text: rgb(var(--ink));
+  --vm-muted: rgb(var(--ink-muted));
 }
 
-/* THE HERO YIELDS HEIGHT FIRST, AND ITS COPY SURVIVES BEING SHORTENED
-   (17 Sep 2026)
-   The hero is branding, not telemetry, so it is the right thing to give
-   up space before any card does.
-   THE BUG BEING FIXED: .vm-hero-copy is absolutely positioned from the
-   BOTTOM of the photo and its content never scaled with the photo at
-   all - measured a constant 210px tall at every tablet size, inside a
-   photo measured 182px / 167px / 141px. So it overflowed the top of its
-   own hero by 64 / 80 / 105px and the headline's first line ("Adventure")
-   rendered off-screen entirely. Auto-fit shrinking the PHOTO made this
-   strictly worse, because the copy did not shrink with it.
-   The mechanism is a container query on the hero's own height, not a
-   viewport query: the photo has an explicit height, so container-type:
-   size is safe on it, and the copy then responds to the actual box it
-   has to live in - including when auto-fit changes that box, which a
-   viewport query would never see.
-   Thresholds are derived from measured content, not chosen: the full
-   copy (eyebrow 11 + h2 121 + rule 18 + tagline 20 + 36px bottom inset)
-   needs ~250px, so below 260px the decorative rule and tagline go and
-   the headline tightens; the reduced copy needs ~113px, so below 200px
-   the headline scales down too, and below 130px again. Each step sheds
-   DECORATION ONLY - the eyebrow and the headline always survive, and
-   nothing here is telemetry. */
-/* SPECIFICITY NOTE, learned the hard way on the first pass of this
-   change: a container query adds NO specificity of its own. index.css
-   sets `.vm-page .vm-hero-copy h2` (0,2,1) for the headline scale, so
-   a plain `.vm-hero-copy h2` (0,1,1) inside a @container silently lost
-   and the headline stayed at 43.68px while the photo shrank around it -
-   measured, not assumed. These selectors are deliberately deeper
-   (0,3,1) so they win on specificity rather than on stylesheet order,
-   which is not guaranteed between a route chunk and the main bundle. */
-@container hero (max-height: 260px) {
-  .vm-page .vm-hero-photo .vm-hero-copy p,
-  .vm-page .vm-hero-photo .vm-hero-rule { display: none; }
-  .vm-page .vm-hero-photo .vm-hero-copy { bottom: 20px; }
-  .vm-page .vm-hero-photo .vm-hero-copy h2 { margin: 6px 0 0; }
-}
-@container hero (max-height: 200px) {
-  .vm-page .vm-hero-photo .vm-hero-copy { bottom: 14px; }
-  .vm-page .vm-hero-photo .vm-hero-copy h2 { font-size: max(24px, calc(38px * var(--fit))); }
-  /* Caught in the render, not in review: once the hero is this short
-     the copy's top reaches the band .vm-hero-top occupies, and the
-     "MAZDA BONGO - VANOS" eyebrow collided with the "VAN CAMERA"
-     label. The eyebrow is the one to drop - it is pure branding and
-     the app header already says VanOS, whereas .vm-hero-top carries
-     the camera's live/offline state, which is real status. */
-  .vm-page .vm-hero-photo .vm-hero-copy .vm-eyebrow { display: none; }
-}
-@container hero (max-height: 130px) {
-  .vm-page .vm-hero-photo .vm-hero-copy h2 { font-size: max(20px, calc(30px * var(--fit))); }
-} prop (so 118x142px), which
-   does not care what its container does. Shrinking .vm-battery-main
-   alone therefore pushed the drawing straight out of the card - seen in
-   testing before this change. CSS width/height override SVG attributes,
-   and the viewBox preserves the aspect ratio, so sizing it to the
-   container here fixes it without touching the component or its props -
-   every other caller of VanOSBattery keeps its own size. */
-@container card (max-width: 300px) {
+/* The surface. useAutoFit measures this element, publishes --fit on it
+   and raises data-fit-step when scaling is spent; the grid and the
+   widgets inside respond to both. */
+.vm-page {
+  width: 100%;
+  max-width: 1560px;
+  margin: 0 auto;
+  padding: 0 0 24px;
+  color: var(--vm-text);
+  container-type: inline-size;
+  container-name: cockpit;
 }
 
-/* The action tile's decoration scales; the tile itself does not (see
-   index.css). The icon ring and the copy insets are what give the tile
-   its height, so scaling THEM is what lets a touch control get compact
-   without the control itself shrinking below a thumb-sized floor.
-   Both floored: a 36px ring still reads as a ring, and 10px of inset
-   still reads as padding. Measured content at the tablet's --fit: a
-   37px ring inside 2x12px of inset = 61px, which the 64px floor in
-   index.css then holds up - so the copy has room instead of
-   overflowing the top of the tile by 2px as it did before. */
-.vm-page .vm-action-icon {
-  width: max(36px, calc(48px * var(--fit)));
-  height: max(36px, calc(48px * var(--fit)));
-}
-.vm-page .vm-action-copy {
-  inset: auto max(10px, calc(16px * var(--fit))) max(10px, calc(16px * var(--fit)));
+/* Clearance for the bottom dock, which only exists below this width. */
+@media (max-width: 760px) {
+  .vm-page { padding-bottom: 80px; }
 }
 
-/* The arrow goes when the tile is compact (17 Sep 2026).
-   MEASURED PER TILE, which is how this was found at all: Heater and
-   Camera have one-line statuses and their copy is 42px, but Roof
-   ("Open - hold - release") and Switches ("Manage van systems") wrap to
-   TWO lines, making their copy 57px - so those two, and only those two,
-   pushed their title out of the top of the tile. A height that fits the
-   average tile is not a fix.
-   The arrow is the one thing in the row that carries no information:
-   the whole tile is the link, so the chevron is an affordance hint, not
-   a label or a reading. Dropping it returns ~30px of width to the text,
-   which is enough to keep those statuses on one line - so the status
-   text is KEPT rather than truncated, and the copy comes back to 42px.
-   Keyed to the tile's own height so it follows the tile rather than the
-   viewport, same mechanism as the hero: the tile carries an explicit
-   height, so container-type:size is safe on it. */
-.vm-page .vm-action { container-type: size; container-name: tile; }
-@container tile (max-height: 70px) {
-  .vm-page .vm-action .vm-action-arrow { display: none; }
-}
-
-/* TEXT OVER PHOTOGRAPHY STAYS LIGHT (17 Sep 2026)
-   .vm-eyebrow is used in two different contexts: inside the cards, on a
-   themed surface, where it must follow --ink-muted; and in the hero, on
-   top of a photograph, where it must stay light whatever the theme says
-   because a photo is not a themed surface. Tokenising the shared rule
-   fixed the cards and would have made the hero's copy unreadable, so the
-   hero context is restored explicitly here.
-   Same reasoning covers the hero headline, tagline and quote, and the
-   action tiles' own text and icon ring: all of those sit over images
-   behind a scrim, and their literals are deliberately LEFT as literals
-   below rather than tokenised. */
-.vm-page .vm-hero-photo .vm-eyebrow { color: #91a9bd; }
-/* CAUGHT BY RENDERING A LIGHT THEME, not by reading the file: the hero
-   headline carries no colour of its own, so it inherits --ink from
-   .vm-page. On a dark theme --ink is light and it read fine over the
-   photo by accident. On a light theme --ink is near-black, so the
-   headline came out dark burgundy on a dark photograph and was barely
-   legible. The headline, tagline and quote all sit on the image, so
-   they are pinned light for the same reason the eyebrow above is. */
-.vm-page .vm-hero-photo .vm-hero-copy h2 { color: #f2f7fb; }
-
-/* THE COMPOSITION LADDER - Adventure's rungs.
-   The shared mechanism lives in useAutoFit and raises data-fit-step
-   only once --fit has hit its 0.78 floor and the cockpit still does not
-   fit. What a rung MEANS is decided here, per cockpit; the hook has no
-   opinion about either layout.
-
-   Adventure is close to fitting already (#13-#19 took it from 477px of
-   overflow to 23px at the real device size), so its rungs are small and
-   shed decoration only:
-
-   Rung 1: the footer's branding - the slogan and the version/meta line
-   - and a tighter footer. The LOCATION and satellite count stay: they
-   are a reading.
-   Rung 2: the Tolkien quote. Pure decoration, and the first thing a
-   narrow viewport already drops.
-
-   Nothing with a number in it is removed by either rung. */
-
-@media (min-width: 900px), (max-height: 500px) {
-  .vm-page[data-fit-step="1"] .vm-footer-slogan,
-  .vm-page[data-fit-step="2"] .vm-footer-slogan,
-  .vm-page[data-fit-step="1"] .vm-footer-meta,
-  .vm-page[data-fit-step="2"] .vm-footer-meta { display: none; }
-
-  .vm-page[data-fit-step="1"] .vm-footer-bar,
-  .vm-page[data-fit-step="2"] .vm-footer-bar {
-    margin-top: calc(6px * var(--fit));
-    padding: calc(4px * var(--fit)) 4px;
-  }
-
-  .vm-page[data-fit-step="2"] .vm-quote { display: none; }
-}
-
-/* COMPACT LANDSCAPE COMPOSITION.
-   A phone on its side is ~730x325: wide and very short. Adventure's
-   normal composition needs 964px there, so the arrangement changes -
-   this is not a scaled-down copy of it.
-   Selectors are deliberately deep: the @container card rules above are
-   (0,3,0), so a shallower landscape rule silently loses to them. */
-html[data-layout='landscape'] .vm-page .vm-hero { display: none; }
-html[data-layout='landscape'] .vm-page .vm-actions { gap: 8px; margin-top: 8px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
-html[data-layout='landscape'] .vm-page .vm-footer-bar { margin-top: 6px; padding: 2px 4px; }
-html[data-layout='landscape'] .vm-page .vm-footer-slogan,
-html[data-layout='landscape'] .vm-page .vm-footer-meta { display: none; }
-
-/* The 80px bottom clearance below 760px exists to clear the bottom
-   dock. In landscape the nav is a side rail, so there is no dock to
-   clear and the clearance is pure loss - it was the last 48px. */
+/* In landscape the navigation is a side rail, so there is no dock to
+   clear and the clearance would be pure lost height. */
 html[data-layout='landscape'] .vm-page { padding-bottom: 6px; }

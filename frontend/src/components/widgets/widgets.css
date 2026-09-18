@@ -156,3 +156,101 @@
   .vw-flow-line i { animation: none; }
   .vw-card { transition: none; }
 }
+
+/* ── HERO ──────────────────────────────────────────────────────────
+   Moved from adventure.css. The values are unchanged; only the owner
+   and the namespace are. The hero queries ITS OWN height, so the copy
+   sheds as the photo shortens in any layout, not just in a cockpit. */
+/* no outer margin: the space between widgets belongs to the grid */
+.vw-hero { margin: 0; }
+.vw-hero-photo {
+  position: relative;
+  height: calc(min(30vh, 300px) * var(--fit, 1));
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--vw-line);
+  border-radius: 6px;
+  background: var(--vw-panel);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .38);
+  container-type: size;
+  container-name: hero;
+}
+.vw-hero-fallback { position: absolute; inset: 0; background-size: cover; background-position: center; z-index: 0; }
+.vw-hero-overlay { position: absolute; inset: 0; z-index: 2; background: linear-gradient(90deg, rgba(1,8,14,.82), rgba(1,8,14,.24) 47%, rgba(1,8,14,.12)), linear-gradient(180deg, rgba(1,8,14,.08), rgba(1,8,14,.80) 100%); }
+.vw-hero-copy { position: absolute; z-index: 3; left: 30px; bottom: 35px; }
+.vw-hero-eyebrow { font-size: 10px; line-height: 1; letter-spacing: .20em; text-transform: uppercase; font-weight: 800; color: #91a9bd; }
+.vw-hero-copy h2 { font-size: max(30px, calc(56px * var(--fit, 1))); line-height: .92; letter-spacing: -.055em; margin: 11px 0 17px; font-weight: 850; text-shadow: 0 4px 25px rgba(0,0,0,.45); color: #f2f7fb; }
+.vw-hero-copy p { margin: 0; color: #d6e7f3; font-size: 13px; letter-spacing: .05em; }
+.vw-hero-rule { width: 56px; height: 4px; border-radius: 5px; background: var(--vw-cyan); box-shadow: 0 0 18px rgb(var(--aurora-teal) / .55); margin-bottom: 14px; }
+.vw-quote { position: absolute; z-index: 3; right: 32px; top: 34px; text-align: right; font-size: 19px; line-height: 1.25; font-style: italic; color: #f5fbff; text-shadow: 0 3px 18px #000; }
+.vw-quote small { display: block; margin-top: 8px; font-size: 11px; letter-spacing: .12em; color: #d2e4ef; font-style: normal; }
+
+/* The copy sheds as its own photo shortens. Text over PHOTOGRAPHY keeps
+   literal light values on purpose: a photo is not a themed surface. */
+@container hero (max-height: 260px) {
+  .vw-hero-copy p, .vw-hero-rule { display: none; }
+  .vw-hero-copy { bottom: 20px; }
+  .vw-hero-copy h2 { margin: 6px 0 0; }
+}
+@container hero (max-height: 200px) {
+  .vw-hero-copy { bottom: 14px; }
+  .vw-hero-copy h2 { font-size: max(24px, calc(38px * var(--fit, 1))); }
+  .vw-hero-eyebrow { display: none; }
+}
+@container hero (max-height: 130px) {
+  .vw-hero-copy h2 { font-size: max(20px, calc(30px * var(--fit, 1))); }
+}
+
+/* ── ACTION TILES ──────────────────────────────────────────────────
+   The tile IS the touch target, so its height has a hard floor and does
+   not scale away. Only the decoration inside it scales. */
+.vw-action {
+  position: relative;
+  display: block;
+  height: max(64px, calc(80px * var(--fit, 1)));
+  overflow: hidden;
+  border: 1px solid var(--vw-line);
+  border-radius: 6px;
+  color: white;
+  text-decoration: none;
+  background: var(--vw-panel);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .3);
+  transition: transform .2s ease, border-color .2s ease;
+  container-type: size;
+  container-name: tile;
+}
+.vw-action:hover { transform: translateY(-2px); border-color: rgb(var(--aurora-teal) / .5); }
+.vw-action-image { position: absolute; inset: 0; background-size: cover; background-position: center; filter: saturate(.75); }
+.vw-action-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(2,10,17,.94), rgba(2,10,17,.48) 60%, rgba(2,10,17,.18)), linear-gradient(0deg, rgba(2,10,17,.9), transparent 65%); }
+.vw-action-copy { position: absolute; inset: auto max(10px, calc(16px * var(--fit, 1))) max(10px, calc(16px * var(--fit, 1))); display: flex; align-items: center; gap: 12px; }
+.vw-action-icon { width: max(36px, calc(48px * var(--fit, 1))); height: max(36px, calc(48px * var(--fit, 1))); border: 1px solid rgba(255,255,255,.18); border-radius: 50%; display: grid; place-items: center; background: rgba(2,12,20,.55); color: #f0f8ff; }
+.vw-action-copy strong { display: block; font-size: 16px; letter-spacing: -.03em; }
+.vw-action-copy span { display: block; margin-top: 3px; color: #9eb4c5; font-size: 10px; }
+.vw-action-arrow { margin-left: auto; color: #c6e7f6; }
+.vw-roof-icon { font-size: 34px; line-height: 1; }
+/* The arrow is the only thing in the row carrying no information - the
+   whole tile is the link - so it goes first when the tile is short. */
+@container tile (max-height: 70px) { .vw-action-arrow { display: none; } }
+
+/* ── FOOTER ────────────────────────────────────────────────────────
+   Position and satellites are readings and always stay. The version
+   marks and the slogan are branding and go in compact. */
+.vw-footer-bar { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 12px 4px; color: var(--vw-muted); }
+.vw-location { display: flex; align-items: center; gap: 8px; color: var(--vw-muted); text-decoration: none; font-size: 11px; }
+.vw-location svg { color: var(--vw-cyan); }
+.vw-location small { color: rgb(var(--ink-faint)); }
+.vw-footer-meta { display: flex; gap: 9px; align-items: center; font-size: 10px; letter-spacing: .08em; }
+.vw-footer-meta b { color: var(--vw-cyan); font-weight: 700; }
+.vw-footer-slogan { font-size: 10px; letter-spacing: .2em; color: rgb(var(--ink-faint)); }
+
+.vw-footer-bar[data-vw-state='compact'] { padding: 2px 4px; }
+.vw-footer-bar[data-vw-state='compact'] .vw-footer-meta,
+.vw-footer-bar[data-vw-state='compact'] .vw-footer-slogan { display: none; }
+
+/* The fit ladder is the RENDERER's state, set on the surface it
+   measures. Widgets respond to it the same way they respond to
+   data-vw-state - they are told, they do not look at the window. */
+[data-fit-step='1'] .vw-footer-meta, [data-fit-step='2'] .vw-footer-meta,
+[data-fit-step='1'] .vw-footer-slogan, [data-fit-step='2'] .vw-footer-slogan { display: none; }
+[data-fit-step='1'] .vw-footer-bar, [data-fit-step='2'] .vw-footer-bar { padding: calc(4px * var(--fit, 1)) 4px; }
+[data-fit-step='2'] .vw-quote { display: none; }

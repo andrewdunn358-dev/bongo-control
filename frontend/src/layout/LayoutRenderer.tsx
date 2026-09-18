@@ -42,6 +42,11 @@ export function LayoutRenderer({
           <div
             key={`${item.widget}-${i}`}
             className="vl-slot"
+            // the slot carries its own span so the collapse rules can
+            // widen a narrow item without ALSO narrowing a full-width
+            // one - a span-12 hero stayed full width before the grid
+            // existed and must keep doing so
+            data-vl-span={span}
             style={{
               // The only thing the layout's numbers touch: which logical
               // columns this slot occupies. No widths, no pixels.
