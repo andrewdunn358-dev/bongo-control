@@ -275,6 +275,16 @@ export function themeFromPackage(
     density,
     assets: Object.keys(assets).length ? assets : undefined,
     previewPath: manifest.preview,
+    cockpit: (
+      typeof definition.cockpit === 'string' &&
+      ['instrument', 'adventure', 'control'].includes(definition.cockpit)
+    ) ? definition.cockpit : undefined,
+    heroCamera: (
+      typeof definition.home === 'object' &&
+      definition.home !== null &&
+      !Array.isArray(definition.home) &&
+      typeof (definition.home as Record<string, unknown>).heroCamera === 'boolean'
+    ) ? (definition.home as Record<string, unknown>).heroCamera as boolean : undefined,
   };
 }
 
