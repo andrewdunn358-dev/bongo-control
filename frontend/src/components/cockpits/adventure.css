@@ -228,7 +228,7 @@
 
    Nothing with a number in it is removed by either rung. */
 
-@media (min-width: 900px) {
+@media (min-width: 900px), (max-height: 500px) {
   .vm-page[data-fit-step="1"] .vm-footer-slogan,
   .vm-page[data-fit-step="2"] .vm-footer-slogan,
   .vm-page[data-fit-step="1"] .vm-footer-meta,
@@ -242,3 +242,73 @@
 
   .vm-page[data-fit-step="2"] .vm-quote { display: none; }
 }
+
+/* COMPACT LANDSCAPE COMPOSITION.
+   A phone on its side is ~730x325: wide and very short. Adventure's
+   normal composition needs 964px there, so the arrangement changes -
+   this is not a scaled-down copy of it.
+   Selectors are deliberately deep: the @container card rules above are
+   (0,3,0), so a shallower landscape rule silently loses to them. */
+html[data-layout='landscape'] .vm-page .vm-hero { display: none; }
+
+/* Four across, not two. The container query gives two columns at this
+   width, which doubles the grid into two rows - the single largest cost
+   at 325px. */
+html[data-layout='landscape'] .vm-page .vm-core-grid,
+html[data-layout='landscape'] .vm-page .vm-actions {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* The illustrations go; every VALUE stays. The battery percentage and
+   the solar wattage are drawn inside these containers, so each keeps
+   its box and only the artwork is dropped. */
+html[data-layout='landscape'] .vm-page .vm-card .vm-battery-main > svg,
+html[data-layout='landscape'] .vm-page .vm-card .vm-solar-visual > svg { display: none; }
+html[data-layout='landscape'] .vm-page .vm-card .vm-battery-main { height: 34px; }
+html[data-layout='landscape'] .vm-page .vm-card .vm-solar-visual { height: 34px; }
+html[data-layout='landscape'] .vm-page .vm-card .vm-flow-visual { height: 46px; }
+html[data-layout='landscape'] .vm-page .vm-card .vm-weather-main { margin: 4px 2px; }
+
+html[data-layout='landscape'] .vm-page .vm-card { padding: 8px; }
+html[data-layout='landscape'] .vm-page .vm-data-row { padding: 3px 8px; }
+html[data-layout='landscape'] .vm-page .vm-core-grid { gap: 8px; }
+html[data-layout='landscape'] .vm-page .vm-actions { gap: 8px; margin-top: 8px; }
+html[data-layout='landscape'] .vm-page .vm-footer-bar { margin-top: 6px; padding: 2px 4px; }
+html[data-layout='landscape'] .vm-page .vm-footer-slogan,
+html[data-layout='landscape'] .vm-page .vm-footer-meta { display: none; }
+
+/* Two measured drivers of the card height at 730x325, both fixed here
+   rather than by shrinking everything: the SOLAR . VICTRON eyebrow
+   wrapped to a second line in a quarter-width card (head 80px against
+   56px for its neighbours), and the weather block ran to 93px. */
+html[data-layout='landscape'] .vm-page .vm-card .vm-eyebrow {
+  letter-spacing: .1em;
+  white-space: nowrap;
+}
+html[data-layout='landscape'] .vm-page .vm-card-head { margin-bottom: 4px; }
+html[data-layout='landscape'] .vm-page .vm-card-head h3 { font-size: 15px; }
+html[data-layout='landscape'] .vm-page .vm-card .vm-weather-main strong { font-size: 26px; }
+
+/* THE ONE REAL TRADE AT 730x325, called out because it is a judgement
+   and not an optimisation.
+   With every card's secondary detail rows shown, the composition needs
+   381px and the viewport gives 286. Everything else is already at its
+   floor: action tiles 64px, labels 10px, data values 12px. The only
+   remaining height is the detail rows.
+   So in landscape ONLY, each card keeps its HEADLINE reading - battery
+   volts/percent, solar watts, the three flow figures and net balance,
+   outside temperature - and drops the secondary rows beneath it
+   (Current / State / Temperature, Today / Peak / Charge state). Those
+   live one tap away on Power, Solar and Weather, which the action tiles
+   and the nav both reach.
+   Nothing is scaled below a readable size to achieve this, and no
+   domain disappears: every card still answers its own question at a
+   glance, which is what a cockpit on a phone propped on the dash is
+   for. */
+html[data-layout='landscape'] .vm-page .vm-card .vm-data-box { display: none; }
+html[data-layout='landscape'] .vm-page .vm-card .vm-weather-data { display: none; }
+
+/* The 80px bottom clearance below 760px exists to clear the bottom
+   dock. In landscape the nav is a side rail, so there is no dock to
+   clear and the clearance is pure loss - it was the last 48px. */
+html[data-layout='landscape'] .vm-page { padding-bottom: 6px; }

@@ -41,7 +41,7 @@
   --fit: 1;
 }
 
-@media (min-width: 900px) {
+@media (min-width: 900px), (max-height: 500px) {
   /* Gaps and padding: the cheapest height in the layout, and nothing is
      lost by tightening them before anything else gives way. */
   .vi-page .vi-grid { gap: calc(1.25rem * var(--fit)); }
@@ -77,7 +77,7 @@
    the satellite count and fix quality beside it are the reading, and
    they remain. NOTHING WITH A NUMBER IN IT is removed by a rung. */
 
-@media (min-width: 900px) {
+@media (min-width: 900px), (max-height: 500px) {
   .vi-page[data-fit-step="1"] .vi-grid,
   .vi-page[data-fit-step="2"] .vi-grid { gap: calc(0.8rem * var(--fit)); }
 

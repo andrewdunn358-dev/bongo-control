@@ -358,7 +358,18 @@ html.light .maplibregl-ctrl-attrib a {
    dvh, not vh, so mobile browser chrome is accounted for.
 
    Desktop/tablet only - mobile keeps the existing scrolling page. */
-@media (min-width: 900px) {
+/* THE COCKPIT SIZING RULES RUN IN LANDSCAPE TOO (18 Sep 2026)
+   These were gated to (min-width: 900px), which meant that on a phone -
+   in EITHER orientation - none of --fit's scaling and none of the
+   composition ladder applied at all. Routing landscape to a cockpit
+   without this would have handed it a cockpit with its fitting
+   machinery switched off.
+   The added (max-height: 500px) is the same signal useLayoutMode uses
+   to tell a phone on its side from a phone upright: height, because
+   width cannot see the difference between 730x325 and 363x737. It is
+   not a device tier - a short desktop window matches it too, and
+   correctly so. */
+@media (min-width: 900px), (max-height: 500px) {
   .van-shell {
     height: 100dvh;
     min-height: 0;
@@ -394,7 +405,7 @@ html.light .maplibregl-ctrl-attrib a {
    needs ~456px of the ~552px available at 628px - because estimates of
    the cards' real heights have run optimistic more than once here, and
    a fitted page with slack beats another round of shaving. */
-@media (min-width: 900px) and (max-height: 700px) {
+@media (min-width: 900px) and (max-height: 700px), (max-height: 500px) {
   .van-shell > .van-mainel {
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
@@ -477,7 +488,7 @@ html[data-cockpit-theme='adventure'] {
   --fit: 1;
 }
 
-@media (min-width: 900px) {
+@media (min-width: 900px), (max-height: 500px) {
 
   /* min-height MUST be cleared as well as height. adventure.css sets
      .vm-hero-photo{min-height:330px} and .vm-card{min-height:295px},
@@ -584,3 +595,35 @@ html[data-cockpit-theme='adventure'] {
      rendering was smaller than any other label on the screen. */
   .vm-page .vm-action-copy strong { font-size: 16px; }
 }
+
+/* THE SHELL RESPONDS TO HEIGHT, NOT JUST WIDTH (18 Sep 2026)
+   Measured before changing anything: the header rendered 101px tall on
+   a phone because the clock carried `w-full md:w-auto` and dropped onto
+   its own row below 768px. On a 325px landscape viewport that is 31% of
+   the screen spent on a clock and a logo. The wrap is gone - the header
+   is one row at every width - and in landscape it also goes compact.
+
+   Keyed to data-layout, written by useLayoutMode, so the shell and the
+   cockpits agree on what the viewport is instead of each guessing. */
+
+html[data-layout='landscape'] .vs-header {
+  padding-top: 5px;
+  padding-bottom: 5px;
+  gap: 8px;
+}
+html[data-layout='landscape'] .vs-header img {
+  height: 26px;
+  width: 26px;
+}
+/* The date goes, the time stays: the time is the reading. */
+html[data-layout='landscape'] .vs-date { display: none; }
+html[data-layout='landscape'] .vs-clock .num { font-size: 15px; }
+html[data-layout='landscape'] .vs-brand-text { display: none; }
+
+/* Portrait keeps its composition; only the header gives back height,
+   which is the one change agreed for it. */
+html[data-layout='portrait'] .vs-header {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+html[data-layout='portrait'] .vs-clock .num { font-size: 16px; }
