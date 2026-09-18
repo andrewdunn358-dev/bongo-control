@@ -419,3 +419,38 @@
   .vw-card[data-vw-variant='illustrated'] .vw-flow-active,
   .vw-card[data-vw-variant='illustrated'] .vw-flow-active-out { animation: none; }
 }
+
+
+/* Illustrated action surfaces: generic, package-driven imagery with a
+   restrained cinematic treatment. The action widget remains a navigation
+   control; this changes presentation only. */
+.vw-action[data-vw-variant='illustrated'] {
+  border-color: rgb(var(--aurora-lime) / .30);
+  box-shadow: 0 14px 36px rgba(0,0,0,.34), inset 0 1px 0 rgb(var(--ink) / .05);
+}
+.vw-action[data-vw-variant='illustrated'] .vw-action-image {
+  filter: saturate(.95) contrast(1.05);
+  transform: scale(1.02);
+  transition: transform 6s ease;
+}
+.vw-action[data-vw-variant='illustrated']:hover .vw-action-image {
+  transform: scale(1.07);
+}
+.vw-action[data-vw-variant='illustrated'] .vw-action-shade {
+  background:
+    linear-gradient(90deg, rgba(2,10,17,.88), rgba(2,10,17,.34) 64%, rgba(2,10,17,.12)),
+    linear-gradient(0deg, rgba(2,10,17,.76), transparent 70%);
+}
+.vw-action[data-vw-variant='illustrated'] .vw-action-icon {
+  border-color: rgb(var(--aurora-lime) / .42);
+  background: rgb(var(--surface-sunken) / .70);
+  color: var(--vw-teal);
+  box-shadow: 0 0 18px rgb(var(--aurora-lime) / .10);
+}
+.vw-action[data-vw-variant='illustrated'] .vw-action-arrow {
+  color: var(--vw-teal);
+  filter: drop-shadow(0 0 6px rgb(var(--aurora-lime) / .22));
+}
+@media (prefers-reduced-motion: reduce) {
+  .vw-action[data-vw-variant='illustrated'] .vw-action-image { transition: none; }
+}
