@@ -1,4 +1,5 @@
 import { VanOSBattery, VanOSSolar, VanOSWeather } from '@/components/VanOSGraphics';
+import { IllustratedBattery, IllustratedSolar, IllustratedWeather } from './illustrated';
 import type { VariantEnvelope } from '@/layout/variantFit';
 import type { BatteryGraphicProps, SolarGraphicProps, WeatherGraphicProps } from './types';
 import type { ComponentType } from 'react';
@@ -27,14 +28,17 @@ const ALWAYS_FITS: VariantEnvelope = {
 
 export const BATTERY_GRAPHICS: Record<string, GraphicEntry<BatteryGraphicProps>> = {
   standard: { ...ALWAYS_FITS, component: (p) => <VanOSBattery soc={p.soc} charging={p.charging} size={p.size} /> },
+  illustrated: { minWidth: 170, minHeight: 110, states: ['full'], component: IllustratedBattery },
 };
 
 export const SOLAR_GRAPHICS: Record<string, GraphicEntry<SolarGraphicProps>> = {
   standard: { ...ALWAYS_FITS, component: (p) => <VanOSSolar size={p.size} active={p.active} /> },
+  illustrated: { minWidth: 150, minHeight: 100, states: ['full'], component: IllustratedSolar },
 };
 
 export const WEATHER_GRAPHICS: Record<string, GraphicEntry<WeatherGraphicProps>> = {
   standard: { ...ALWAYS_FITS, component: (p) => <VanOSWeather condition={p.condition} size={p.size} /> },
+  illustrated: { minWidth: 90, minHeight: 70, states: ['full'], component: IllustratedWeather },
 };
 
 /** The envelope tables the renderer resolves against, per widget id. */
