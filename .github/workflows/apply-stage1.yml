@@ -1,0 +1,41 @@
+name: Apply Issue 46 Stage 1 patch
+
+on:
+  push:
+    branches: [_stage1-transfer]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout transfer branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: _stage1-transfer
+
+      - name: Rebuild patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat _stage1_transfer/chunk0.txt               _stage1_transfer/chunk1.txt               _stage1_transfer/chunk2.txt               _stage1_transfer/chunk3.txt               _stage1_transfer/chunk4.txt               _stage1_transfer/chunk5.txt > /tmp/stage1.b64
+          base64 -d /tmp/stage1.b64 | gzip -d > /tmp/issue-46-stage1.patch
+          test `wc -c < /tmp/issue-46-stage1.patch` -eq 95432
+
+      - name: Apply the four commits to the requested branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin main
+          git fetch origin issue-46-stage1-one-theme || true
+
+          git switch -C issue-46-stage1-one-theme origin/main
+          git am --3way /tmp/issue-46-stage1.patch
+
+          git push --force-with-lease origin issue-46-stage1-one-theme
