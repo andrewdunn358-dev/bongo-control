@@ -169,3 +169,43 @@ export function parseWidgetPresentation(
   }
   return { presentation: out, skipped };
 }
+
+/**
+ * Refuses a composition the selected cockpit cannot draw.
+ *
+ * WHY THIS IS FATAL RATHER THAN IGNORED. Before this check, a package
+ * carrying home.layout while naming a cockpit with no renderer path was
+ * validated by the browser, validated again by the Pi, stored, delivered
+ * to the client, and then discarded with no error anywhere. Measured:
+ * with the layout targeting Instrument, or with `cockpit` omitted (which
+ * defaults to Instrument), the composition never reached a renderer.
+ *
+ * There are two legitimate outcomes for data a system accepts - consume
+ * it, or refuse it. Accepting and dropping it is not one of them.
+ *
+ * `supported` is passed in rather than imported: this module stays free
+ * of React and of the widget registry, which is what lets the theme
+ * parser use it without a dependency cycle.
+ */
+export function assertCompositionSupported(
+  definition: Record<string, unknown>,
+  supported: readonly string[],
+): void {
+  const home = definition.home;
+  const hasLayout =
+    home !== null && typeof home === 'object' && !Array.isArray(home) &&
+    (home as Record<string, unknown>).layout !== undefined;
+  if (!hasLayout) return;
+
+  const named = typeof definition.cockpit === 'string' ? definition.cockpit : undefined;
+  if (named && supported.includes(named)) return;
+
+  const list = supported.join(', ');
+  throw new LayoutError(
+    named
+      ? `This theme defines a Home composition, but the "${named.slice(0, 24)}" cockpit cannot draw one ` +
+        `in this version of VanOS. Cockpits that can: ${list}.`
+      : `This theme defines a Home composition but does not say which cockpit to draw it with, so it ` +
+        `would fall back to one that cannot. Add "cockpit": "${supported[0] ?? 'adventure'}" to theme.json.`,
+  );
+}

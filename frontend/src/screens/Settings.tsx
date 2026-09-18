@@ -15,7 +15,7 @@ import { useNavigationStyle } from '@/lib/useNavigationStyle';
 import { useCockpitTheme } from '@/lib/useCockpitTheme';
 import { COCKPIT_THEMES } from '@/lib/cockpitThemes';
 import {
-  deleteCustomTheme, loadCustomThemes, parseThemeFile, saveCustomTheme,
+  clearLegacyLocalThemes, hasLegacyLocalThemes,
   ThemeFileError,
 } from '@/lib/customThemes';
 import type { CustomTheme } from '@/lib/customThemes';
@@ -73,6 +73,8 @@ import { signalToBars, getDistanceUnit, setDistanceUnit } from '@/lib/format';
 import { SET } from '@/constants/testIds';
 import { cn } from '@/lib/utils';
 import { mapCacheEntries, clearMapCache } from '@/lib/mapStyle';
+import { assertCompositionSupported } from '@/layout/schema';
+import { COMPOSITION_COCKPITS } from '@/layout/builtins';
 
 /**
  * A native <details>/<summary> collapsible wrapper for grouping
@@ -1260,42 +1262,31 @@ export function Settings() {
   const { style: navStyle, setStyle: setNavStyle } = useNavigationStyle();
   const { themeId, setTheme } = useCockpitTheme();
   // Installed themes come from the PI, so the same set appears on the
-  // tablet, a phone and this browser. Legacy browser-local themes are
-  // appended so anything imported before the move keeps working.
-  const [customThemes, setCustomThemes] = useState<CustomTheme[]>(() => [...getServerThemes(), ...loadCustomThemes()]);
+  // tablet, a phone and this browser. There is no browser-local source
+  // any more - a Theme is an installed package, and nothing else.
+  const [customThemes, setCustomThemes] = useState<CustomTheme[]>(() => getServerThemes());
   useEffect(() => {
     void refreshServerThemes();
-    return onServerThemesChanged((t) => setCustomThemes([...t, ...loadCustomThemes()]));
+    return onServerThemesChanged((t) => setCustomThemes(t));
   }, []);
   const [themeError, setThemeError] = useState<string | null>(null);
 
-  const onThemeFile = async (file: File | undefined) => {
-    if (!file) return;
-    setThemeError(null);
-    try {
-      const parsed = parseThemeFile(await file.text());
-      setCustomThemes(saveCustomTheme(parsed));
-      setTheme(parsed.id);
-      toast.success(`Theme "${parsed.name}" added`);
-    } catch (e) {
-      const msg = e instanceof ThemeFileError ? e.message : 'Could not read that theme file.';
-      setThemeError(msg);
-      toast.error(msg);
-    }
+  // The browser-local JSON themes were test artefacts and are gone. Say
+  // so once rather than letting the user wonder where their entries
+  // went; dismissing drops the key so it never reappears.
+  const [legacyNotice, setLegacyNotice] = useState(hasLegacyLocalThemes);
+  const dismissLegacyNotice = () => {
+    clearLegacyLocalThemes();
+    setLegacyNotice(false);
   };
 
   const onDeleteTheme = async (id: string) => {
-    const onServer = getServerThemes().some((t) => t.id === id);
-    if (onServer) {
-      try {
-        await api.deleteTheme(id.replace(/^custom:/, ''));
-        await refreshServerThemes();
-      } catch {
-        toast.error('Could not remove that theme from the van.');
-        return;
-      }
-    } else {
-      setCustomThemes(deleteCustomTheme(id));
+    try {
+      await api.deleteTheme(id.replace(/^custom:/, ''));
+      await refreshServerThemes();
+    } catch {
+      toast.error('Could not remove that theme from the van.');
+      return;
     }
     if (themeId === id) setTheme(COCKPIT_THEMES[0].id);
   };
@@ -1307,7 +1298,14 @@ export function Settings() {
       const bytes = new Uint8Array(await file.arrayBuffer());
       // Parsed here only to fail fast with a readable message before
       // uploading several hundred KB over the tunnel.
-      await parseThemePackage(bytes);
+      const pkg = await parseThemePackage(bytes);
+
+      // A composition this build cannot draw is refused HERE, before the
+      // upload, so the user learns at import rather than wondering why
+      // their layout had no effect. The browser owns this check because
+      // the browser owns the renderer and the widget registry - a copy of
+      // either on the Pi would go stale and start refusing valid themes.
+      assertCompositionSupported(pkg.definition, COMPOSITION_COCKPITS);
 
       // Refuse up front rather than failing partway through the write.
       // Validated in the browser above for immediate feedback, then
@@ -1318,6 +1316,16 @@ export function Settings() {
       await refreshServerThemes();
       setTheme(`custom:${installed.id}`);
       toast.success(`Theme "${installed.name}" installed`);
+      // A widget this build does not have costs the theme one panel, not
+      // the install - but the user is told, rather than left with an
+      // unexplained gap where they expected something.
+      const missing = getServerThemes().find((t) => t.id === `custom:${installed.id}`)?.unknownWidgets;
+      if (missing?.length) {
+        toast.error(
+          `${missing.length} item${missing.length > 1 ? 's' : ''} in this theme ${missing.length > 1 ? 'are' : 'is'} ` +
+            `not available in this version of VanOS and will not appear: ${missing.join(', ')}`,
+        );
+      }
     } catch (e) {
       const msg =
         e instanceof ThemePackageError || e instanceof ThemeFileError
@@ -1451,12 +1459,12 @@ export function Settings() {
         <ViewportReadout />
 
         <GlassCard className="col-span-12 lg:col-span-5 p-6">
-          <CardHeader label="Cockpit theme" hint="tablet and desktop only · phones always use the mobile layout" />
+          <CardHeader label="Theme" hint="applies on every screen size" />
           <p className="text-xs text-ink-faint mb-3">
-            How the home cockpit is laid out. Every theme shows the same real telemetry — only the
-            arrangement and styling differ.
+            How the home cockpit is laid out and styled. Every theme shows the same real telemetry —
+            only the arrangement and styling differ.
           </p>
-          <div role="radiogroup" aria-label="Cockpit theme" className="flex flex-col gap-1 rounded-xl bg-ink/[0.03] ring-1 ring-ink/10 p-1">
+          <div role="radiogroup" aria-label="Theme" className="flex flex-col gap-1 rounded-xl bg-ink/[0.03] ring-1 ring-ink/10 p-1">
             {COCKPIT_THEMES.map((t) => (
               <button
                 key={t.id}
@@ -1492,9 +1500,23 @@ export function Settings() {
                   <div className={cn('text-sm font-medium truncate', themeId === t.id ? 'text-brand-orange' : 'text-ink-muted')}>
                     {t.name}
                   </div>
+                  {/* No "Custom" or "Installed" label: a theme is a
+                      theme, whether VanOS shipped it or someone added
+                      it. The author is what distinguishes them. */}
                   <div className="text-[11px] text-ink-faint mt-0.5 truncate">
-                    Custom{t.author ? ` · ${t.author}` : ''} · {Object.keys(t.tokens).length} tokens
+                    {t.author ? t.author : 'Added theme'}
+                    {t.homeLayout ? ' · own layout' : ''}
                   </div>
+                  {/* A widget this build does not have costs the theme
+                      one panel, not the install - but it is said here
+                      too, not only in the toast at import time, so the
+                      gap is explained whenever the theme is selected. */}
+                  {t.unknownWidgets?.length ? (
+                    <div className="text-[11px] text-status-amber mt-0.5">
+                      {t.unknownWidgets.length} item{t.unknownWidgets.length > 1 ? 's' : ''} need a newer
+                      VanOS and will not appear
+                    </div>
+                  ) : null}
                 </button>
                 <button
                   type="button"
@@ -1508,24 +1530,12 @@ export function Settings() {
             ))}
           </div>
 
-          {/* Themes are DATA, not code - a theme file is colour tokens
-              only, validated before anything reaches the DOM, so an
-              uploaded theme cannot break the app. No rebuild, no
-              deploy: it applies the moment it is added. */}
+          {/* Themes are DATA, not code - tokens, imagery and a layout of
+              widget slots, validated before anything reaches the DOM, so
+              an installed theme cannot break the app. No rebuild, no
+              deploy: it applies the moment it is installed. */}
           <div className="mt-3 pt-3 border-t border-ink/10">
             <label className="inline-flex items-center gap-2 text-xs text-ink-soft cursor-pointer hover:text-ink transition-colors">
-              <input
-                type="file"
-                accept="application/json,.json"
-                className="sr-only"
-                onChange={(e) => {
-                  void onThemeFile(e.target.files?.[0]);
-                  e.target.value = '';
-                }}
-              />
-              <span className="rounded-lg px-3 py-1.5 bg-ink/[0.05] ring-1 ring-ink/10">Add theme file…</span>
-            </label>
-            <label className="inline-flex items-center gap-2 text-xs text-ink-soft cursor-pointer hover:text-ink transition-colors ml-2">
               <input
                 type="file"
                 accept=".vanos-theme,.zip,application/zip"
@@ -1535,13 +1545,29 @@ export function Settings() {
                   e.target.value = '';
                 }}
               />
-              <span className="rounded-lg px-3 py-1.5 bg-ink/[0.05] ring-1 ring-ink/10">Import package…</span>
+              <span className="rounded-lg px-3 py-1.5 bg-ink/[0.05] ring-1 ring-ink/10">Add theme…</span>
             </label>
             {themeError && <div className="text-[11px] text-status-red mt-2">{themeError}</div>}
             <p className="text-[11px] text-ink-faint mt-2">
-              A JSON file of colour tokens. Custom themes use the default cockpit layout in their own
-              colours. Status colours stay fixed so faults remain readable.
+              A <span className="num">.vanos-theme</span> file. It is stored on the van, so it appears on
+              every screen that connects. Status colours stay fixed so faults remain readable.
             </p>
+            {legacyNotice && (
+              <div className="mt-3 rounded-lg bg-ink/[0.05] ring-1 ring-ink/10 p-3">
+                <p className="text-[11px] text-ink-soft">
+                  Themes added from a JSON file in this browser have been removed. A theme is now a
+                  <span className="num"> .vanos-theme</span> file stored on the van, so it can set the
+                  layout and imagery too — not just colours. Add one above.
+                </p>
+                <button
+                  type="button"
+                  onClick={dismissLegacyNotice}
+                  className="mt-2 text-[11px] text-ink-muted hover:text-ink transition-colors"
+                >
+                  Got it
+                </button>
+              </div>
+            )}
           </div>
         </GlassCard>
 

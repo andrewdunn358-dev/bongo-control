@@ -1,8 +1,17 @@
 /**
  * CUSTOM THEME FILES
  *
- * A theme is DATA, not code: a small JSON file of colour tokens that
- * can be uploaded in Settings and applied instantly, with no rebuild
+ * A THEME IS AN INSTALLED .vanos-theme PACKAGE. Tokens, typography,
+ * shape, imagery, a Home composition and per-widget drawing - data, not
+ * code, stored on the Pi and shared by every device that connects to it.
+ *
+ * There used to be a SECOND thing called a theme: a browser-local JSON
+ * file of colour tokens, kept in localStorage, which could set colours
+ * and nothing else - no cockpit, no composition, no presentation, no
+ * imagery. Two objects with one name, listed together, with different
+ * capabilities. It has been removed; see LEGACY_THEME_KEY below.
+ *
+ * What remains here can be applied instantly with no rebuild
  * and no deploy. That is the whole point of the format - a theme
  * written by anyone (including another AI) cannot crash the app,
  * because nothing in the file is ever executed. The worst a bad theme
@@ -128,34 +137,6 @@ function validTriplet(v: string): boolean {
   return v.split(/\s+/).every((n) => Number(n) >= 0 && Number(n) <= 255);
 }
 
-/**
- * Parses and validates an uploaded theme file. Throws ThemeFileError
- * with a message meant for a person, not a stack trace.
- */
-export function parseThemeFile(raw: string): CustomTheme {
-  if (raw.length > MAX_THEME_FILE_BYTES) {
-    throw new ThemeFileError('That file is too large to be a theme (32KB limit).');
-  }
-
-  let data: unknown;
-  try {
-    data = JSON.parse(raw);
-  } catch {
-    throw new ThemeFileError("That doesn't look like a theme file (not valid JSON).");
-  }
-
-  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
-    throw new ThemeFileError('A theme file must be a JSON object.');
-  }
-
-  const obj = data as Record<string, unknown>;
-
-  const name = typeof obj.name === 'string' ? obj.name.trim() : '';
-  if (!name) throw new ThemeFileError('The theme file has no "name".');
-  if (name.length > 40) throw new ThemeFileError('That theme name is too long (40 characters max).');
-
-  return parseThemeDefinition(name, obj);
-}
 
 /**
  * Validates the token half of a theme, shared by BOTH the legacy plain
@@ -363,43 +344,34 @@ export function applyCustomTheme(theme: CustomTheme | null): void {
   }
 }
 
-const STORAGE_KEY = 'vanos-custom-themes';
+/** The key the removed browser-local theme mechanism used.
+ *
+ *  Kept only so the Control Panel can notice leftovers and say what
+ *  happened, rather than letting someone's themes vanish silently. There
+ *  is deliberately no converter: the only files that ever used this were
+ *  test artefacts, and a converter would keep the second meaning of
+ *  "theme" alive in the code in order to translate it. */
+export const LEGACY_THEME_KEY = 'vanos-custom-themes';
 
-export function loadCustomThemes(): CustomTheme[] {
+/** True when this browser still holds themes from the removed
+ *  JSON-file mechanism. */
+export function hasLegacyLocalThemes(): boolean {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    // Re-validate on read: a file that was valid when uploaded may have
-    // been edited in localStorage by hand, and the token allow-list may
-    // have changed between releases.
-    return parsed.filter(
-      (t): t is CustomTheme =>
-        t && typeof t.id === 'string' && typeof t.name === 'string' && t.tokens && typeof t.tokens === 'object',
-    );
+    const raw = window.localStorage.getItem(LEGACY_THEME_KEY);
+    if (!raw) return false;
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0;
   } catch {
-    return [];
+    return false;
   }
 }
 
-export function saveCustomTheme(theme: CustomTheme): CustomTheme[] {
-  const existing = loadCustomThemes().filter((t) => t.id !== theme.id);
-  const next = [...existing, theme];
+/** Forget them, once the user has been told. */
+export function clearLegacyLocalThemes(): void {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    window.localStorage.removeItem(LEGACY_THEME_KEY);
   } catch {
-    throw new ThemeFileError('Could not save the theme - browser storage is full or disabled.');
+    // Nothing to do - a browser that will not let us remove it will not
+    // have let us read it either.
   }
-  return next;
-}
-
-export function deleteCustomTheme(id: string): CustomTheme[] {
-  const next = loadCustomThemes().filter((t) => t.id !== id);
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  } catch {
-    /* nothing useful to do; the list is still correct in memory */
-  }
-  return next;
 }

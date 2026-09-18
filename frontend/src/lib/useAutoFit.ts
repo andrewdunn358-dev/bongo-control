@@ -54,7 +54,17 @@ export function useAutoFit<T extends HTMLElement>(enabled = true) {
 
   useEffect(() => {
     const el = ref.current;
-    if (!el || !enabled) return;
+    if (!el) return;
+    if (!enabled) {
+      // Clear rather than merely stop. Fitting can be turned off by a
+      // change of layout mode, and whatever the last pass wrote is
+      // inline on the element - so returning early would leave a
+      // rotated-to-portrait page wearing the squeezed values it had in
+      // landscape, with nothing left running to undo them.
+      el.style.removeProperty('--fit');
+      el.removeAttribute('data-fit-step');
+      return;
+    }
 
     let frame = 0;
     let cancelled = false;
