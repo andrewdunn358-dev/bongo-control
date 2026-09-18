@@ -36,17 +36,66 @@ jobs:
               _stage1_patch_text/chunk10.txt \
               _stage1_patch_text/chunk11.txt > /tmp/issue-46-stage1.patch
 
-      - name: Apply the four commits to the requested branch
+      - name: Apply the four commits
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git fetch origin main
-          git fetch origin issue-46-stage1-one-theme || true
-
           git switch -C issue-46-stage1-one-theme origin/main
           git am --3way /tmp/issue-46-stage1.patch
 
-          git push --force-with-lease origin issue-46-stage1-one-theme
+      - name: Export exact applied commits
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, json, subprocess
+
+          commits = subprocess.check_output(
+              ["git", "rev-list", "--reverse", "origin/main..HEAD"], text=True
+          ).splitlines()
+
+          out = []
+          for sha in commits:
+              parent = subprocess.check_output(["git", "rev-parse", f"{sha}^"], text=True).strip()
+              tree = subprocess.check_output(["git", "show", "-s", "--format=%T", sha], text=True).strip()
+              message = subprocess.check_output(["git", "show", "-s", "--format=%B", sha], text=True)
+              entries = []
+              raw = subprocess.check_output(
+                  ["git", "diff-tree", "--root", "--no-commit-id", "--name-status", "-r", sha],
+                  text=True,
+              )
+              for line in raw.splitlines():
+                  status, path = line.split("\t", 1)
+                  if status == "D":
+                      entries.append({"path": path, "status": "D"})
+                  else:
+                      mode = subprocess.check_output(
+                          ["git", "ls-tree", sha, "--", path], text=True
+                      ).split()[0]
+                      data = subprocess.check_output(["git", "show", f"{sha}:{path}"])
+                      entries.append({
+                          "path": path,
+                          "status": status,
+                          "mode": mode,
+                          "content_b64": base64.b64encode(data).decode(),
+                      })
+              out.append({
+                  "sha": sha,
+                  "parent": parent,
+                  "tree": tree,
+                  "message": message,
+                  "entries": entries,
+              })
+
+          with open("/tmp/stage1-manifest.json", "w") as f:
+              json.dump({"base": "2f1e101d66a4cbe18c0c1d15f5e2be4b3574fb97", "commits": out}, f)
+          PY
+
+      - name: Upload exact commit manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-46-stage1-exact-manifest
+          path: /tmp/stage1-manifest.json
