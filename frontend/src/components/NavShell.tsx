@@ -162,10 +162,28 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
   const now = useClock();
   const loc = useQuery({ queryKey: ['location'], queryFn: api.location, retry: false });
   const { effectiveStyle } = useNavigationStyle();
+
+  // Collapse the rail when the device is ROTATED into landscape, not
+  // only when the app starts there. The initial state runs once on
+  // mount, so rotating portrait -> landscape kept a 220px rail on a
+  // 730px viewport and the cockpit came up 21px over. Measured.
+  useEffect(() => {
+    const short = window.matchMedia('(max-height: 500px)');
+    const onChange = () => {
+      if (short.matches && window.innerWidth < 900) setSidebarExpanded(false);
+    };
+    short.addEventListener('change', onChange);
+    return () => short.removeEventListener('change', onChange);
+  }, []);
   useCockpitTheme();
 
+  // In landscape the rail starts collapsed: 220px of a 730px viewport is
+  // a third of the width, which squeezes the four cards narrow enough to
+  // wrap and grow taller - the opposite of what a short viewport needs.
+  // 78px leaves 604px, and the user can still expand it.
   const [sidebarExpanded, setSidebarExpanded] = useState(() => {
     try {
+      if (window.matchMedia('(max-height: 500px)').matches && window.innerWidth < 900) return false;
       return window.localStorage.getItem('vanos-sidebar-expanded') !== 'false';
     } catch {
       return true;
@@ -198,7 +216,7 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
 
       <header
         data-testid={NAV.root}
-        className="sticky top-0 z-40 flex items-center justify-between gap-3 px-4 md:px-6 py-3 bg-surface-raised border-b border-line/40 flex-wrap"
+        className="vs-header sticky top-0 z-40 flex items-center justify-between gap-3 px-4 md:px-6 py-3 bg-surface-raised border-b border-line/40"
       >
         <div data-testid={NAV.brand} className="flex items-center gap-2.5 shrink-0">
           <img
@@ -208,15 +226,15 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
             height={36}
             className="h-9 w-9 rounded-xl object-cover shadow-[0_0_14px_rgba(178,97,0,0.4)]"
           />
-          <div className="leading-tight hidden sm:block">
+          <div className="vs-brand-text leading-tight hidden sm:block">
             <div className="font-semibold tracking-tight text-sm"><BrandName /></div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-ink-muted">{BRAND.sub}</div>
           </div>
         </div>
 
-        <div className="text-center order-3 md:order-none w-full md:w-auto">
+        <div className="vs-clock text-center">
           <span className="num text-lg font-semibold">{timeStr}</span>
-          <span className="text-[10px] text-ink-muted ml-2 tracking-wider">{dateStr}</span>
+          <span className="vs-date text-[10px] text-ink-muted ml-2 tracking-wider">{dateStr}</span>
         </div>
 
         <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
