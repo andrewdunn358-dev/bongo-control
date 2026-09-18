@@ -9,8 +9,6 @@ import { useAutoFit } from '@/lib/useAutoFit';
 import './control.css';
 
 const DEMO_ROOF = { configured: true, max_run_seconds: 30 };
-const OPEN_VIDEO = import.meta.env.BASE_URL + 'roof/bongo-roof-opening.mp4';
-const CLOSE_VIDEO = import.meta.env.BASE_URL + 'roof/bongo-roof-closing.mp4';
 const FALLBACK_IMAGE = import.meta.env.BASE_URL + 'van.jpg';
 type Direction = 'up' | 'down';
 
