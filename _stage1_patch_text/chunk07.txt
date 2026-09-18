@@ -1,0 +1,159 @@
+ork.
+
+Removed: the function, its call site and import in Settings, and the
+now-unused COMPOSITION_COCKPITS export. No cockpit-based restriction
+replaces it.
+
+The three assertions that existed only to enforce it are replaced by
+assertions of the invariant that makes it unnecessary: a theme's own
+composition wins over the base it extends, a theme without one inherits
+that base, and an unmigrated appearance resolves to undefined rather
+than an empty layout. 'adventure' is the discriminating case and is
+noted as such in the test - it is the only name with a built-in to lose
+to, so inverting the precedence leaves the other two passing.
+
+cockpit is documented, in schema.ts, builtins/index.ts and
+theme_service.py, as temporary compatibility and inheritance metadata
+that nothing below Validated Composition may consult. Not renamed.
+
+Geometry unchanged: all 18 measured cells identical to the pre-removal
+Stage 1 build.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01G3qgdXudr3fPyiuV2Ueo3g
+---
+ backend/app/services/theme_service.py        | 19 +++--
+ frontend/src/layout/builtins/index.ts        | 18 +++--
+ frontend/src/layout/schema.ts                | 55 +++++--------
+ frontend/src/screens/Home.tsx                |  6 +-
+ frontend/src/screens/Settings.tsx            | 16 ++--
+ frontend/tests/builtin-compositions.test.mjs | 81 +++++++++++++-------
+ 6 files changed, 107 insertions(+), 88 deletions(-)
+
+diff --git a/backend/app/services/theme_service.py b/backend/app/services/theme_service.py
+index 04b6654..6067d85 100644
+--- a/backend/app/services/theme_service.py
++++ b/backend/app/services/theme_service.py
+@@ -63,11 +63,20 @@ ASSET_TYPES: dict[str, str] = {
+ # colours and brand orange: those mean charging, attention, fault and
+ # active-nav, and a theme must not be able to make a fault harder to
+ # spot.
+-# Cockpit layouts a theme may choose. Mirrors the frontend registry in
+-# lib/cockpitThemes.ts. A theme NAMES one of these; it can never supply a
+-# component or a layout - the same bounded-choice pattern already used
+-# for fonts. An unknown or absent value falls back to the default, so a
+-# theme naming a cockpit this build does not have still works.
++# The built-in Theme Definition a theme EXTENDS. Bounded choice, the
++# same pattern as fonts: a theme names one of these and can never supply
++# a component. Mirrors the frontend registry in lib/cockpitThemes.ts; an
++# unknown or absent value falls back to the default, so a theme naming
++# one this build does not have still works.
++#
++# This is temporary compatibility and inheritance metadata, NOT a
++# rendering decision, and the backend must not treat it as one. It
++# decides only which built-in composition and token set a theme inherits
++# when it brings none of its own; a theme carrying "homeLayout" has that
++# layout drawn whatever it names here. So nothing in this file may reject
++# or rewrite "homeLayout" on the basis of "cockpit" - the browser owns
++# the renderer and the widget registry, and a copy of either here would
++# go stale and start refusing valid themes.
+ COCKPIT_LAYOUTS = {"instrument", "adventure", "control"}
+ 
+ THEMEABLE_TOKENS = {
+diff --git a/frontend/src/layout/builtins/index.ts b/frontend/src/layout/builtins/index.ts
+index 119341f..e200fd4 100644
+--- a/frontend/src/layout/builtins/index.ts
++++ b/frontend/src/layout/builtins/index.ts
+@@ -47,12 +47,18 @@ function load(): Record<string, LayoutDefinition> {
+ 
+ export const BUILTIN_COMPOSITIONS: Record<string, LayoutDefinition> = load();
+ 
+-/** Cockpit ids the generic renderer can draw. A cockpit NOT in here is
+- *  still a hand-written component in this build, which is why a package
+- *  carrying a composition and naming one is refused at import rather
+- *  than accepted and quietly ignored. */
+-export const COMPOSITION_COCKPITS: string[] = Object.keys(SOURCES);
+-
++/**
++ * The built-in composition a Theme Definition INHERITS when it brings
++ * none of its own. Undefined means that appearance is still a
++ * hand-written component in this build, and Home falls back to it.
++ *
++ * `cockpitId` is the name a Theme Definition extends - temporary
++ * compatibility and inheritance metadata, nothing more. It is consulted
++ * HERE, at the Theme Definition step, and nowhere below Validated
++ * Composition. A package carrying its own composition never reaches
++ * this function at all, so what it names cannot decide whether its
++ * layout is drawn.
++ */
+ export function builtinComposition(cockpitId: string): LayoutDefinition | undefined {
+   return BUILTIN_COMPOSITIONS[cockpitId];
+ }
+diff --git a/frontend/src/layout/schema.ts b/frontend/src/layout/schema.ts
+index 28f1dc0..954b487 100644
+--- a/frontend/src/layout/schema.ts
++++ b/frontend/src/layout/schema.ts
+@@ -170,42 +170,27 @@ export function parseWidgetPresentation(
+   return { presentation: out, skipped };
+ }
+ 
+-/**
+- * Refuses a composition the selected cockpit cannot draw.
++/*
++ * THERE IS NO assertCompositionSupported, DELIBERATELY.
+  *
+- * WHY THIS IS FATAL RATHER THAN IGNORED. Before this check, a package
+- * carrying home.layout while naming a cockpit with no renderer path was
+- * validated by the browser, validated again by the Pi, stored, delivered
+- * to the client, and then discarded with no error anywhere. Measured:
+- * with the layout targeting Instrument, or with `cockpit` omitted (which
+- * defaults to Instrument), the composition never reached a renderer.
++ * One lived here. It refused, at import, a package carrying home.layout
++ * while naming a cockpit with no renderer path - on the reasoning that
++ * such a composition was validated, stored, delivered and then silently
++ * discarded, and that accepting data and dropping it is not one of the
++ * two legitimate outcomes.
+  *
+- * There are two legitimate outcomes for data a system accepts - consume
+- * it, or refuse it. Accepting and dropping it is not one of them.
++ * That reasoning described the code BEFORE the single themed path
++ * existed. It does not describe this one. resolveComposition is
++ * `themeLayout ?? builtinComposition(cockpitId)`, so a theme's own
++ * composition wins unconditionally, whatever it names, and Home has no
++ * cockpit test between resolution and render. Measured against the real
++ * modules: a definition naming `instrument` or `control` and carrying a
++ * layout resolves to THAT LAYOUT and is drawn by the generic renderer.
++ * Nothing is discarded, so there is nothing to refuse - the check was
++ * rejecting themes that work.
+  *
+- * `supported` is passed in rather than imported: this module stays free
+- * of React and of the widget registry, which is what lets the theme
+- * parser use it without a dependency cycle.
++ * `cockpit` is temporary compatibility and inheritance metadata: it says
++ * which built-in Theme Definition a package extends when it brings no
++ * composition of its own. It is not a rendering dependency and nothing
++ * below Validated Composition may consult it.
+  */
+-export function assertCompositionSupported(
+-  definition: Record<string, unknown>,
+-  supported: readonly string[],
+-): void {
+-  const home = definition.home;
+-  const hasLayout =
+-    home !== null && typeof home === 'object' && !Array.isArray(home) &&
+-    (home as Record<string, unknown>).layout !== undefined;
+-  if (!hasLayout) return;
+-
+-  const named = typeof definition.cockpit === 'string' ? definition.cockpit : undefined;
+-  if (named && supported.includes(named)) return;
+-
+-  const list = supported.join(', ');
+-  throw new LayoutError(
+-    named
+-      ? `This theme defines a Home composition, but the "${named.slice(0, 24)}" cockpit cannot draw one ` +
+-        `in this version of VanOS. Cockpits that can: ${list}.`
+-      : `This theme defines a Home composition but does not say which cockpit to draw it with, so it ` +
+-        `would fall back to one that cannot. Add "cockpit": "${supported[0] ?? 'adventure'}" to theme.json.`,
+-  );
+-}
+diff --git a/fronten
