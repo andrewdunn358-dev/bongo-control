@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom';
 import { Sun } from 'lucide-react';
-import { VanOSSolar } from '@/components/VanOSGraphics';
+
 import { useSolar, useSparkBuffer } from '@/lib/telemetry';
 import { fmtWatt, DASH } from '@/lib/format';
 import type { SolarPayload } from '@/lib/types';
 import { Spark, DataRow } from './shared';
+import { SOLAR_GRAPHICS, pick } from './graphics/registry';
 import type { WidgetProps } from './types';
 
 /** PHASE 2 NOTE: this widget still renders Adventure's vm-* classes,
@@ -14,7 +15,8 @@ import type { WidgetProps } from './types';
 /** SOLAR. Real telemetry from the Victron MPPT. Yield and peak are the
  *  MPPT's own figures - they are NOT total van production or draw, and
  *  nothing here should imply otherwise. */
-export function SolarWidget({ state = 'full' }: WidgetProps) {
+export function SolarWidget({ state = 'full', variant }: WidgetProps) {
+  const SolarArt = pick(SOLAR_GRAPHICS, variant);
   const solar = useSolar();
   const solarSeries = useSparkBuffer<SolarPayload>('solar', (p) => p.watts);
   const sp = solar.payload;
@@ -29,7 +31,7 @@ export function SolarWidget({ state = 'full' }: WidgetProps) {
         <Sun size={27} className="vw-sun" />
       </div>
       <div className="vw-solar-visual">
-        <VanOSSolar size={74} active={Boolean(sp?.watts)} />
+        <SolarArt size={74} active={Boolean(sp?.watts)} />
         <div>
           <strong>{fmtWatt(sp?.watts)}</strong>
           <span>{sp?.watts ? 'GENERATING' : (sp?.charge_state || 'OFF').toUpperCase()}</span>

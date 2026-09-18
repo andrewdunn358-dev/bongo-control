@@ -113,6 +113,48 @@ def _safe_relative(path: str) -> bool:
 # backend copy would go stale and start rejecting valid themes. An
 # unknown id is skipped client-side with a note, which is the degrade
 # path already agreed.
+# Which drawing each widget should use. A theme names a VARIANT, and
+# that is the entire vocabulary - there is no route to arbitrary
+# styling here, and a variant cannot change what a widget reads or what
+# it says.
+#
+# As with widget ids, variant NAMES are not checked here: the frontend
+# owns the graphics registry and a backend copy would go stale. An
+# unknown variant falls back to the standard drawing client-side.
+_PRESENTATION_KEYS = {"variant"}
+_MAX_PRESENTATION = 24
+
+
+def _clean_widget_presentation(definition: dict) -> dict | None:
+    raw = definition.get("widgets")
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ThemeError("The theme's \"widgets\" block must be an object.")
+    if len(raw) > _MAX_PRESENTATION:
+        raise ThemeError(f"That theme sets presentation for too many widgets (limit {_MAX_PRESENTATION}).")
+
+    clean: dict = {}
+    for widget_id, value in raw.items():
+        if not isinstance(widget_id, str) or not widget_id.strip():
+            raise ThemeError("Every entry in \"widgets\" needs a widget id.")
+        if not isinstance(value, dict):
+            raise ThemeError(f"The presentation for \"{widget_id[:24]}\" must be an object.")
+        unknown = set(value) - _PRESENTATION_KEYS
+        if unknown:
+            raise ThemeError(
+                f"\"{sorted(unknown)[0][:20]}\" is not something a theme can set on a widget. A theme may "
+                "name a variant; how that variant is drawn belongs to VanOS."
+            )
+        variant = value.get("variant")
+        if variant is None:
+            continue
+        if not isinstance(variant, str) or not variant.strip():
+            raise ThemeError("\"variant\" must be a name.")
+        clean[widget_id[:40]] = {"variant": variant[:40]}
+    return clean or None
+
+
 _LAYOUT_ITEM_KEYS = {"widget", "span", "column"}
 _LAYOUT_MAX_ITEMS = 24
 _LAYOUT_COLUMNS = 12
@@ -304,6 +346,8 @@ def validate_package(data: bytes) -> dict[str, Any]:
         # The Home COMPOSITION. This is the field that makes a theme able
         # to arrange the page rather than only recolour it.
         "homeLayout": _clean_home_layout(definition.get("home")),
+        # Which drawing each widget uses. Presentation only.
+        "widgets": _clean_widget_presentation(definition),
         "assetPaths": assets,
         "sizeBytes": len(data),
     }

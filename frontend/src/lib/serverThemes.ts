@@ -1,8 +1,9 @@
 import { api } from '@/lib/api';
 import type { ServerTheme } from '@/lib/api';
 import type { CustomTheme } from '@/lib/customThemes';
-import { parseLayout } from '@/layout/schema';
+import { parseLayout, parseWidgetPresentation } from '@/layout/schema';
 import { WIDGET_IDS } from '@/components/widgets/registry';
+import { WIDGET_VARIANTS } from '@/components/widgets/graphics/registry';
 
 /**
  * Themes installed on the Pi.
@@ -25,6 +26,18 @@ import { WIDGET_IDS } from '@/components/widgets/registry';
 
 let cache: CustomTheme[] = [];
 const listeners = new Set<(t: CustomTheme[]) => void>();
+
+function parseThemePresentation(s: { widgets?: unknown }): Pick<CustomTheme, 'widgetPresentation'> {
+  if (!s.widgets) return {};
+  try {
+    const { presentation } = parseWidgetPresentation(s.widgets, WIDGET_VARIANTS);
+    return { widgetPresentation: Object.keys(presentation).length ? presentation : undefined };
+  } catch {
+    // A presentation block this build cannot read costs the theme its
+    // bespoke drawings, never its colours or its layout.
+    return {};
+  }
+}
 
 function parseThemeLayout(s: { homeLayout?: unknown }): Pick<CustomTheme, 'homeLayout' | 'unknownWidgets'> {
   if (!s.homeLayout) return {};
@@ -61,6 +74,7 @@ function toCustomTheme(s: ServerTheme): CustomTheme {
     // still exist. An unknown id is dropped with a note rather than
     // breaking the page.
     ...parseThemeLayout(s as unknown as { homeLayout?: unknown }),
+    ...parseThemePresentation(s as unknown as { widgets?: unknown }),
   } as CustomTheme;
 }
 

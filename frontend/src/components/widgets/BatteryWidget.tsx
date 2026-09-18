@@ -1,12 +1,13 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { BatteryCharging } from 'lucide-react';
-import { VanOSBattery } from '@/components/VanOSGraphics';
+
 import { api } from '@/lib/api';
 import { useBattery, useEnvironment, useSparkBuffer } from '@/lib/telemetry';
 import { fmtVolt, fmtTemp, fmtPct, DASH } from '@/lib/format';
 import type { BatteryPayload } from '@/lib/types';
 import { Spark, DataRow } from './shared';
+import { BATTERY_GRAPHICS, pick } from './graphics/registry';
 import type { WidgetProps } from './types';
 
 /** PHASE 2 NOTE: this widget still renders Adventure's vm-* classes,
@@ -20,7 +21,9 @@ import type { WidgetProps } from './types';
  *  presence is never inferred from current_a alone - that bug has been
  *  fixed here once already. Anything absent renders as DASH rather than
  *  as a plausible-looking number. */
-export function BatteryWidget({ state = 'full' }: WidgetProps) {
+export function BatteryWidget({ state = 'full', variant }: WidgetProps) {
+  // The DRAWING comes from the theme's variant; the DATA does not.
+  const BatteryArt = pick(BATTERY_GRAPHICS, variant);
   const battery = useBattery();
   const env = useEnvironment();
   const voltSeries = useSparkBuffer<BatteryPayload>('battery', (p) => p.voltage);
@@ -41,7 +44,7 @@ export function BatteryWidget({ state = 'full' }: WidgetProps) {
         <BatteryCharging size={25} className={bp?.charging ? 'vw-green' : ''} />
       </div>
       <div className="vw-battery-main">
-        <VanOSBattery soc={bp?.soc_pct} charging={bp?.charging} size={118} />
+        <BatteryArt soc={bp?.soc_pct} charging={bp?.charging} size={118} />
         <div className="vw-battery-value">
           <strong>{fmtPct(bp?.soc_pct)}</strong>
           <span>{fmtVolt(bp?.voltage)}</span>

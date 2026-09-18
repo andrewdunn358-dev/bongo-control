@@ -254,3 +254,17 @@
 [data-fit-step='1'] .vw-footer-slogan, [data-fit-step='2'] .vw-footer-slogan { display: none; }
 [data-fit-step='1'] .vw-footer-bar, [data-fit-step='2'] .vw-footer-bar { padding: calc(4px * var(--fit, 1)) 4px; }
 [data-fit-step='2'] .vw-quote { display: none; }
+
+/* ── ACCENT ROLES ──────────────────────────────────────────────────
+   What a graphic paints with, expressed as MEANING rather than colour.
+   Each resolves to a theme token, so a variant drawn against roles
+   restyles with the theme instead of keeping the hexes it was drawn
+   with. Status colours are deliberately absent: charging, fault and
+   attention keep their own non-themeable tokens. */
+:root {
+  --vw-role-energy-path: rgb(var(--aurora-lime));
+  --vw-role-charge-fill: rgb(var(--aurora-lime));
+  --vw-role-generation: rgb(var(--status-amber));
+  --vw-role-illustration: rgb(var(--ink-soft));
+  --vw-role-illustration-soft: rgb(var(--ink-faint));
+}

@@ -36,6 +36,8 @@ export function useCockpitTheme(): {
   homeLayout?: LayoutDefinition;
   /** Widget ids the theme asked for that this build does not have. */
   unknownWidgets?: string[];
+  /** Which drawing each widget should use, if the theme names any. */
+  widgetPresentation?: Record<string, { variant?: string }>;
 } {
   const [themeId, setThemeIdState] = useState<CockpitThemeId>(read);
 
@@ -126,5 +128,6 @@ export function useCockpitTheme(): {
     setTheme,
     homeLayout: activeCustom?.homeLayout,
     unknownWidgets: activeCustom?.unknownWidgets,
+    widgetPresentation: activeCustom?.widgetPresentation,
   };
 }
