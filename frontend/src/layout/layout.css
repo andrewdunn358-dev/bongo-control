@@ -1,0 +1,50 @@
+/* THE RENDERER'S PHYSICAL IMPLEMENTATION.
+   Everything the schema is not allowed to say lives here: the real
+   column count, the gaps, and how a logical span collapses when the row
+   is too narrow to honour it.
+
+   Gaps scale with --fit, supplied by whatever surface contains the grid,
+   and fall back to 1 so a grid renders correctly with no surface at all. */
+
+.vl-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-rows: min-content;
+  gap: calc(14px * var(--fit, 1));
+  min-height: 0;
+  /* the grid is its own query container, so slots respond to the width
+     the GRID was given rather than to the window */
+  container-type: inline-size;
+  container-name: layout;
+}
+
+.vl-grid[data-vl-state='compact'] { gap: 8px; }
+.vl-slot { min-width: 0; display: flex; }
+.vl-slot > * { flex: 1 1 auto; min-width: 0; }
+
+/* COLLAPSE, expressed once here rather than by every layout author.
+   A quarter-row span is unreadable on a narrow grid, so below the width
+   where four across still works, spans widen: quarters become halves,
+   then halves become full rows. The thresholds are the same arithmetic
+   used for the cockpit grid - four slots at a 190px readable minimum
+   plus gaps needs ~820px; two needs ~430px.
+
+   THE THRESHOLD DEPENDS ON THE PRESENTATION STATE, which is the
+   renderer's business and not the layout's. A compact widget has shed
+   its illustrations and detail rows, so it stays readable in a much
+   narrower slot - four across is right at 600px in compact where it
+   would be wrong at 800px in full. Without this the renderer collapsed
+   a compact row that had no need to collapse, which measurement caught
+   as a doubled grid height in landscape. */
+@container layout (max-width: 819px) {
+  .vl-grid:not([data-vl-state='compact']) > .vl-slot { grid-column: span 6 !important; }
+}
+@container layout (max-width: 429px) {
+  .vl-grid:not([data-vl-state='compact']) > .vl-slot { grid-column: span 12 !important; }
+}
+@container layout (max-width: 599px) {
+  .vl-grid[data-vl-state='compact'] > .vl-slot { grid-column: span 6 !important; }
+}
+@container layout (max-width: 319px) {
+  .vl-grid[data-vl-state='compact'] > .vl-slot { grid-column: span 12 !important; }
+}

@@ -4,13 +4,11 @@ import { ArrowRight, Camera, Flame, MapPin, ToggleRight } from 'lucide-react';
 import { useAutoFit } from '@/lib/useAutoFit'
 import { useThemeAssets } from '@/lib/useThemeAssets'
 import { api } from '@/lib/api';
-import { BatteryWidget } from '@/components/widgets/BatteryWidget';
-import { SolarWidget } from '@/components/widgets/SolarWidget';
-import { PowerFlowWidget } from '@/components/widgets/PowerFlowWidget';
-import { WeatherWidget } from '@/components/widgets/WeatherWidget';
 import './adventure.css';
 import { publicUrl } from '@/lib/publicUrl';
 import { useLayoutMode } from '@/lib/useLayoutMode';
+import { LayoutRenderer } from '@/layout/LayoutRenderer';
+import { ADVENTURE_CORE } from '@/layout/layouts';
 
 function ActionTile({to,title,subtitle,image,children}:{to:string;title:string;subtitle:string;image:string;children:React.ReactNode}) { return <Link to={to} className="vm-action"><div className="vm-action-image" style={{backgroundImage:`url(${image})`}}/><div className="vm-action-shade"/><div className="vm-action-copy"><div className="vm-action-icon">{children}</div><div><strong>{title}</strong><span>{subtitle}</span></div><ArrowRight className="vm-action-arrow" size={22}/></div></Link>; }
 
@@ -52,12 +50,12 @@ export function AdventureCockpit() {
    <div className="vm-hero-copy"><span className="vm-eyebrow">MAZDA BONGO · VANOS</span><h2>Adventure<br/>looks good<br/>on you.</h2><div className="vm-hero-rule"/><p>Explore · Relax · Disconnect · Repeat</p></div>
    <div className="vm-quote">“Not all those who wander<br/>are lost.”<small>J.R.R. Tolkien</small></div>
   </div></section>
-  <section className="vm-core-grid">
-   <BatteryWidget state={widgetState}/>
-   <SolarWidget state={widgetState}/>
-   <PowerFlowWidget state={widgetState}/>
-   <WeatherWidget state={widgetState}/>
-  </section>
+  {/* The telemetry row is no longer written out here. It is a LAYOUT -
+      four widgets and their spans - rendered by the generic renderer.
+      The cockpit still decides the presentation state, which is the
+      renderer's job in the contract; this is the point where that job
+      starts moving out of the cockpit. */}
+  <LayoutRenderer layout={ADVENTURE_CORE} state={widgetState}/>
   <section className="vm-actions"><ActionTile to="/heater" title="Heater" subtitle={heaterLabel} image={asset('heater', publicUrl('/hero/desert_dusk.jpg'))}><Flame size={29}/></ActionTile><ActionTile to="/roof" title="Roof" subtitle="Open · hold · release" image={asset('roof', publicUrl('/hero/coast_sunset.jpg'))}><span className="vm-roof-icon">△</span></ActionTile><ActionTile to="/switches" title="Switches" subtitle="Manage van systems" image={asset('switches', publicUrl('/hero/forest_dawn.jpg'))}><ToggleRight size={31}/></ActionTile><ActionTile to="/camera" title="Camera" subtitle="Live view" image={asset('camera', publicUrl('/hero/lake_night.jpg'))}><Camera size={30}/></ActionTile></section>
   <section className="vm-footer-bar"><Link to="/nearby" className="vm-location"><MapPin size={16}/><span>{loc.data?.latitude!=null&&loc.data?.longitude!=null?`${loc.data.latitude.toFixed(4)}°, ${loc.data.longitude.toFixed(4)}°`:'Location unavailable'}</span><small>{satCount==null?'GPS waiting':`${satCount} satellites locked`}</small></Link><div className="vm-footer-meta"><span>VanOS</span><b>v2</b><span>Open Source</span><span>Built for Adventure</span></div><div className="vm-footer-slogan">SIMPLE TRAVELS · BIGGER STORIES</div></section>
  </div>;
