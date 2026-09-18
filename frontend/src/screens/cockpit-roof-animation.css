@@ -10,7 +10,7 @@
   object-fit:cover;
   object-position:center;
   display:block;
-  background:#081722;
+  background:var(--ps-bg);
   z-index:0;
 }
 .cs-roof-video-badge{
@@ -30,7 +30,7 @@
   letter-spacing:.12em;
   backdrop-filter:blur(10px);
 }
-.cs-roof-video-badge svg{color:#22d3ee}
+.cs-roof-video-badge svg{color:var(--ps-cyan)}
 .cs-roof-photo-shade{z-index:1}
 .cs-roof-photo-label,.cs-roof-live{z-index:5}
 
