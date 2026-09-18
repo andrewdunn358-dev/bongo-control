@@ -8,6 +8,10 @@ import { fmtVolt, fmtTemp, fmtPct, DASH } from '@/lib/format';
 import type { BatteryPayload } from '@/lib/types';
 import { Spark, DataRow } from './shared';
 
+/** PHASE 2 NOTE: this widget still renders Adventure's vm-* classes,
+ *  which are defined in adventure.css - a lazy chunk. Placed outside
+ *  Adventure today it would be unstyled. See widgets/STYLING.md for the
+ *  measured coupling and the route to presentation-independence. */
 /** BATTERY.
  *
  *  TRUTH: BATTERY has two publishers (Victron MPPT and the SmartShunt).

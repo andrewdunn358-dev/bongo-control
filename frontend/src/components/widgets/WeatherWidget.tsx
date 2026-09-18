@@ -7,6 +7,10 @@ import { useEnvironment, useWeather } from '@/lib/telemetry';
 import { fmtTemp, DASH } from '@/lib/format';
 import { DataRow } from './shared';
 
+/** PHASE 2 NOTE: this widget still renders Adventure's vm-* classes,
+ *  which are defined in adventure.css - a lazy chunk. Placed outside
+ *  Adventure today it would be unstyled. See widgets/STYLING.md for the
+ *  measured coupling and the route to presentation-independence. */
 /** WEATHER / OUTSIDE.
  *
  *  TRUTH: the temperature is a real DS18B20 reading; the tomorrow

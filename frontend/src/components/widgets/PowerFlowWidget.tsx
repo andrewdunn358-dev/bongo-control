@@ -4,6 +4,10 @@ import { VanOSSolar } from '@/components/VanOSGraphics';
 import { useBattery, useSolar, useEnergy } from '@/lib/telemetry';
 import { fmtWatt, fmtPct } from '@/lib/format';
 
+/** PHASE 2 NOTE: this widget still renders Adventure's vm-* classes,
+ *  which are defined in adventure.css - a lazy chunk. Placed outside
+ *  Adventure today it would be unstyled. See widgets/STYLING.md for the
+ *  measured coupling and the route to presentation-independence. */
 /** POWER FLOW.
  *
  *  TRUTH: the Systems figure comes from the MPPT, and total van draw is
