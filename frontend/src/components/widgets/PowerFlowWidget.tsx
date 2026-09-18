@@ -3,6 +3,7 @@ import { BatteryCharging, Zap } from 'lucide-react';
 import { VanOSSolar } from '@/components/VanOSGraphics';
 import { useBattery, useSolar, useEnergy } from '@/lib/telemetry';
 import { fmtWatt, fmtPct } from '@/lib/format';
+import type { WidgetProps } from './types';
 
 /** PHASE 2 NOTE: this widget still renders Adventure's vm-* classes,
  *  which are defined in adventure.css - a lazy chunk. Placed outside
@@ -14,12 +15,12 @@ import { fmtWatt, fmtPct } from '@/lib/format';
  *  not measurable without a shunt. This widget shows the three figures
  *  it actually has and the net balance between them; it must not be
  *  presented as a complete account of where the power goes. */
-export function PowerFlowWidget() {
+export function PowerFlowWidget({ state = 'full' }: WidgetProps) {
   const battery = useBattery(), solar = useSolar(), energy = useEnergy();
   const bp = battery.payload, sp = solar.payload, ep = energy.payload;
 
   return (
-    <Link to="/power" className="vw-card vw-flow-card">
+    <Link to="/power" className="vw-card vw-flow-card" data-vw-state={state}>
       <div className="vw-card-head">
         <div>
           <span className="vw-eyebrow">ENERGY</span>

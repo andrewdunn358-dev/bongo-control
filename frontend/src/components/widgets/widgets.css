@@ -125,22 +125,32 @@
   .vw-battery-main > svg, .vw-solar-visual > svg { height: 100%; width: auto; }
 }
 
-/* Short landscape: same shed order as before, now owned by the widget
-   rather than by Adventure. */
-html[data-layout='landscape'] .vw-card { padding: 8px; }
-html[data-layout='landscape'] .vw-card .vw-battery-main > svg,
-html[data-layout='landscape'] .vw-card .vw-solar-visual > svg { display: none; }
-html[data-layout='landscape'] .vw-card .vw-battery-main { height: 34px; }
-html[data-layout='landscape'] .vw-card .vw-solar-visual { height: 34px; }
-html[data-layout='landscape'] .vw-card .vw-flow-visual { height: 46px; }
-html[data-layout='landscape'] .vw-card .vw-weather-main { margin: 4px 2px; }
-html[data-layout='landscape'] .vw-card .vw-weather-main strong { font-size: 26px; }
-html[data-layout='landscape'] .vw-data-row { padding: 3px 8px; }
-html[data-layout='landscape'] .vw-card .vw-eyebrow { letter-spacing: .1em; white-space: nowrap; }
-html[data-layout='landscape'] .vw-card-head { margin-bottom: 4px; }
-html[data-layout='landscape'] .vw-card-head h3 { font-size: 15px; }
-html[data-layout='landscape'] .vw-card .vw-data-box { display: none; }
-html[data-layout='landscape'] .vw-card .vw-weather-data { display: none; }
+
+/* COMPACT PRESENTATION STATE.
+   Supplied BY THE RENDERER as data-vw-state on the widget root. The
+   widget does not read html[data-layout] or anything else outside
+   itself - it is told which state to draw, and that is the whole
+   contract. A future layout engine sets the same attribute for its own
+   reasons and a widget dropped into it needs no change.
+
+   WHAT a state sheds is the widget's own business, and obeys the rule
+   the fitting work arrived at: decoration goes, readings stay. The
+   illustrations and the secondary detail rows give way; every headline
+   value remains. */
+.vw-card[data-vw-state='compact'] { padding: 8px; }
+.vw-card[data-vw-state='compact'] .vw-battery-main > svg,
+.vw-card[data-vw-state='compact'] .vw-solar-visual > svg { display: none; }
+.vw-card[data-vw-state='compact'] .vw-battery-main { height: 34px; }
+.vw-card[data-vw-state='compact'] .vw-solar-visual { height: 34px; }
+.vw-card[data-vw-state='compact'] .vw-flow-visual { height: 46px; }
+.vw-card[data-vw-state='compact'] .vw-weather-main { margin: 4px 2px; }
+.vw-card[data-vw-state='compact'] .vw-weather-main strong { font-size: 26px; }
+.vw-card[data-vw-state='compact'] .vw-data-row { padding: 3px 8px; }
+.vw-card[data-vw-state='compact'] .vw-eyebrow { letter-spacing: .1em; white-space: nowrap; }
+.vw-card[data-vw-state='compact'] .vw-card-head { margin-bottom: 4px; }
+.vw-card[data-vw-state='compact'] .vw-card-head h3 { font-size: 15px; }
+.vw-card[data-vw-state='compact'] .vw-data-box { display: none; }
+.vw-card[data-vw-state='compact'] .vw-weather-data { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .vw-flow-line i { animation: none; }

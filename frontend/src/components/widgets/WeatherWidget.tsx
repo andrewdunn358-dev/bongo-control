@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { useEnvironment, useWeather } from '@/lib/telemetry';
 import { fmtTemp, DASH } from '@/lib/format';
 import { DataRow } from './shared';
+import type { WidgetProps } from './types';
 
 /** PHASE 2 NOTE: this widget still renders Adventure's vm-* classes,
  *  which are defined in adventure.css - a lazy chunk. Placed outside
@@ -16,7 +17,7 @@ import { DataRow } from './shared';
  *  TRUTH: the temperature is a real DS18B20 reading; the tomorrow
  *  radiation ratio is a FORECAST and is labelled relative to today
  *  rather than presented as measurement. */
-export function WeatherWidget() {
+export function WeatherWidget({ state = 'full' }: WidgetProps) {
   const env = useEnvironment(), weather = useWeather();
   const loc = useQuery({ queryKey: ['location'], queryFn: api.location, retry: false });
   const wp = weather.payload;
@@ -25,7 +26,7 @@ export function WeatherWidget() {
   const satCount = loc.data?.satellites;
 
   return (
-    <Link to="/weather" className="vw-card vw-weather-card">
+    <Link to="/weather" className="vw-card vw-weather-card" data-vw-state={state}>
       <div className="vw-card-head">
         <div>
           <span className="vw-eyebrow">OUTSIDE</span>

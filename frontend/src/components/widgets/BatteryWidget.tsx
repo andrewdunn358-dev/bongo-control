@@ -7,6 +7,7 @@ import { useBattery, useEnvironment, useSparkBuffer } from '@/lib/telemetry';
 import { fmtVolt, fmtTemp, fmtPct, DASH } from '@/lib/format';
 import type { BatteryPayload } from '@/lib/types';
 import { Spark, DataRow } from './shared';
+import type { WidgetProps } from './types';
 
 /** PHASE 2 NOTE: this widget still renders Adventure's vm-* classes,
  *  which are defined in adventure.css - a lazy chunk. Placed outside
@@ -19,7 +20,7 @@ import { Spark, DataRow } from './shared';
  *  presence is never inferred from current_a alone - that bug has been
  *  fixed here once already. Anything absent renders as DASH rather than
  *  as a plausible-looking number. */
-export function BatteryWidget() {
+export function BatteryWidget({ state = 'full' }: WidgetProps) {
   const battery = useBattery();
   const env = useEnvironment();
   const voltSeries = useSparkBuffer<BatteryPayload>('battery', (p) => p.voltage);
@@ -31,7 +32,7 @@ export function BatteryWidget() {
     bp == null ? DASH : bp.charging ? 'CHARGING' : bp.current_a != null && Math.abs(bp.current_a) < 0.2 ? 'RESTING' : 'DISCHARGING';
 
   return (
-    <Link to="/power" className="vw-card vw-battery-card">
+    <Link to="/power" className="vw-card vw-battery-card" data-vw-state={state}>
       <div className="vw-card-head">
         <div>
           <span className="vw-eyebrow">POWER CORE</span>

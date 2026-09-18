@@ -10,6 +10,7 @@ import { PowerFlowWidget } from '@/components/widgets/PowerFlowWidget';
 import { WeatherWidget } from '@/components/widgets/WeatherWidget';
 import './adventure.css';
 import { publicUrl } from '@/lib/publicUrl';
+import { useLayoutMode } from '@/lib/useLayoutMode';
 
 function ActionTile({to,title,subtitle,image,children}:{to:string;title:string;subtitle:string;image:string;children:React.ReactNode}) { return <Link to={to} className="vm-action"><div className="vm-action-image" style={{backgroundImage:`url(${image})`}}/><div className="vm-action-shade"/><div className="vm-action-copy"><div className="vm-action-icon">{children}</div><div><strong>{title}</strong><span>{subtitle}</span></div><ArrowRight className="vm-action-arrow" size={22}/></div></Link>; }
 
@@ -23,6 +24,11 @@ export function AdventureCockpit() {
  const heaterOn=hs.state===0x8||Boolean(hs.igniting); const heaterLabel=!heater.data?.available?'No signal':hs.error_code?`Fault ${hs.error_code}`:hs.igniting?'Igniting':hs.cooling_down?'Cooling down':heaterOn?'Heating':'Off';
  const satCount=loc.data?.satellites;
  const fitRef = useAutoFit<HTMLDivElement>();
+ // THE RENDERER decides the presentation state and passes it down. The
+ // widgets do not inspect the layout mode - a widget must work in any
+ // layout without knowing which one contains it, and this is where that
+ // boundary sits until the generic layout engine takes the job over.
+ const widgetState = useLayoutMode() === 'landscape' ? 'compact' : 'full';
  // A theme may supply its own imagery; each call falls back to the
  // built-in picture, so a theme with no images looks unchanged.
  const { asset } = useThemeAssets();
@@ -47,10 +53,10 @@ export function AdventureCockpit() {
    <div className="vm-quote">“Not all those who wander<br/>are lost.”<small>J.R.R. Tolkien</small></div>
   </div></section>
   <section className="vm-core-grid">
-   <BatteryWidget/>
-   <SolarWidget/>
-   <PowerFlowWidget/>
-   <WeatherWidget/>
+   <BatteryWidget state={widgetState}/>
+   <SolarWidget state={widgetState}/>
+   <PowerFlowWidget state={widgetState}/>
+   <WeatherWidget state={widgetState}/>
   </section>
   <section className="vm-actions"><ActionTile to="/heater" title="Heater" subtitle={heaterLabel} image={asset('heater', publicUrl('/hero/desert_dusk.jpg'))}><Flame size={29}/></ActionTile><ActionTile to="/roof" title="Roof" subtitle="Open · hold · release" image={asset('roof', publicUrl('/hero/coast_sunset.jpg'))}><span className="vm-roof-icon">△</span></ActionTile><ActionTile to="/switches" title="Switches" subtitle="Manage van systems" image={asset('switches', publicUrl('/hero/forest_dawn.jpg'))}><ToggleRight size={31}/></ActionTile><ActionTile to="/camera" title="Camera" subtitle="Live view" image={asset('camera', publicUrl('/hero/lake_night.jpg'))}><Camera size={30}/></ActionTile></section>
   <section className="vm-footer-bar"><Link to="/nearby" className="vm-location"><MapPin size={16}/><span>{loc.data?.latitude!=null&&loc.data?.longitude!=null?`${loc.data.latitude.toFixed(4)}°, ${loc.data.longitude.toFixed(4)}°`:'Location unavailable'}</span><small>{satCount==null?'GPS waiting':`${satCount} satellites locked`}</small></Link><div className="vm-footer-meta"><span>VanOS</span><b>v2</b><span>Open Source</span><span>Built for Adventure</span></div><div className="vm-footer-slogan">SIMPLE TRAVELS · BIGGER STORIES</div></section>

@@ -134,3 +134,45 @@ One real error was caught doing this, and only by measuring: the
 (max-width: 300px)` — narrow cards only. Folding them into the base
 rules shrank the desktop visuals from 145px to 110px. The base/narrow
 split is restored.
+
+## The presentation-state boundary (review of #40)
+
+The first version of this work put `html[data-layout='landscape']`
+rules in `widgets.css`, which made a reusable widget inspect the
+SHELL's global layout mode and decide for itself what to hide. Wrong
+boundary, caught in review.
+
+The contract is now the agreed one:
+
+    renderer  ->  placement / size / presentation state  ->  widget
+
+- The widget owns its **intrinsic** presentation, and what each state
+  sheds.
+- `--fit` is supplied by the renderer or any parent.
+- Container queries respond to the width the widget was actually given.
+- **The widget never reads `html[data-layout]`** or anything else
+  outside itself. It is told which state to draw.
+
+States are bounded: `full` | `compact` | `minimal` (minimal not yet
+implemented by any widget - that is Phase 5, and claiming it now would
+be the half-built framework we agreed to avoid).
+
+Adventure is today's renderer and supplies the state. When the generic
+layout engine takes that job, it sets the same attribute for its own
+reasons and no widget changes.
+
+### Proof
+
+With the shell reporting layout mode `wide` throughout - so no global
+state could be influencing anything:
+
+| data-vw-state | padding | battery visual | svg | h3 | data box |
+|---|---|---|---|---|---|
+| (unset) | 14px | 110px | block | 22px | block |
+| full | 14px | 110px | block | 22px | block |
+| compact | 8px | 34px | **none** | 15px | **none** |
+
+The widget degrades because the renderer said so, not because it looked
+at the window.
+
+**Regression preserved: 90 of 90.**

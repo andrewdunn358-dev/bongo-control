@@ -5,6 +5,7 @@ import { useSolar, useSparkBuffer } from '@/lib/telemetry';
 import { fmtWatt, DASH } from '@/lib/format';
 import type { SolarPayload } from '@/lib/types';
 import { Spark, DataRow } from './shared';
+import type { WidgetProps } from './types';
 
 /** PHASE 2 NOTE: this widget still renders Adventure's vm-* classes,
  *  which are defined in adventure.css - a lazy chunk. Placed outside
@@ -13,13 +14,13 @@ import { Spark, DataRow } from './shared';
 /** SOLAR. Real telemetry from the Victron MPPT. Yield and peak are the
  *  MPPT's own figures - they are NOT total van production or draw, and
  *  nothing here should imply otherwise. */
-export function SolarWidget() {
+export function SolarWidget({ state = 'full' }: WidgetProps) {
   const solar = useSolar();
   const solarSeries = useSparkBuffer<SolarPayload>('solar', (p) => p.watts);
   const sp = solar.payload;
 
   return (
-    <Link to="/power" className="vw-card vw-solar-card">
+    <Link to="/power" className="vw-card vw-solar-card" data-vw-state={state}>
       <div className="vw-card-head">
         <div>
           <span className="vw-eyebrow">SOLAR · VICTRON</span>
