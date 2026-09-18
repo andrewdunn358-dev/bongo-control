@@ -46,12 +46,30 @@ export const POWER_FLOW_GRAPHICS: Record<string, GraphicEntry<PowerFlowGraphicPr
   illustrated: { minWidth: 240, minHeight: 90, states: ['full', 'compact'], component: IllustratedPowerFlow },
 };
 
+/** Generic presentation envelopes for widgets that render their own visual
+ *  surface (rather than delegating to a graphic component). */
+export const PRESENTATION_TABLES: Record<string, Record<string, VariantEnvelope>> = {
+  'action-heater': {
+    standard: ALWAYS_FITS,
+    illustrated: { minWidth: 120, minHeight: 58, states: ['full', 'compact'] },
+  },
+  'action-roof': {
+    standard: ALWAYS_FITS,
+    illustrated: { minWidth: 120, minHeight: 58, states: ['full', 'compact'] },
+  },
+  'action-switches': {
+    standard: ALWAYS_FITS,
+    illustrated: { minWidth: 120, minHeight: 58, states: ['full', 'compact'] },
+  },
+};
+
 /** The envelope tables the renderer resolves against, per widget id. */
 export const VARIANT_TABLES: Record<string, Record<string, VariantEnvelope>> = {
   battery: BATTERY_GRAPHICS,
   solar: SOLAR_GRAPHICS,
   weather: WEATHER_GRAPHICS,
   'power-flow': POWER_FLOW_GRAPHICS,
+  ...PRESENTATION_TABLES,
 };
 
 /** Every variant name this build can draw, per widget id - the
