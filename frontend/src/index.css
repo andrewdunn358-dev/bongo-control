@@ -491,7 +491,7 @@ html[data-cockpit-theme='adventure'] {
 @media (min-width: 900px), (max-height: 500px) {
 
   /* min-height MUST be cleared as well as height. adventure.css sets
-     .vm-hero-photo{min-height:330px} and .vm-card{min-height:295px},
+     .vm-hero-photo{min-height:330px},
      and min-height beats height - so overriding height alone left the
      hero pinned at 330px and four cards at 295px each, which cannot fit
      a 613px viewport however much auto-fit scaled the gaps. That is why
@@ -517,10 +517,6 @@ html[data-cockpit-theme='adventure'] {
   }
   .vm-page .vm-core-grid {
     gap: calc(14px * var(--fit));
-    min-height: 0;
-  }
-  .vm-page .vm-card {
-    padding: calc(14px * var(--fit));
     min-height: 0;
   }
   /* 17 Sep - FIXED: this rule used to also set
@@ -584,10 +580,6 @@ html[data-cockpit-theme='adventure'] {
      itself is a separate, already-flagged inconsistency - see
      claude_HANDOVER-PROJECT.md section 10). */
   .vm-page .vm-hero-copy h2 { font-size: max(30px, calc(56px * var(--fit))); }
-  .vm-page .vm-card-head h3 { font-size: max(16px, calc(22px * var(--fit))); }
-  .vm-page .vm-battery-value strong { font-size: max(24px, calc(34px * var(--fit))); }
-  .vm-page .vm-solar-visual strong { font-size: max(26px, calc(39px * var(--fit))); }
-  .vm-page .vm-weather-main strong { font-size: max(32px, calc(49px * var(--fit))); }
   /* A tile's title is a CONTROL LABEL, not a headline, so it does not
      scale - it sits with the body text and the data-row labels on the
      never-scaled side of the line. Fixed at 16px: the 19px desktop size

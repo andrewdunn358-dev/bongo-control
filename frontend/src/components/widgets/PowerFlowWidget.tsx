@@ -19,34 +19,34 @@ export function PowerFlowWidget() {
   const bp = battery.payload, sp = solar.payload, ep = energy.payload;
 
   return (
-    <Link to="/power" className="vm-card vm-flow-card">
-      <div className="vm-card-head">
+    <Link to="/power" className="vw-card vw-flow-card">
+      <div className="vw-card-head">
         <div>
-          <span className="vm-eyebrow">ENERGY</span>
+          <span className="vw-eyebrow">ENERGY</span>
           <h3>Power Flow</h3>
         </div>
-        <Zap size={25} className="vm-cyan" />
+        <Zap size={25} className="vw-cyan" />
       </div>
-      <div className="vm-flow-visual">
+      <div className="vw-flow-visual">
         <div>
           <VanOSSolar size={43} active={Boolean(sp?.watts)} />
           <strong>{fmtWatt(sp?.watts)}</strong>
           <span>Solar</span>
         </div>
-        <div className="vm-flow-line"><i /><i /><i /><i /></div>
+        <div className="vw-flow-line"><i /><i /><i /><i /></div>
         <div>
           <BatteryCharging size={43} />
           <strong>{fmtPct(bp?.soc_pct)}</strong>
           <span>Battery</span>
         </div>
-        <div className="vm-flow-line"><i /><i /><i /><i /></div>
+        <div className="vw-flow-line"><i /><i /><i /><i /></div>
         <div>
           <Zap size={43} />
           <strong>{fmtWatt(ep?.load_watts)}</strong>
           <span>Systems</span>
         </div>
       </div>
-      <div className="vm-flow-total">
+      <div className="vw-flow-total">
         <span>NET BALANCE</span>
         <strong>{fmtWatt(ep?.net_watts)}</strong>
       </div>

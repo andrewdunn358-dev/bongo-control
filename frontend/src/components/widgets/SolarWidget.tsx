@@ -19,22 +19,22 @@ export function SolarWidget() {
   const sp = solar.payload;
 
   return (
-    <Link to="/power" className="vm-card vm-solar-card">
-      <div className="vm-card-head">
+    <Link to="/power" className="vw-card vw-solar-card">
+      <div className="vw-card-head">
         <div>
-          <span className="vm-eyebrow">SOLAR · VICTRON</span>
+          <span className="vw-eyebrow">SOLAR · VICTRON</span>
           <h3>Solar</h3>
         </div>
-        <Sun size={27} className="vm-sun" />
+        <Sun size={27} className="vw-sun" />
       </div>
-      <div className="vm-solar-visual">
+      <div className="vw-solar-visual">
         <VanOSSolar size={74} active={Boolean(sp?.watts)} />
         <div>
           <strong>{fmtWatt(sp?.watts)}</strong>
           <span>{sp?.watts ? 'GENERATING' : (sp?.charge_state || 'OFF').toUpperCase()}</span>
         </div>
       </div>
-      <div className="vm-data-box">
+      <div className="vw-data-box">
         <DataRow label="Today" value={sp?.yield_today_wh == null ? DASH : `${(sp.yield_today_wh / 1000).toFixed(2)} kWh`} />
         <DataRow label="Peak" value={fmtWatt(sp?.peak_today_watts)} />
         <DataRow label="Charge state" value={(sp?.charge_state || 'off').toUpperCase()} />

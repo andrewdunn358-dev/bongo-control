@@ -25,22 +25,22 @@ export function WeatherWidget() {
   const satCount = loc.data?.satellites;
 
   return (
-    <Link to="/weather" className="vm-card vm-weather-card">
-      <div className="vm-card-head">
+    <Link to="/weather" className="vw-card vw-weather-card">
+      <div className="vw-card-head">
         <div>
-          <span className="vm-eyebrow">OUTSIDE</span>
+          <span className="vw-eyebrow">OUTSIDE</span>
           <h3>Weather</h3>
         </div>
         <VanOSWeather condition={weatherDescription} size={42} />
       </div>
-      <div className="vm-weather-main">
+      <div className="vw-weather-main">
         <div>
           <strong>{fmtTemp(env.payload?.external_temp_c)}</strong>
           <span>{weatherDescription ?? 'Environment telemetry'}</span>
         </div>
         <Thermometer size={25} />
       </div>
-      <div className="vm-weather-data">
+      <div className="vw-weather-data">
         <DataRow label="Tomorrow radiation" value={ratio == null ? DASH : `${Math.round(ratio * 100)}% of today`} />
         <DataRow label="GPS" value={satCount == null ? DASH : `${satCount} satellites`} />
       </div>
