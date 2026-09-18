@@ -28,7 +28,7 @@ export function WeatherWidget({ state = 'full', variant }: WidgetProps) {
   const satCount = loc.data?.satellites;
 
   return (
-    <Link to="/weather" className="vw-card vw-weather-card" data-vw-state={state}>
+    <Link to="/weather" className="vw-card vw-weather-card" data-vw-state={state} data-vw-variant={variant ?? 'standard'}>
       <div className="vw-card-head">
         <div>
           <span className="vw-eyebrow">OUTSIDE</span>
