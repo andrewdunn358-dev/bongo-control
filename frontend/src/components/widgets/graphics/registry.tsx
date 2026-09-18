@@ -1,7 +1,7 @@
 import { VanOSBattery, VanOSSolar, VanOSWeather } from '@/components/VanOSGraphics';
-import { IllustratedBattery, IllustratedSolar, IllustratedWeather } from './illustrated';
+import { IllustratedBattery, IllustratedSolar, IllustratedWeather, IllustratedPowerFlow } from './illustrated';
 import type { VariantEnvelope } from '@/layout/variantFit';
-import type { BatteryGraphicProps, SolarGraphicProps, WeatherGraphicProps } from './types';
+import type { BatteryGraphicProps, SolarGraphicProps, WeatherGraphicProps, PowerFlowGraphicProps } from './types';
 import type { ComponentType } from 'react';
 
 /**
@@ -28,17 +28,22 @@ const ALWAYS_FITS: VariantEnvelope = {
 
 export const BATTERY_GRAPHICS: Record<string, GraphicEntry<BatteryGraphicProps>> = {
   standard: { ...ALWAYS_FITS, component: (p) => <VanOSBattery soc={p.soc} charging={p.charging} size={p.size} /> },
-  illustrated: { minWidth: 170, minHeight: 110, states: ['full'], component: IllustratedBattery },
+  illustrated: { minWidth: 170, minHeight: 110, states: ['full', 'compact'], component: IllustratedBattery },
 };
 
 export const SOLAR_GRAPHICS: Record<string, GraphicEntry<SolarGraphicProps>> = {
   standard: { ...ALWAYS_FITS, component: (p) => <VanOSSolar size={p.size} active={p.active} /> },
-  illustrated: { minWidth: 150, minHeight: 100, states: ['full'], component: IllustratedSolar },
+  illustrated: { minWidth: 150, minHeight: 100, states: ['full', 'compact'], component: IllustratedSolar },
 };
 
 export const WEATHER_GRAPHICS: Record<string, GraphicEntry<WeatherGraphicProps>> = {
   standard: { ...ALWAYS_FITS, component: (p) => <VanOSWeather condition={p.condition} size={p.size} /> },
-  illustrated: { minWidth: 90, minHeight: 70, states: ['full'], component: IllustratedWeather },
+  illustrated: { minWidth: 90, minHeight: 70, states: ['full', 'compact'], component: IllustratedWeather },
+};
+
+export const POWER_FLOW_GRAPHICS: Record<string, GraphicEntry<PowerFlowGraphicProps>> = {
+  standard: { ...ALWAYS_FITS, component: () => null },
+  illustrated: { minWidth: 240, minHeight: 90, states: ['full', 'compact'], component: IllustratedPowerFlow },
 };
 
 /** The envelope tables the renderer resolves against, per widget id. */
@@ -46,6 +51,7 @@ export const VARIANT_TABLES: Record<string, Record<string, VariantEnvelope>> = {
   battery: BATTERY_GRAPHICS,
   solar: SOLAR_GRAPHICS,
   weather: WEATHER_GRAPHICS,
+  'power-flow': POWER_FLOW_GRAPHICS,
 };
 
 /** Every variant name this build can draw, per widget id - the
