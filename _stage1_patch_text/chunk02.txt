@@ -1,0 +1,191 @@
+inition> = load();
++
++/** Cockpit ids the generic renderer can draw. A cockpit NOT in here is
++ *  still a hand-written component in this build, which is why a package
++ *  carrying a composition and naming one is refused at import rather
++ *  than accepted and quietly ignored. */
++export const COMPOSITION_COCKPITS: string[] = Object.keys(SOURCES);
++
++export function builtinComposition(cockpitId: string): LayoutDefinition | undefined {
++  return BUILTIN_COMPOSITIONS[cockpitId];
++}
+diff --git a/frontend/src/layout/layout.css b/frontend/src/layout/layout.css
+index f475e32..a40467f 100644
+--- a/frontend/src/layout/layout.css
++++ b/frontend/src/layout/layout.css
+@@ -1,3 +1,32 @@
++/* THE COMPOSITION SURFACE.
++   Moved out of adventure.css, where it was a capability a built-in had
++   and an installable package had no way to express. It is not
++   appearance - it is how a composition sits in the page - so it belongs
++   to the renderer and applies to every composition equally. Nobody has
++   to express it, which is why it does not need to become schema.
++
++   The renderer measures THIS element: useAutoFit publishes --fit on it
++   and raises data-fit-step when scaling is spent. The grid and the
++   widgets inside respond to both. */
++.vl-surface {
++  width: 100%;
++  max-width: 1560px;
++  margin: 0 auto;
++  padding: 0 0 24px;
++  color: rgb(var(--ink));
++  container-type: inline-size;
++  container-name: cockpit;
++}
++
++/* Clearance for the bottom dock, which only exists below this width. */
++@media (max-width: 760px) {
++  .vl-surface { padding-bottom: 80px; }
++}
++
++/* In landscape the navigation is a side rail, so there is no dock to
++   clear and the clearance would be pure lost height. */
++html[data-layout='landscape'] .vl-surface { padding-bottom: 6px; }
++
+ /* THE RENDERER'S PHYSICAL IMPLEMENTATION.
+    Everything the schema is not allowed to say lives here: the real
+    column count, the gaps, and how a logical span collapses when the row
+diff --git a/frontend/src/layout/layouts.ts b/frontend/src/layout/layouts.ts
+deleted file mode 100644
+index b6fdf84..0000000
+--- a/frontend/src/layout/layouts.ts
++++ /dev/null
+@@ -1,51 +0,0 @@
+-import type { LayoutDefinition } from './schema';
+-
+-/**
+- * Adventure's telemetry row, expressed as DATA rather than as markup.
+- *
+- * This is the same four widgets in the same order the cockpit rendered
+- * by hand until now. Four spans of 3 - a quarter of the logical row
+- * each - which the renderer turns into four across when there is room
+- * and collapses when there is not.
+- *
+- * It lives in code for Phase 4. The identical shape comes out of a
+- * .vanos-theme package once the package format carries a layout, and
+- * nothing in the renderer changes when it does.
+- */
+-export const ADVENTURE_CORE: LayoutDefinition = {
+-  version: 1,
+-  items: [
+-    { widget: 'battery', span: 3 },
+-    { widget: 'solar', span: 3 },
+-    { widget: 'power-flow', span: 3 },
+-    { widget: 'weather', span: 3 },
+-  ],
+-};
+-
+-/**
+- * ADVENTURE HOME, ENTIRELY AS DATA.
+- *
+- * Every piece of the page is a registered widget with a span. There is
+- * no Adventure-specific composition markup left: the cockpit component
+- * supplies the measured surface and the presentation state, and this
+- * describes what goes on it.
+- *
+- * Which is the point of the whole exercise - the same list, written by
+- * somebody else with different ids and spans, is a different Home page
+- * with no new component and no new CSS.
+- */
+-export const ADVENTURE_HOME: LayoutDefinition = {
+-  version: 1,
+-  items: [
+-    { widget: 'hero', span: 12 },
+-    { widget: 'battery', span: 3 },
+-    { widget: 'solar', span: 3 },
+-    { widget: 'power-flow', span: 3 },
+-    { widget: 'weather', span: 3 },
+-    { widget: 'action-heater', span: 3 },
+-    { widget: 'action-roof', span: 3 },
+-    { widget: 'action-switches', span: 3 },
+-    { widget: 'action-camera', span: 3 },
+-    { widget: 'footer', span: 12 },
+-  ],
+-};
+diff --git a/frontend/src/layout/schema.ts b/frontend/src/layout/schema.ts
+index 00ea419..28f1dc0 100644
+--- a/frontend/src/layout/schema.ts
++++ b/frontend/src/layout/schema.ts
+@@ -169,3 +169,43 @@ export function parseWidgetPresentation(
+   }
+   return { presentation: out, skipped };
+ }
++
++/**
++ * Refuses a composition the selected cockpit cannot draw.
++ *
++ * WHY THIS IS FATAL RATHER THAN IGNORED. Before this check, a package
++ * carrying home.layout while naming a cockpit with no renderer path was
++ * validated by the browser, validated again by the Pi, stored, delivered
++ * to the client, and then discarded with no error anywhere. Measured:
++ * with the layout targeting Instrument, or with `cockpit` omitted (which
++ * defaults to Instrument), the composition never reached a renderer.
++ *
++ * There are two legitimate outcomes for data a system accepts - consume
++ * it, or refuse it. Accepting and dropping it is not one of them.
++ *
++ * `supported` is passed in rather than imported: this module stays free
++ * of React and of the widget registry, which is what lets the theme
++ * parser use it without a dependency cycle.
++ */
++export function assertCompositionSupported(
++  definition: Record<string, unknown>,
++  supported: readonly string[],
++): void {
++  const home = definition.home;
++  const hasLayout =
++    home !== null && typeof home === 'object' && !Array.isArray(home) &&
++    (home as Record<string, unknown>).layout !== undefined;
++  if (!hasLayout) return;
++
++  const named = typeof definition.cockpit === 'string' ? definition.cockpit : undefined;
++  if (named && supported.includes(named)) return;
++
++  const list = supported.join(', ');
++  throw new LayoutError(
++    named
++      ? `This theme defines a Home composition, but the "${named.slice(0, 24)}" cockpit cannot draw one ` +
++        `in this version of VanOS. Cockpits that can: ${list}.`
++      : `This theme defines a Home composition but does not say which cockpit to draw it with, so it ` +
++        `would fall back to one that cannot. Add "cockpit": "${supported[0] ?? 'adventure'}" to theme.json.`,
++  );
++}
+diff --git a/frontend/src/lib/cockpitThemes.ts b/frontend/src/lib/cockpitThemes.ts
+index 0c0b437..18c2e74 100644
+--- a/frontend/src/lib/cockpitThemes.ts
++++ b/frontend/src/lib/cockpitThemes.ts
+@@ -26,12 +26,10 @@ import type { ComponentType, LazyExoticComponent } from 'react';
+  * both ships in the bundle, so an unprefixed `.card` in one theme
+  * would silently restyle the other.
+  *
+- * Mobile is NOT themed: below the wide-screen breakpoint Home always
+- * renders the Instrument cockpit, whatever is selected here. A phone
+- * layout has different constraints and is not something themes should
+- * fragment. It is the same component the Instrument theme renders, not
+- * a second phone copy - keeping one copy is deliberate, because when
+- * this layout existed twice the two drifted apart.
++ * ORIENTATION NO LONGER OVERRIDES THE SELECTION. Portrait used to
++ * render Instrument whatever was chosen here, which silently discarded
++ * an installed package's composition on a phone held upright. Portrait
++ * is a surface now, and the renderer collapses a composition to suit it.
+  */
+ export type CockpitThemeId = string;
+ 
+@@ -41,8 +39,13 @@ export interface CockpitTheme {
+   name: string;
+   /** One line under the name - what the theme is for, not how it looks. */
+   description: string;
+-  /** Lazy so only the selected theme's code and CSS are fetched. */
+-  component: LazyExoticComponent<ComponentType>;
++  /** The hand-written component this cockpit is still drawn by, lazy so
++   *  only the selected one's code and CSS are fetched.
++   *
++   *  ABSENT means the cockpit is a COMPOSITION, drawn by the generic
++   *  renderer from validated layout data. That is the destination for
++   *  all of them; a component here is the remaining legacy path. */
++  component?: LazyExoticComponent<ComponentType>;
+ }
+ 
+ export const COCKPIT_THEMES: CockpitTheme[] = [
+@@ -65,10 +68,8 @@ export const COCKPIT_THEMES: CockpitT
