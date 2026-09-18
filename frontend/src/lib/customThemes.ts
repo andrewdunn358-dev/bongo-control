@@ -27,6 +27,9 @@
  *   }
  */
 
+import type { LayoutDefinition } from '@/layout/schema';
+import { parseLayout } from '@/layout/schema';
+
 export interface CustomTheme {
   id: string;
   name: string;
@@ -51,6 +54,15 @@ export interface CustomTheme {
   /** Built-in cockpit layout this theme renders in. Validated against
    *  the registry; unknown or absent falls back to the default. */
   cockpit?: string;
+  /** The Home COMPOSITION this theme defines - which registered widgets
+   *  appear and how they are allocated. Validated by parseLayout, which
+   *  accepts allocation intent only, so no CSS can arrive this way.
+   *  Absent means the cockpit renders its built-in composition, so every
+   *  theme written before this keeps working unchanged. */
+  homeLayout?: LayoutDefinition;
+  /** Widget ids the theme asked for that this build does not have, kept
+   *  so the UI can say so rather than leaving an unexplained gap. */
+  unknownWidgets?: string[];
 }
 
 /** Tokens a theme file is allowed to set.
@@ -214,6 +226,9 @@ export function themeFromPackage(
   manifest: { name: string; author?: string; description?: string; preview?: string },
   definition: Record<string, unknown>,
   assetPaths: string[],
+  /** Registry ids, passed in rather than imported: this module stays
+   *  free of the widget components, which import theme code themselves. */
+  knownWidgets: readonly string[] = [],
 ): CustomTheme {
   const base = parseThemeDefinition(manifest.name, definition);
 
@@ -265,9 +280,32 @@ export function themeFromPackage(
     }
   }
 
+  // The Home composition, if the theme defines one. A layout naming a
+  // widget this build does not have is NOT fatal - parseLayout drops it
+  // and reports it, so a theme written for a newer VanOS loses one tile
+  // rather than the whole page. A layout trying to express CSS IS
+  // fatal, and the error says why.
+  let homeLayout: LayoutDefinition | undefined;
+  let unknownWidgets: string[] | undefined;
+  const rawHome = definition.home;
+  if (rawHome && typeof rawHome === 'object' && !Array.isArray(rawHome)) {
+    const rawLayout = (rawHome as Record<string, unknown>).layout;
+    if (rawLayout !== undefined) {
+      try {
+        const parsed = parseLayout(rawLayout, knownWidgets);
+        homeLayout = parsed.layout;
+        if (parsed.skipped.length) unknownWidgets = parsed.skipped;
+      } catch (err) {
+        throw new ThemeFileError(err instanceof Error ? err.message : 'That theme has an invalid home layout.');
+      }
+    }
+  }
+
   return {
     ...base,
     formatVersion: 1,
+    homeLayout,
+    unknownWidgets,
     author: manifest.author ?? base.author,
     description: manifest.description,
     typography: Object.keys(typography).length ? typography : undefined,

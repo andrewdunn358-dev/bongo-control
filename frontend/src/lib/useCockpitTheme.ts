@@ -3,6 +3,7 @@ import { DEFAULT_COCKPIT_THEME, getCockpitTheme } from '@/lib/cockpitThemes';
 import { applyCustomTheme, loadCustomThemes } from '@/lib/customThemes';
 import { getServerThemes, refreshServerThemes, onServerThemesChanged } from '@/lib/serverThemes';
 import type { CockpitTheme, CockpitThemeId } from '@/lib/cockpitThemes';
+import type { LayoutDefinition } from '@/layout/schema';
 
 const STORAGE_KEY = 'vanos-cockpit-theme';
 
@@ -30,6 +31,11 @@ export function useCockpitTheme(): {
    *  is unknown, so a removed theme can never leave a blank cockpit. */
   theme: CockpitTheme;
   setTheme: (id: CockpitThemeId) => void;
+  /** The Home composition the active theme defines, if it defines one.
+   *  Undefined means the cockpit renders its built-in composition. */
+  homeLayout?: LayoutDefinition;
+  /** Widget ids the theme asked for that this build does not have. */
+  unknownWidgets?: string[];
 } {
   const [themeId, setThemeIdState] = useState<CockpitThemeId>(read);
 
@@ -107,5 +113,18 @@ export function useCockpitTheme(): {
     ? (custom?.cockpit ?? DEFAULT_COCKPIT_THEME)
     : themeId;
   const theme = getCockpitTheme(layoutId);
-  return { themeId, theme, setTheme };
+  // The Home composition the active theme defines, if any. Absent means
+  // the cockpit renders its built-in composition, so every theme made
+  // before layouts existed behaves exactly as it did.
+  const activeCustom = themeId.startsWith('custom:')
+    ? getServerThemes().find((t) => t.id === themeId) ?? loadCustomThemes().find((t) => t.id === themeId) ?? null
+    : null;
+
+  return {
+    themeId,
+    theme,
+    setTheme,
+    homeLayout: activeCustom?.homeLayout,
+    unknownWidgets: activeCustom?.unknownWidgets,
+  };
 }

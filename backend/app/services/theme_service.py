@@ -98,6 +98,66 @@ def _safe_relative(path: str) -> bool:
     return not any(seg in ("..", ".") for seg in re.split(r"[\\/]", path))
 
 
+# The Home composition a theme may define. Validated here as well as in
+# the frontend because this is the STORE: a package is accepted once and
+# then served to every device, so a malformed layout must be refused at
+# the door rather than breaking each client in turn.
+#
+# ALLOCATION INTENT ONLY - widget, span, column. No widths, gaps, pixels
+# or any other CSS-ish property; an unknown key is REFUSED rather than
+# dropped, so a layout cannot smuggle presentation in and have it
+# silently ignored here but honoured somewhere else later.
+#
+# Widget IDS are deliberately NOT checked against a list here. The
+# frontend owns the registry, it changes with the frontend, and a
+# backend copy would go stale and start rejecting valid themes. An
+# unknown id is skipped client-side with a note, which is the degrade
+# path already agreed.
+_LAYOUT_ITEM_KEYS = {"widget", "span", "column"}
+_LAYOUT_MAX_ITEMS = 24
+_LAYOUT_COLUMNS = 12
+
+
+def _clean_home_layout(home: object) -> dict | None:
+    if not isinstance(home, dict):
+        return None
+    raw = home.get("layout")
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ThemeError("The theme's home layout must be an object.")
+    items = raw.get("items")
+    if not isinstance(items, list):
+        raise ThemeError("The theme's home layout has no \"items\" array.")
+    if len(items) > _LAYOUT_MAX_ITEMS:
+        raise ThemeError(f"That home layout has too many items ({len(items)}, limit {_LAYOUT_MAX_ITEMS}).")
+
+    clean: list[dict] = []
+    for entry in items:
+        if not isinstance(entry, dict):
+            raise ThemeError("Every home layout item must be an object.")
+        unknown = set(entry) - _LAYOUT_ITEM_KEYS
+        if unknown:
+            raise ThemeError(
+                f"\"{sorted(unknown)[0][:20]}\" is not something a layout can set. A layout says what goes "
+                "where (widget, span, column); how it is drawn belongs to the renderer."
+            )
+        widget = entry.get("widget")
+        if not isinstance(widget, str) or not widget.strip():
+            raise ThemeError("Every home layout item needs a \"widget\".")
+        item: dict = {"widget": widget[:40]}
+        for key in ("span", "column"):
+            if key in entry:
+                value = entry[key]
+                if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= _LAYOUT_COLUMNS:
+                    raise ThemeError(f"\"{key}\" must be a whole number from 1 to {_LAYOUT_COLUMNS}.")
+                item[key] = value
+        clean.append(item)
+
+    version = raw.get("version")
+    return {"version": version if isinstance(version, int) else 1, "items": clean}
+
+
 def _slug(name: str) -> str:
     s = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
     return s[:48] or "theme"
@@ -241,6 +301,9 @@ def validate_package(data: bytes) -> dict[str, Any]:
             if isinstance(definition.get("home"), dict) and isinstance(definition["home"].get("heroCamera"), bool)
             else None
         ),
+        # The Home COMPOSITION. This is the field that makes a theme able
+        # to arrange the page rather than only recolour it.
+        "homeLayout": _clean_home_layout(definition.get("home")),
         "assetPaths": assets,
         "sizeBytes": len(data),
     }

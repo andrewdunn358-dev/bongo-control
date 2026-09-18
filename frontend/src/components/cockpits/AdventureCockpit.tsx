@@ -2,6 +2,7 @@ import { useAutoFit } from '@/lib/useAutoFit';
 import { useLayoutMode } from '@/lib/useLayoutMode';
 import { LayoutRenderer } from '@/layout/LayoutRenderer';
 import { ADVENTURE_HOME } from '@/layout/layouts';
+import { useCockpitTheme } from '@/lib/useCockpitTheme';
 import './adventure.css';
 
 /**
@@ -26,9 +27,14 @@ import './adventure.css';
 export function AdventureCockpit() {
   const fitRef = useAutoFit<HTMLDivElement>();
   const widgetState = useLayoutMode() === 'landscape' ? 'compact' : 'full';
+  // THE COMPOSITION COMES FROM THE THEME when the theme defines one.
+  // This is the line that makes Home user-composable: a .vanos-theme
+  // package carrying a home layout arranges this page, and only falls
+  // back to the built-in list when it does not.
+  const { homeLayout } = useCockpitTheme();
   return (
     <div className="vm-page" ref={fitRef}>
-      <LayoutRenderer layout={ADVENTURE_HOME} state={widgetState} />
+      <LayoutRenderer layout={homeLayout ?? ADVENTURE_HOME} state={widgetState} />
     </div>
   );
 }
