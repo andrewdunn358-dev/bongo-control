@@ -112,3 +112,60 @@ export function parseLayout(raw: unknown, knownWidgets: readonly string[]): { la
 
   return { layout: { version, items }, skipped };
 }
+
+/** Which drawing each widget should use. A theme names a VARIANT and
+ *  nothing else - there is no route here to arbitrary styling, and a
+ *  variant cannot change what a widget reads or what it says. */
+export interface WidgetPresentation {
+  variant?: string;
+}
+
+const PRESENTATION_KEYS = new Set(['variant']);
+
+/**
+ * Validates a theme's `widgets` block.
+ *
+ * An unknown widget id or an unknown VARIANT is dropped and reported,
+ * not thrown: a theme built for a newer VanOS should lose its bespoke
+ * drawing and fall back to the standard one, never fail to load. An
+ * unknown PROPERTY still throws, for the same reason it does in a
+ * layout - it means the theme is trying to say something this schema
+ * deliberately cannot express.
+ */
+export function parseWidgetPresentation(
+  raw: unknown,
+  knownVariants: Record<string, string[]>,
+): { presentation: Record<string, WidgetPresentation>; skipped: string[] } {
+  if (raw === undefined || raw === null) return { presentation: {}, skipped: [] };
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new LayoutError('The theme\u2019s "widgets" block must be an object.');
+  }
+  const out: Record<string, WidgetPresentation> = {};
+  const skipped: string[] = [];
+
+  for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      throw new LayoutError(`The presentation for "${id.slice(0, 24)}" must be an object.`);
+    }
+    for (const key of Object.keys(value)) {
+      if (!PRESENTATION_KEYS.has(key)) {
+        throw new LayoutError(
+          `"${key.slice(0, 20)}" is not something a theme can set on a widget. A theme may name a ` +
+            `variant; how that variant is drawn belongs to VanOS.`,
+        );
+      }
+    }
+    const variant = (value as WidgetPresentation).variant;
+    if (variant === undefined) continue;
+    if (typeof variant !== 'string') throw new LayoutError(`"variant" must be a name.`);
+
+    const allowed = knownVariants[id];
+    if (!allowed || !allowed.includes(variant)) {
+      // The widget still renders - in its standard drawing.
+      skipped.push(`${id.slice(0, 24)}:${variant.slice(0, 24)}`);
+      continue;
+    }
+    out[id] = { variant };
+  }
+  return { presentation: out, skipped };
+}

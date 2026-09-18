@@ -63,6 +63,9 @@ export interface CustomTheme {
   /** Widget ids the theme asked for that this build does not have, kept
    *  so the UI can say so rather than leaving an unexplained gap. */
   unknownWidgets?: string[];
+  /** Which drawing each widget should use. Validated against the
+   *  graphics registry; anything unknown falls back to 'standard'. */
+  widgetPresentation?: Record<string, { variant?: string }>;
 }
 
 /** Tokens a theme file is allowed to set.

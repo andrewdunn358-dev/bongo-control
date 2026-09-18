@@ -1,11 +1,12 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Thermometer } from 'lucide-react';
-import { VanOSWeather } from '@/components/VanOSGraphics';
+
 import { api } from '@/lib/api';
 import { useEnvironment, useWeather } from '@/lib/telemetry';
 import { fmtTemp, DASH } from '@/lib/format';
 import { DataRow } from './shared';
+import { WEATHER_GRAPHICS, pick } from './graphics/registry';
 import type { WidgetProps } from './types';
 
 /** PHASE 2 NOTE: this widget still renders Adventure's vm-* classes,
@@ -17,7 +18,8 @@ import type { WidgetProps } from './types';
  *  TRUTH: the temperature is a real DS18B20 reading; the tomorrow
  *  radiation ratio is a FORECAST and is labelled relative to today
  *  rather than presented as measurement. */
-export function WeatherWidget({ state = 'full' }: WidgetProps) {
+export function WeatherWidget({ state = 'full', variant }: WidgetProps) {
+  const WeatherArt = pick(WEATHER_GRAPHICS, variant);
   const env = useEnvironment(), weather = useWeather();
   const loc = useQuery({ queryKey: ['location'], queryFn: api.location, retry: false });
   const wp = weather.payload;
@@ -32,7 +34,7 @@ export function WeatherWidget({ state = 'full' }: WidgetProps) {
           <span className="vw-eyebrow">OUTSIDE</span>
           <h3>Weather</h3>
         </div>
-        <VanOSWeather condition={weatherDescription} size={42} />
+        <WeatherArt condition={weatherDescription} size={42} />
       </div>
       <div className="vw-weather-main">
         <div>

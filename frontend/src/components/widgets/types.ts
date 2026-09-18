@@ -48,6 +48,12 @@ export interface WidgetDefinition {
 }
 
 export interface WidgetProps {
+  /** Which DRAWING to use, named by the theme and validated against the
+   *  graphics registry. A widget's data, readings, labels and truth
+   *  line are identical whatever the variant - a variant changes how
+   *  something is drawn and nothing else. Unknown or absent resolves to
+   *  'standard'. */
+  variant?: string;
   /** Defaults to 'full'. Widgets that do not yet implement states
    *  ignore it and render as they always have - which is what keeps
    *  this extraction a no-op visually. */

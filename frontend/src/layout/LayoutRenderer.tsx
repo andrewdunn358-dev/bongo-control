@@ -21,9 +21,12 @@ import './layout.css';
 export function LayoutRenderer({
   layout,
   state = 'full',
+  presentation,
   className,
 }: {
   layout: LayoutDefinition;
+  /** Per-widget drawing chosen by the theme, already validated. */
+  presentation?: Record<string, { variant?: string }>;
   /** Presentation state passed to every widget. The renderer decides
    *  this - today from the cockpit, later from the fit engine. */
   state?: WidgetState;
@@ -53,7 +56,7 @@ export function LayoutRenderer({
               gridColumn: item.column ? `${item.column} / span ${span}` : `span ${span}`,
             }}
           >
-            <Widget state={state} />
+            <Widget state={state} variant={presentation?.[item.widget]?.variant} />
           </div>
         );
       })}

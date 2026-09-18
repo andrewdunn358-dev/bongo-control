@@ -31,10 +31,10 @@ export function AdventureCockpit() {
   // This is the line that makes Home user-composable: a .vanos-theme
   // package carrying a home layout arranges this page, and only falls
   // back to the built-in list when it does not.
-  const { homeLayout } = useCockpitTheme();
+  const { homeLayout, widgetPresentation } = useCockpitTheme();
   return (
     <div className="vm-page" ref={fitRef}>
-      <LayoutRenderer layout={homeLayout ?? ADVENTURE_HOME} state={widgetState} />
+      <LayoutRenderer layout={homeLayout ?? ADVENTURE_HOME} state={widgetState} presentation={widgetPresentation} />
     </div>
   );
 }
