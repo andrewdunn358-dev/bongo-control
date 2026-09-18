@@ -7,6 +7,7 @@ import { useBattery, useEnvironment, useSparkBuffer } from '@/lib/telemetry';
 import { fmtVolt, fmtTemp, fmtPct, DASH } from '@/lib/format';
 import type { BatteryPayload } from '@/lib/types';
 import { Spark, DataRow } from './shared';
+import type { WidgetProps } from './types';
 
 /** PHASE 2 NOTE: this widget still renders Adventure's vm-* classes,
  *  which are defined in adventure.css - a lazy chunk. Placed outside
@@ -19,7 +20,7 @@ import { Spark, DataRow } from './shared';
  *  presence is never inferred from current_a alone - that bug has been
  *  fixed here once already. Anything absent renders as DASH rather than
  *  as a plausible-looking number. */
-export function BatteryWidget() {
+export function BatteryWidget({ state = 'full' }: WidgetProps) {
   const battery = useBattery();
   const env = useEnvironment();
   const voltSeries = useSparkBuffer<BatteryPayload>('battery', (p) => p.voltage);
@@ -31,27 +32,27 @@ export function BatteryWidget() {
     bp == null ? DASH : bp.charging ? 'CHARGING' : bp.current_a != null && Math.abs(bp.current_a) < 0.2 ? 'RESTING' : 'DISCHARGING';
 
   return (
-    <Link to="/power" className="vm-card vm-battery-card">
-      <div className="vm-card-head">
+    <Link to="/power" className="vw-card vw-battery-card" data-vw-state={state}>
+      <div className="vw-card-head">
         <div>
-          <span className="vm-eyebrow">POWER CORE</span>
+          <span className="vw-eyebrow">POWER CORE</span>
           <h3>Battery <em>{bp?.charging ? 'Charging' : ''}</em></h3>
         </div>
-        <BatteryCharging size={25} className={bp?.charging ? 'vm-green' : ''} />
+        <BatteryCharging size={25} className={bp?.charging ? 'vw-green' : ''} />
       </div>
-      <div className="vm-battery-main">
+      <div className="vw-battery-main">
         <VanOSBattery soc={bp?.soc_pct} charging={bp?.charging} size={118} />
-        <div className="vm-battery-value">
+        <div className="vw-battery-value">
           <strong>{fmtPct(bp?.soc_pct)}</strong>
           <span>{fmtVolt(bp?.voltage)}</span>
         </div>
       </div>
       {bp?.soc_pct != null && (
-        <div className="vm-progress">
+        <div className="vw-progress">
           <i style={{ width: `${Math.max(0, Math.min(100, bp.soc_pct))}%` }} />
         </div>
       )}
-      <div className="vm-data-box">
+      <div className="vw-data-box">
         <DataRow label="Current" value={bp?.current_a == null ? DASH : `${bp.current_a >= 0 ? '+' : ''}${bp.current_a.toFixed(1)} A`} />
         <DataRow label="State" value={batteryState} />
         <DataRow label="Temperature" value={fmtTemp(env.payload?.internal_temp_c)} />

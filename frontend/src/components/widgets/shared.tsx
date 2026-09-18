@@ -10,7 +10,7 @@ export function Spark({ data, kind }: { data: number[]; kind: 'battery' | 'solar
     .map((v, i) => `${(i / (data.length - 1)) * 300},${34 - Math.max(2, ((v - lo) / span) * 30)}`)
     .join(' ');
   return (
-    <svg className="vm-spark" viewBox="0 0 300 38" preserveAspectRatio="none" aria-hidden="true">
+    <svg className="vw-spark" viewBox="0 0 300 38" preserveAspectRatio="none" aria-hidden="true">
       <polyline points={points} />
     </svg>
   );
@@ -18,7 +18,7 @@ export function Spark({ data, kind }: { data: number[]; kind: 'battery' | 'solar
 
 export function DataRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="vm-data-row">
+    <div className="vw-data-row">
       <span>{label}</span>
       <strong>{value}</strong>
     </div>

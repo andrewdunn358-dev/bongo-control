@@ -1,0 +1,158 @@
+/* WIDGET-OWNED STYLING.
+   Phase 3. These rules used to live in adventure.css, which is a lazy
+   chunk - so a widget placed anywhere else rendered with no border and
+   no background (measured, see STYLING.md). They now ship with the
+   widgets themselves and work wherever a widget is placed.
+
+   TWO RULES THIS FILE OBEYS, and the reason it is a separate file:
+
+   1. NO COCKPIT ANCESTOR. Nothing here is scoped under .vm-page. A
+      widget is styled on its own.
+   2. SIZING COMES FROM THE RENDERER, via var(--fit, 1). Whatever
+      element supplies --fit - Adventure's page today, the generic
+      renderer tomorrow - gets the scaling. With no surface at all the
+      fallback is 1, so the widget renders at full size rather than
+      collapsing.
+
+   Colours are already tokens, so a widget recolours per theme here
+   exactly as it did inside Adventure, with no extra mechanism. */
+
+/* The widget palette, resolved from the THEME tokens.
+   These were previously adventure.css's private --vm-* variables, so a
+   widget outside Adventure had no border and no background even once
+   its own stylesheet loaded - measured, and the last thread of the
+   coupling. Same values, owned here, so a widget carries its own
+   palette wherever it is placed and still recolours per theme because
+   every one resolves from a theme token. */
+:root {
+  --vw-panel: rgb(var(--surface));
+  --vw-panel2: rgb(var(--surface-raised));
+  --vw-line: rgb(var(--line) / .28);
+  --vw-text: rgb(var(--ink));
+  --vw-muted: rgb(var(--ink-muted));
+  --vw-ink-soft: rgb(var(--ink-soft));
+  --vw-cyan: rgb(var(--aurora-teal));
+  --vw-teal: rgb(var(--aurora-lime));
+  --vw-yellow: rgb(var(--status-amber));
+}
+
+.vw-card {
+  position: relative;
+  overflow: hidden;
+  padding: calc(14px * var(--fit, 1));
+  min-height: 0;
+  border: 1px solid var(--vw-line);
+  border-radius: 6px;
+  background: linear-gradient(145deg, var(--vw-panel2), var(--vw-panel));
+  box-shadow: 0 14px 35px rgba(0, 0, 0, .28);
+  color: var(--vw-text);
+  text-decoration: none;
+  transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+  /* the card is its own query container, so a widget's internals respond
+     to the width IT was given rather than to the page */
+  container-type: inline-size;
+  container-name: card;
+}
+.vw-card:hover {
+  transform: translateY(-2px);
+  border-color: rgb(var(--aurora-teal) / .5);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, .36), 0 0 28px rgb(var(--aurora-teal) / .06);
+}
+
+.vw-eyebrow { font-size: 10px; line-height: 1; letter-spacing: .20em; text-transform: uppercase; font-weight: 800; color: var(--vw-muted); }
+.vw-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.vw-card-head h3 { margin: 6px 0 0; font-size: max(16px, calc(22px * var(--fit, 1))); letter-spacing: -.035em; }
+.vw-card-head em { font-size: 10px; color: var(--vw-teal); font-style: normal; font-weight: 700; margin-left: 7px; text-transform: uppercase; letter-spacing: .1em; }
+
+.vw-green { color: var(--vw-teal); }
+.vw-cyan { color: var(--vw-cyan); }
+.vw-sun { color: var(--vw-yellow); filter: drop-shadow(0 0 8px rgb(var(--status-amber) / .35)); }
+
+.vw-battery-main { position: relative; display: flex; justify-content: center; align-items: center; height: 145px; margin: 6px 0 0; }
+.vw-battery-main > svg { filter: drop-shadow(0 0 9px rgb(var(--aurora-lime) / .35)); }
+.vw-battery-value { position: absolute; left: 0; right: 0; text-align: center; top: 50%; transform: translateY(-50%); pointer-events: none; }
+.vw-battery-value strong { display: block; font-size: max(24px, calc(34px * var(--fit, 1))); letter-spacing: -.06em; }
+.vw-battery-value span { font-size: 15px; color: var(--vw-ink-soft); }
+
+.vw-progress { height: 6px; background: rgb(var(--ink) / .10); border-radius: 10px; overflow: hidden; margin: 0 0 9px; }
+.vw-progress i { display: block; height: 100%; background: linear-gradient(90deg, var(--vw-cyan), var(--vw-teal)); border-radius: inherit; box-shadow: 0 0 14px rgb(var(--aurora-lime) / .45); transition: width .8s ease; }
+
+.vw-data-box { border: 1px solid rgb(var(--line) / .12); border-radius: 5px; background: rgb(var(--ink) / .025); overflow: hidden; }
+.vw-data-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 9px; border-bottom: 1px solid rgb(var(--line) / .08); font-size: 11px; }
+.vw-data-row:last-child { border-bottom: 0; }
+.vw-data-row span { color: var(--vw-muted); }
+.vw-data-row strong { color: var(--vw-text); font-size: 12px; }
+
+.vw-spark { position: absolute; left: 18px; right: 18px; bottom: 7px; width: calc(100% - 36px); height: 38px; color: var(--vw-cyan); opacity: .7; pointer-events: none; }
+.vw-spark polyline { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; filter: drop-shadow(0 0 4px currentColor); }
+
+.vw-solar-visual { height: 135px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.vw-solar-visual svg { filter: drop-shadow(0 0 12px rgb(var(--status-amber) / .28)); }
+.vw-solar-visual strong { display: block; font-size: max(26px, calc(39px * var(--fit, 1))); letter-spacing: -.06em; }
+.vw-solar-visual span { display: block; font-size: 10px; letter-spacing: .14em; color: var(--vw-teal); font-weight: 800; margin-top: 3px; }
+
+.vw-flow-visual { display: flex; align-items: center; justify-content: center; gap: 5px; height: 155px; margin-top: 3px; }
+.vw-flow-visual > div:not(.vw-flow-line) { display: flex; flex-direction: column; align-items: center; min-width: 52px; }
+.vw-flow-visual strong { font-size: 14px; margin-top: 4px; }
+.vw-flow-visual span { font-size: 9px; color: var(--vw-muted); text-transform: uppercase; letter-spacing: .1em; margin-top: 2px; }
+.vw-flow-line { display: flex; align-items: center; gap: 3px; flex: 1; min-width: 24px; }
+.vw-flow-line i { width: 4px; height: 4px; border-radius: 50%; background: var(--vw-cyan); box-shadow: 0 0 9px var(--vw-cyan); animation: vwFlow 1.3s linear infinite; }
+.vw-flow-line i:nth-child(2) { animation-delay: .25s; }
+.vw-flow-line i:nth-child(3) { animation-delay: .5s; }
+.vw-flow-line i:nth-child(4) { animation-delay: .75s; }
+@keyframes vwFlow { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+.vw-flow-total { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgb(var(--line) / .12); padding-top: 10px; }
+.vw-flow-total span { font-size: 9px; letter-spacing: .15em; color: var(--vw-muted); font-weight: 800; }
+.vw-flow-total strong { font-size: 16px; color: var(--vw-teal); }
+
+.vw-weather-main { display: flex; align-items: center; justify-content: space-between; margin: 25px 2px 18px; }
+.vw-weather-main strong { display: block; font-size: max(32px, calc(49px * var(--fit, 1))); letter-spacing: -.07em; }
+.vw-weather-main span { display: block; margin-top: 3px; color: var(--vw-ink-soft); font-size: 11px; }
+.vw-weather-main svg { color: rgb(var(--aurora-teal) / .65); }
+.vw-weather-data { margin-top: auto; }
+
+/* Narrow card: the illustrations give way, the readings do not. Keyed to
+   the CARD's own width, so it holds in any layout. */
+@container card (max-width: 300px) {
+  .vw-battery-main { height: max(84px, calc(110px * var(--fit, 1))); }
+  .vw-solar-visual { height: max(76px, calc(100px * var(--fit, 1))); }
+  .vw-flow-visual { height: max(84px, calc(112px * var(--fit, 1))); gap: 2px; }
+  .vw-flow-visual > div:not(.vw-flow-line) { min-width: 50px; }
+  .vw-flow-line { min-width: 10px; }
+  .vw-flow-line i { flex: 0 0 auto; }
+  .vw-flow-line i:nth-child(n + 3) { display: none; }
+  .vw-weather-main { margin: 14px 2px 12px; }
+  .vw-battery-main > svg, .vw-solar-visual > svg { height: 100%; width: auto; }
+}
+
+
+/* COMPACT PRESENTATION STATE.
+   Supplied BY THE RENDERER as data-vw-state on the widget root. The
+   widget does not read html[data-layout] or anything else outside
+   itself - it is told which state to draw, and that is the whole
+   contract. A future layout engine sets the same attribute for its own
+   reasons and a widget dropped into it needs no change.
+
+   WHAT a state sheds is the widget's own business, and obeys the rule
+   the fitting work arrived at: decoration goes, readings stay. The
+   illustrations and the secondary detail rows give way; every headline
+   value remains. */
+.vw-card[data-vw-state='compact'] { padding: 8px; }
+.vw-card[data-vw-state='compact'] .vw-battery-main > svg,
+.vw-card[data-vw-state='compact'] .vw-solar-visual > svg { display: none; }
+.vw-card[data-vw-state='compact'] .vw-battery-main { height: 34px; }
+.vw-card[data-vw-state='compact'] .vw-solar-visual { height: 34px; }
+.vw-card[data-vw-state='compact'] .vw-flow-visual { height: 46px; }
+.vw-card[data-vw-state='compact'] .vw-weather-main { margin: 4px 2px; }
+.vw-card[data-vw-state='compact'] .vw-weather-main strong { font-size: 26px; }
+.vw-card[data-vw-state='compact'] .vw-data-row { padding: 3px 8px; }
+.vw-card[data-vw-state='compact'] .vw-eyebrow { letter-spacing: .1em; white-space: nowrap; }
+.vw-card[data-vw-state='compact'] .vw-card-head { margin-bottom: 4px; }
+.vw-card[data-vw-state='compact'] .vw-card-head h3 { font-size: 15px; }
+.vw-card[data-vw-state='compact'] .vw-data-box { display: none; }
+.vw-card[data-vw-state='compact'] .vw-weather-data { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .vw-flow-line i { animation: none; }
+  .vw-card { transition: none; }
+}

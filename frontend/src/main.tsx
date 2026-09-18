@@ -2,6 +2,12 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import '@/index.css';
+// Widget styling is app-wide, not a cockpit's. Imported from the ENTRY
+// on purpose: Vite chunks CSS along the JS import graph, so importing
+// it only from the widget modules put it straight back into whichever
+// lazy cockpit chunk happened to use them - which is the bug this is
+// fixing. Measured, not assumed.
+import '@/components/widgets/widgets.css';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { App } from '@/App';
 import { ThemeProvider } from '@/lib/theme';

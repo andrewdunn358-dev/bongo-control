@@ -5,6 +5,7 @@ import { useSolar, useSparkBuffer } from '@/lib/telemetry';
 import { fmtWatt, DASH } from '@/lib/format';
 import type { SolarPayload } from '@/lib/types';
 import { Spark, DataRow } from './shared';
+import type { WidgetProps } from './types';
 
 /** PHASE 2 NOTE: this widget still renders Adventure's vm-* classes,
  *  which are defined in adventure.css - a lazy chunk. Placed outside
@@ -13,28 +14,28 @@ import { Spark, DataRow } from './shared';
 /** SOLAR. Real telemetry from the Victron MPPT. Yield and peak are the
  *  MPPT's own figures - they are NOT total van production or draw, and
  *  nothing here should imply otherwise. */
-export function SolarWidget() {
+export function SolarWidget({ state = 'full' }: WidgetProps) {
   const solar = useSolar();
   const solarSeries = useSparkBuffer<SolarPayload>('solar', (p) => p.watts);
   const sp = solar.payload;
 
   return (
-    <Link to="/power" className="vm-card vm-solar-card">
-      <div className="vm-card-head">
+    <Link to="/power" className="vw-card vw-solar-card" data-vw-state={state}>
+      <div className="vw-card-head">
         <div>
-          <span className="vm-eyebrow">SOLAR · VICTRON</span>
+          <span className="vw-eyebrow">SOLAR · VICTRON</span>
           <h3>Solar</h3>
         </div>
-        <Sun size={27} className="vm-sun" />
+        <Sun size={27} className="vw-sun" />
       </div>
-      <div className="vm-solar-visual">
+      <div className="vw-solar-visual">
         <VanOSSolar size={74} active={Boolean(sp?.watts)} />
         <div>
           <strong>{fmtWatt(sp?.watts)}</strong>
           <span>{sp?.watts ? 'GENERATING' : (sp?.charge_state || 'OFF').toUpperCase()}</span>
         </div>
       </div>
-      <div className="vm-data-box">
+      <div className="vw-data-box">
         <DataRow label="Today" value={sp?.yield_today_wh == null ? DASH : `${(sp.yield_today_wh / 1000).toFixed(2)} kWh`} />
         <DataRow label="Peak" value={fmtWatt(sp?.peak_today_watts)} />
         <DataRow label="Charge state" value={(sp?.charge_state || 'off').toUpperCase()} />

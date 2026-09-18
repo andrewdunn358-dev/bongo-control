@@ -73,3 +73,106 @@ the evidence points at:
 Phase 2 does not meet that rule and does not claim to. It is a
 mechanical extraction with the coupling written down so it cannot be
 forgotten.
+
+---
+
+# Phase 3 — resolved
+
+The coupling above is gone. Widgets own their presentation and size from
+whatever the renderer supplies.
+
+## What changed
+
+1. **`widgets.css`** — the widget rules, moved out of `adventure.css`
+   and renamed to a `vw-` namespace so there is one owner.
+2. **Loaded from the entry (`main.tsx`), not from the widgets.** Vite
+   chunks CSS along the JS import graph, so importing it from the widget
+   modules put it straight back into Adventure's lazy chunk. Measured,
+   not assumed — the first attempt looked right and shipped the CSS to
+   exactly the wrong place.
+3. **The widget palette is owned here.** `--vw-panel`, `--vw-line`,
+   `--vw-text` and the rest were `adventure.css`'s private `--vm-*`
+   variables, so a widget outside Adventure still had no border and no
+   background even once its stylesheet loaded. Same values, resolved
+   from the same theme tokens.
+4. **Sizing uses `var(--fit, 1)`** and no `.vm-page` ancestor. Whatever
+   supplies `--fit` — Adventure today, the generic renderer next — gets
+   the scaling; with no surface at all the widget renders at full size
+   instead of collapsing.
+5. **Container queries key off the card itself**, which declares
+   `container-type: inline-size`, so a widget's internals respond to the
+   width it was actually given in any layout.
+
+## Proof
+
+A `.vw-card` built outside any cockpit, with no `.vm-page` ancestor:
+
+| cockpit loaded | border | background | text |
+|---|---|---|---|
+| Adventure | 1px rgba(119,202,255,.28) | gradient | rgb(244,249,255) |
+| Instrument | 1px rgba(148,163,184,.28) | gradient | rgb(230,240,255) |
+| Control | 1px rgba(148,163,184,.28) | gradient | rgb(230,240,255) |
+
+Styled on all three, and the values differ per cockpit because they
+resolve from theme tokens — which is the point.
+
+Sizing, from a `--fit` supplied by an arbitrary parent:
+
+| `--fit` | card padding | battery visual |
+|---|---|---|
+| 1 | 14px | 110px |
+| 0.78 | 10.92px | 85.8px |
+| 0.5 | 7px | 84px (floor holds) |
+
+## Regression
+
+**90 of 90 deterministic measures identical** to the pre-extraction
+baseline, across three cockpits and five reference viewports.
+
+One real error was caught doing this, and only by measuring: the
+`110/100/112` visual heights came from **inside** `@container card
+(max-width: 300px)` — narrow cards only. Folding them into the base
+rules shrank the desktop visuals from 145px to 110px. The base/narrow
+split is restored.
+
+## The presentation-state boundary (review of #40)
+
+The first version of this work put `html[data-layout='landscape']`
+rules in `widgets.css`, which made a reusable widget inspect the
+SHELL's global layout mode and decide for itself what to hide. Wrong
+boundary, caught in review.
+
+The contract is now the agreed one:
+
+    renderer  ->  placement / size / presentation state  ->  widget
+
+- The widget owns its **intrinsic** presentation, and what each state
+  sheds.
+- `--fit` is supplied by the renderer or any parent.
+- Container queries respond to the width the widget was actually given.
+- **The widget never reads `html[data-layout]`** or anything else
+  outside itself. It is told which state to draw.
+
+States are bounded: `full` | `compact` | `minimal` (minimal not yet
+implemented by any widget - that is Phase 5, and claiming it now would
+be the half-built framework we agreed to avoid).
+
+Adventure is today's renderer and supplies the state. When the generic
+layout engine takes that job, it sets the same attribute for its own
+reasons and no widget changes.
+
+### Proof
+
+With the shell reporting layout mode `wide` throughout - so no global
+state could be influencing anything:
+
+| data-vw-state | padding | battery visual | svg | h3 | data box |
+|---|---|---|---|---|---|
+| (unset) | 14px | 110px | block | 22px | block |
+| full | 14px | 110px | block | 22px | block |
+| compact | 8px | 34px | **none** | 15px | **none** |
+
+The widget degrades because the renderer said so, not because it looked
+at the window.
+
+**Regression preserved: 90 of 90.**
