@@ -19,13 +19,23 @@ jobs:
           fetch-depth: 0
           ref: _stage1-transfer
 
-      - name: Rebuild patch
+      - name: Rebuild exact patch
         shell: bash
         run: |
           set -euo pipefail
-          cat _stage1_transfer/chunk0.txt               _stage1_transfer/chunk1.txt               _stage1_transfer/chunk2.txt               _stage1_transfer/chunk3.txt               _stage1_transfer/chunk4.txt               _stage1_transfer/chunk5.txt > /tmp/stage1.b64
-          base64 -d /tmp/stage1.b64 | gzip -d > /tmp/issue-46-stage1.patch
-          test `wc -c < /tmp/issue-46-stage1.patch` -eq 95432
+          cat _stage1_patch_text/chunk00.txt \
+              _stage1_patch_text/chunk01.txt \
+              _stage1_patch_text/chunk02.txt \
+              _stage1_patch_text/chunk03.txt \
+              _stage1_patch_text/chunk04.txt \
+              _stage1_patch_text/chunk05.txt \
+              _stage1_patch_text/chunk06.txt \
+              _stage1_patch_text/chunk07.txt \
+              _stage1_patch_text/chunk08.txt \
+              _stage1_patch_text/chunk09.txt \
+              _stage1_patch_text/chunk10.txt \
+              _stage1_patch_text/chunk11.txt > /tmp/issue-46-stage1.patch
+          test `wc -c < /tmp/issue-46-stage1.patch` -eq 95412
 
       - name: Apply the four commits to the requested branch
         shell: bash
