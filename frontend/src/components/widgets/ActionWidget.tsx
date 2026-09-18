@@ -29,7 +29,7 @@ function makeAction(cfg: {
   icon: React.ReactNode;
   useHeaterLabel?: boolean;
 }) {
-  return function ActionWidget({ state = 'full' }: WidgetProps) {
+  return function ActionWidget({ state = 'full', variant }: WidgetProps) {
     const { asset } = useThemeAssets();
     const heater = useQuery({
       queryKey: ['heater'],
@@ -55,7 +55,7 @@ function makeAction(cfg: {
                 : 'Off';
     }
     return (
-      <Link to={cfg.to} className="vw-action" data-vw-state={state}>
+      <Link to={cfg.to} className="vw-action" data-vw-state={state} data-vw-variant={variant ?? 'standard'}>
         <div className="vw-action-image" style={{ backgroundImage: `url(${asset(cfg.role, publicUrl(cfg.fallback))})` }} />
         <div className="vw-action-shade" />
         <div className="vw-action-copy">

@@ -35,7 +35,7 @@ export function BatteryWidget({ state = 'full', variant }: WidgetProps) {
     bp == null ? DASH : bp.charging ? 'CHARGING' : bp.current_a != null && Math.abs(bp.current_a) < 0.2 ? 'RESTING' : 'DISCHARGING';
 
   return (
-    <Link to="/power" className="vw-card vw-battery-card" data-vw-state={state}>
+    <Link to="/power" className="vw-card vw-battery-card" data-vw-state={state} data-vw-variant={variant ?? 'standard'}>
       <div className="vw-card-head">
         <div>
           <span className="vw-eyebrow">POWER CORE</span>
