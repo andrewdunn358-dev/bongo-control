@@ -1,0 +1,58 @@
+/* INSTRUMENT - fitting the cockpit to the space it actually got.
+   Added 18 Sep 2026.
+
+   THE PROBLEM, measured at 1143x628 (the real device, confirmed from
+   the app's own Settings -> Viewport readout): the cockpit rendered a
+   fixed 705px into 567px of space and simply let the page scroll. It
+   had no sizing hook of any kind - the restore in #18 deliberately
+   brought the layout back WITHOUT the treatment Adventure had, because
+   mixing a restore with a resize is how it went wrong the first time.
+   This is that treatment.
+
+   Where the height went, at the real size:
+     main 12-col grid   567px   (left column drives it:
+                                 battery 228 + solar 166 + net 141)
+     supporting row     118px   (Interior / Outside / Charging)
+     gap                 16px
+                        -----
+                        705px   into 567px available
+
+   WHAT SCALES AND WHAT DOES NOT. Same rule as Adventure (#13-#19):
+   decoration scales, readings and controls do not.
+     scales:  card padding, grid gaps, the satellite-sky illustration,
+              the headline numerals (each with an absolute floor)
+     never:   label text, data-row text, any nav or button target
+   At the tablet's measured --fit the numerals land at 28px against a
+   10px label scale, so the hierarchy survives.
+
+   --fit comes from useAutoFit, the SAME hook Adventure uses. One
+   sizing mechanism, not two - that was the explicit constraint here,
+   and a second competing system is what the architecture review
+   rejected.
+
+   EVERY SELECTOR IS vi- PREFIXED, and the hooks were added to the
+   markup rather than borrowed from shared classes. The first version
+   of this file styled `.vi-page .glass` and `.vi-page .grid` and was
+   REJECTED by tools/check_frontend_contract.py - correctly: cockpit
+   stylesheets mount globally, so reaching into a shared class from one
+   theme restyles the others. */
+
+.vi-page {
+  --fit: 1;
+}
+
+@media (min-width: 900px) {
+  /* Gaps and padding: the cheapest height in the layout, and nothing is
+     lost by tightening them before anything else gives way. */
+  .vi-page .vi-grid { gap: calc(1.25rem * var(--fit)); }
+  .vi-page .vi-card { padding: calc(1.25rem * var(--fit)); }
+
+  /* The satellite sky is an illustration - the satellite COUNT beside
+     it is the reading, and that is untouched. */
+  .vi-page .vi-sky { min-height: max(120px, calc(190px * var(--fit))); }
+
+  /* Headline numerals. Floors chosen so that at the tablet's measured
+     --fit they stay far larger than the 10-11px labels around them;
+     the point of this cockpit is readability at arm's length. */
+  .vi-page .vi-num { font-size: max(28px, calc(2.25rem * var(--fit))); }
+}
