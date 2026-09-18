@@ -45,8 +45,15 @@ jobs:
           git fetch origin main
           git switch -C issue-46-stage1-one-theme origin/main
           git am --3way /tmp/issue-46-stage1.patch
+          # GitHub's Actions token cannot push a commit that changes a workflow file.
+          # Keep the four substantive commits intact, then add the CI-only workflow
+          # change separately with the repository GitHub connection after the branch exists.
+          git checkout origin/main -- .github/workflows/safety.yml
+          git commit --amend --no-edit
 
-      - name: Export exact applied commits
+          git push --force origin issue-46-stage1-one-theme
+
+      - name: Export applied commits
         shell: bash
         run: |
           set -euo pipefail
@@ -94,7 +101,7 @@ jobs:
               json.dump({"base": "2f1e101d66a4cbe18c0c1d15f5e2be4b3574fb97", "commits": out}, f)
           PY
 
-      - name: Upload exact commit manifest
+      - name: Upload commit manifest
         uses: actions/upload-artifact@v4
         with:
           name: issue-46-stage1-exact-manifest
