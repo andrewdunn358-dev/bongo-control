@@ -1,0 +1,154 @@
+operties on <html>, which win over the stylesheet by
++    // specificity.
+     const custom = themeId.startsWith('custom:')
+-      ? getServerThemes().find((t) => t.id === themeId)
+-        ?? loadCustomThemes().find((t) => t.id === themeId)
+-        ?? null
++      ? getServerThemes().find((t: CustomTheme) => t.id === themeId) ?? null
+       : null;
+ 
+     const base = custom ? getCockpitTheme(custom.cockpit ?? DEFAULT_COCKPIT_THEME).id : getCockpitTheme(themeId).id;
+@@ -101,33 +96,25 @@ export function useCockpitTheme(): {
+     listeners.forEach((fn) => fn(id));
+   }, []);
+ 
+-  // A custom theme has no component of its own, so it renders the
+-  // default cockpit layout wearing its colours.
+-  // A custom theme renders the built-in cockpit it NAMES, falling back
+-  // to the default when it names none or names one this build does not
+-  // have. Previously every custom theme was forced into the default
+-  // cockpit, which is why a theme asking for Adventure's hero behaviour
+-  // never got it - it was not rendering Adventure at all.
+-  const custom = themeId.startsWith('custom:')
+-    ? getServerThemes().find((t) => t.id === themeId) ?? loadCustomThemes().find((t) => t.id === themeId)
+-    : undefined;
+-  const layoutId = themeId.startsWith('custom:')
+-    ? (custom?.cockpit ?? DEFAULT_COCKPIT_THEME)
+-    : themeId;
+-  const theme = getCockpitTheme(layoutId);
+-  // The Home composition the active theme defines, if any. Absent means
+-  // the cockpit renders its built-in composition, so every theme made
+-  // before layouts existed behaves exactly as it did.
+-  const activeCustom = themeId.startsWith('custom:')
+-    ? getServerThemes().find((t) => t.id === themeId) ?? loadCustomThemes().find((t) => t.id === themeId) ?? null
++  // An installed theme renders the built-in cockpit it NAMES, falling
++  // back to the default when it names none or names one this build does
++  // not have. Previously every installed theme was forced into the
++  // default cockpit, which is why a theme asking for Adventure's hero
++  // behaviour never got it - it was not rendering Adventure at all.
++  const installed = themeId.startsWith('custom:')
++    ? getServerThemes().find((t: CustomTheme) => t.id === themeId) ?? null
+     : null;
++  const layoutId = installed ? (installed.cockpit ?? DEFAULT_COCKPIT_THEME) : themeId;
++  const theme = getCockpitTheme(layoutId);
+ 
+   return {
+     themeId,
+     theme,
+     setTheme,
+-    homeLayout: activeCustom?.homeLayout,
+-    unknownWidgets: activeCustom?.unknownWidgets,
+-    widgetPresentation: activeCustom?.widgetPresentation,
++    // The Home composition the active theme defines, if any. Absent
++    // means Home renders the cockpit's built-in composition.
++    homeLayout: installed?.homeLayout,
++    unknownWidgets: installed?.unknownWidgets,
++    widgetPresentation: installed?.widgetPresentation,
+   };
+ }
+diff --git a/frontend/src/screens/Home.tsx b/frontend/src/screens/Home.tsx
+index 894049b..fdb0557 100644
+--- a/frontend/src/screens/Home.tsx
++++ b/frontend/src/screens/Home.tsx
+@@ -1,34 +1,38 @@
+ import { Suspense } from 'react';
+-import { InstrumentCockpit } from '@/components/cockpits/InstrumentCockpit';
+ import { useCockpitTheme } from '@/lib/useCockpitTheme';
+-import { useLayoutMode } from '@/lib/useLayoutMode';
++import { ThemedHome, resolveComposition } from '@/layout/ThemedHome';
+ 
+ export function Home() {
+-  // Three compositions, not two. A phone in landscape used to be handed
+-  // the portrait layout because the old check was width-only - 730x325
+-  // and 363x737 look identical to a 900px width test. They are not the
+-  // same problem, so they no longer share an answer.
++  // ONE themed path. Home no longer picks a cockpit component, and it no
++  // longer overrides the selection by orientation.
+   //
+-  // Both 'wide' and 'landscape' render the SELECTED COCKPIT: a phone on
+-  // its side has the shape of a cockpit, not of a scrolling column, and
+-  // the theme architecture should not be something you lose by turning
+-  // the device. The cockpit's own sizing (useAutoFit's --fit, then the
+-  // composition ladder) does the fitting; it is enabled for landscape
+-  // in the cockpit stylesheets.
+-  //
+-  // Portrait keeps today's mobile composition unchanged, deliberately.
+-  // It works, and it is not themed on purpose - a narrow column has
+-  // different constraints and is not something themes should fragment.
+-  const mode = useLayoutMode();
+-  return mode === 'portrait' ? <InstrumentCockpit /> : <ThemedCockpit />;
++  // PORTRAIT USED TO THROW THE THEME AWAY. It rendered Instrument
++  // whatever was selected, on the reasoning that a phone has different
++  // constraints and is not something themes should fragment. Measured
++  // consequence: with Adventure selected at 363x737 the cockpit rendered
++  // Instrument with zero renderer slots, so a package's composition was
++  // silently discarded on a phone held upright. Orientation is a
++  // SURFACE, not a different application - the renderer's collapse rules
++  // reduce a 12-column composition to a single column, which is what a
++  // tall narrow surface wants anyway.
++  const { theme, homeLayout } = useCockpitTheme();
++  const composition = resolveComposition(theme.id, homeLayout);
++
++  // Instrument and Control are still hand-written components in this
++  // build, so they have no composition to resolve. That branch is the
++  // LEGACY path and is deliberately the exception: a package carrying a
++  // composition and naming one of them is refused at import rather than
++  // accepted and ignored. It disappears when they are migrated.
++  if (composition) return <ThemedHome composition={composition} />;
++  return <LegacyCockpit />;
+ }
+ 
+-/** Renders the selected cockpit theme. Themes are lazy-loaded, so only
+- *  the chosen one's code and CSS are fetched - adding themes does not
+- *  grow the initial bundle. */
+-function ThemedCockpit() {
++/** A cockpit that has not been migrated to a composition yet. Lazy, so
++ *  only the selected one's code and CSS are fetched. */
++function LegacyCockpit() {
+   const { theme } = useCockpitTheme();
+   const Cockpit = theme.component;
++  if (!Cockpit) return null;
+   return (
+     <Suspense fallback={<div className="h-64" aria-busy="true" />}>
+       <Cockpit />
+diff --git a/frontend/src/screens/Settings.tsx b/frontend/src/screens/Settings.tsx
+index d4ed2b8..143dc8c 100644
+--- a/frontend/src/screens/Settings.tsx
++++ b/frontend/src/screens/Settings.tsx
+@@ -15,7 +15,7 @@ import { useNavigationStyle } from '@/lib/useNavigationStyle';
+ import { useCockpitTheme } from '@/lib/useCockpitTheme';
+ import { COCKPIT_THEMES } from '@/lib/cockpitThemes';
+ import {
+-  deleteCustomTheme, loadCustomThemes, parseThemeFile, saveCustomTheme,
++  clearLegacyLocalThemes, hasLegacyLocalThemes,
+   ThemeFileError,
+ } from '@/lib/customThemes';
+ import type { CustomTheme } from '@/lib/customThemes';
+@@ -73,6 +73,8 @@ import { signalToBars, getDistanceUnit, setDistanceUnit } from '@/lib/format';
+ import { SET } from '@/constants/testIds';
+ import { cn } from '@/lib/utils';
+ import { mapCacheEntries, clearMapCache } from '@/lib/mapStyle';
++import { assertCompositionSupported } from '@/layout/schema';
++import { COMPOSITION_COCKPITS } from '@/layout/builtins';
+ 
+ /**
+  * A native <details>/<summary> collapsible wrapper for grouping
+@@ -1260,42 +1262,31 @@ export function Settings() {
+   const { style: navStyle, setStyle: setNavStyle } = useNavigationStyle();
+   const { themeId, setTheme } = useCockpitTheme();
+   // Installed themes come from the PI, so the same set appears on the
+-  // tablet, a phone and this browser. Legacy browser-local themes are
+-  // appended so anything imported before the move keeps working.
+-  const [customThemes, setCustomThemes] = useState<CustomTheme[]>(() => [...getServerThemes(), ...loadCustomThemes()]);
++  // tablet, a phone and this browser. There is no browser-local source
++  // any more - a Theme is an installed package, 
