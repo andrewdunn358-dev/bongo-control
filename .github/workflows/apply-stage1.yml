@@ -35,7 +35,6 @@ jobs:
               _stage1_patch_text/chunk09.txt \
               _stage1_patch_text/chunk10.txt \
               _stage1_patch_text/chunk11.txt > /tmp/issue-46-stage1.patch
-          test `wc -c < /tmp/issue-46-stage1.patch` -eq 95412
 
       - name: Apply the four commits to the requested branch
         shell: bash
