@@ -55,6 +55,14 @@ export const COCKPIT_THEMES: CockpitTheme[] = [
     ),
   },
   {
+    id: 'control',
+    name: 'VanOS Control',
+    description: 'Camera, separate pop-top controls and the four van switches on one cockpit',
+    component: lazy(() =>
+      import('@/components/cockpits/ControlCockpit').then((m) => ({ default: m.ControlCockpit })),
+    ),
+  },
+  {
     id: 'adventure',
     name: 'Adventure',
     description: 'Camera hero, magazine styling, image action tiles',
