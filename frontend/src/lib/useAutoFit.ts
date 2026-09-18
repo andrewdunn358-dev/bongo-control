@@ -34,6 +34,20 @@ const MIN_FIT = 0.78;
  *  measurement - without a cap that can oscillate forever. */
 const MAX_PASSES = 4;
 const STEP = 0.06;
+/** When --fit has reached its floor and the cockpit STILL does not fit,
+ *  shrinking further is the wrong answer - it is the signal to change
+ *  the composition instead. The hook then raises data-fit-step, and the
+ *  cockpit's own CSS decides what that means for its layout: which
+ *  block collapses, which row goes compact, what stops being drawn.
+ *
+ *  The hook deliberately knows NOTHING about either cockpit. It answers
+ *  "how much space is there, and is it enough?"; the cockpit answers
+ *  "given that, how should I arrange myself?". That split is what keeps
+ *  this ONE mechanism rather than two, and it is why width is not
+ *  handled here at all - column counts are container queries in each
+ *  cockpit's CSS, responding to the box the cockpit actually got.
+ *  Width drives structure, height drives this, and they never touch. */
+const MAX_STEPS = 2;
 
 export function useAutoFit<T extends HTMLElement>(enabled = true) {
   const ref = useRef<T | null>(null);
@@ -63,8 +77,13 @@ export function useAutoFit<T extends HTMLElement>(enabled = true) {
       const available = window.innerHeight - top - 12;
       if (available <= 0) return;
 
+      // Every pass starts from a clean slate and re-derives both values.
+      // That determinism is what stops the ladder ratcheting: a window
+      // that grows gets its composition back, because the step is
+      // recomputed from scratch rather than only ever climbing.
       let fit = 1;
       node.style.setProperty('--fit', '1');
+      node.removeAttribute('data-fit-step');
 
       for (let pass = 0; pass < MAX_PASSES; pass++) {
         // scrollHeight is the content's real height, including anything
@@ -75,6 +94,18 @@ export function useAutoFit<T extends HTMLElement>(enabled = true) {
         if (fit === MIN_FIT) break;
         // Force layout so the next pass measures the new value rather
         // than the stale one.
+        void node.offsetHeight;
+      }
+
+      // Scaling is spent. Anything still overflowing is a composition
+      // problem, so step the ladder - one rung at a time, re-measuring
+      // between, so a cockpit only ever sheds as much as it must.
+      if (fit === MIN_FIT) {
+        for (let step = 1; step <= MAX_STEPS; step++) {
+          void node.offsetHeight;
+          if (node.scrollHeight <= available) break;
+          node.setAttribute('data-fit-step', String(step));
+        }
         void node.offsetHeight;
       }
 
@@ -100,6 +131,16 @@ export function useAutoFit<T extends HTMLElement>(enabled = true) {
     ro.observe(el);
     window.addEventListener('resize', schedule);
     window.addEventListener('orientationchange', schedule);
+    // Re-measure once everything has actually settled. The first pass
+    // runs before images decode and before web fonts swap in, so the
+    // cockpit measures TALLER than it will finally be - and with the
+    // ladder in play that is not a cosmetic error: it made both
+    // cockpits take a second rung they did not need, needlessly
+    // dropping the satellite sky and the quote at 1143x628. Measured,
+    // then fixed. Both are cheap, fire once, and are no-ops if the page
+    // was already settled.
+    window.addEventListener('load', schedule);
+    document.fonts?.ready.then(schedule).catch(() => {});
 
     return () => {
       cancelled = true;
@@ -107,6 +148,7 @@ export function useAutoFit<T extends HTMLElement>(enabled = true) {
       ro.disconnect();
       window.removeEventListener('resize', schedule);
       window.removeEventListener('orientationchange', schedule);
+      window.removeEventListener('load', schedule);
     };
   }, [enabled]);
 

@@ -154,7 +154,7 @@ export function InstrumentCockpit() {
                 )}
               </div>
             )}
-            <div className="mt-3"><Sparkline data={voltSeries} width={260} height={44} stroke="#22d3ee" fill="rgba(34,211,238,0.25)" minRange={0.4} /></div>
+            <div className="vi-spark mt-3"><Sparkline data={voltSeries} width={260} height={44} stroke="#22d3ee" fill="rgba(34,211,238,0.25)" minRange={0.4} /></div>
             {/* useSparkBuffer holds only what has arrived over the
                 WebSocket since this page loaded, so the caption can only
                 honestly claim that window - not a fixed period. Seeding
@@ -170,7 +170,7 @@ export function InstrumentCockpit() {
             <div className="text-[11px] text-ink-faint mt-1">
               Peak today {fmtWatt(solar.payload?.peak_today_watts)} · {(solar.payload?.charge_state || 'off').toUpperCase()}
             </div>
-            <div className="mt-3"><Sparkline data={solarSeries} width={260} height={44} stroke="#FF8A00" fill="rgba(255,138,0,0.22)" minRange={25} /></div>
+            <div className="vi-spark mt-3"><Sparkline data={solarSeries} width={260} height={44} stroke="#FF8A00" fill="rgba(255,138,0,0.22)" minRange={25} /></div>
           </GlassCard>
 
           <GlassCard className="vi-card">
