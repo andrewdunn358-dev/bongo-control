@@ -132,7 +132,7 @@ def check_theme_css_prefixed() -> None:
     cockpits = SRC / "components" / "cockpits"
     if not cockpits.is_dir():
         return
-    allowed = re.compile(r"^\.(vm|van|vi)-")
+    allowed = re.compile(r"^\.(vm|van|vi|vc)-")
     for css in cockpits.glob("*.css"):
         body = re.sub(r"/\*.*?\*/", "", css.read_text(), flags=re.S)
         selectors = re.findall(r"(?:^|[}\s,])(\.[A-Za-z][\w-]*)", body)
