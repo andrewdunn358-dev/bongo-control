@@ -22,7 +22,7 @@ export function SolarWidget({ state = 'full', variant }: WidgetProps) {
   const sp = solar.payload;
 
   return (
-    <Link to="/power" className="vw-card vw-solar-card" data-vw-state={state}>
+    <Link to="/power" className="vw-card vw-solar-card" data-vw-state={state} data-vw-variant={variant ?? 'standard'}>
       <div className="vw-card-head">
         <div>
           <span className="vw-eyebrow">SOLAR · VICTRON</span>
