@@ -1,0 +1,171 @@
+ut: { version: 1, items: [] } }, cockpit: 'adventure' }, ['adventure']);
+-ok('composition for a supported cockpit is accepted');
++// And an appearance that is still a hand-written component resolves to
++// nothing, so Home falls back to it rather than rendering an empty grid.
++assert.equal(
++  resolveComposition('instrument', undefined), undefined,
++  'an unmigrated appearance resolved to a composition it does not have',
++);
++ok('unmigrated appearance resolves to undefined, not an empty layout');
+ 
+ console.log(`\n${passed} checks passed`);
+-- 
+2.43.0
+
+
+From 39ed40eaf96c01b37f497ee39290223bbd7b136e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 18 Sep 2026 21:58:57 +0100
+Subject: [PATCH 3/4] #46 Stage 1 - emergency composition for an invalid
+ built-in
+
+Measured, the previous degrade was not the graceful one its comment
+claimed. With adventure.home.json made invalid, a build logged the
+failure and then rendered a BLANK cockpit: no surface element, zero
+slots, zero cards. load() dropped the failed entry, builtinComposition
+returned undefined, resolveComposition returned undefined, Home took the
+legacy branch, and Adventure has no component.
+
+A failed built-in now degrades to an emergency composition: battery and
+position footer, full width, nothing conditional. It is not selectable
+and is not in SOURCES - it is only ever reached by failure - and it goes
+through the SAME parseLayout against the SAME registry as everything
+else. A hand-written literal here would have been exactly the
+ADVENTURE_HOME mistake, unvalidated precisely where the guarantee
+matters most.
+
+Failing and having no built-in stay different things. An id in SOURCES
+that fails keeps an entry and stays in the themed path; an id with no
+source at all still resolves to undefined so Instrument and Control keep
+their components. Conflating them would either blank Adventure on a bad
+JSON or take Instrument's cockpit away.
+
+There is deliberately no second fallback. If the emergency composition
+itself fails to validate it is logged and nothing is substituted,
+because inventing a rescue that bypasses the validator is worse than a
+loud absence. CI fails on it either way.
+
+loadCompositions is exported so the FAILURE path is testable with a
+deliberately broken source. Asserting only that the shipped JSON parses
+would not have caught the blank cockpit, because the shipped JSON does
+parse. Tests now assert: the emergency composition validates and every
+widget it names is registered; an invalid built-in resolves to it rather
+than to undefined or an empty layout; both the failure and the
+substitution are logged; and an unmigrated appearance still resolves to
+undefined. Verified in a browser: a corrupted built-in went from no
+surface and 0 slots to vl-surface with 2 slots drawing the battery.
+
+Geometry unchanged: all 18 measured cells identical to the previous
+Stage 1 build.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01G3qgdXudr3fPyiuV2Ueo3g
+---
+ .../src/layout/builtins/emergency.home.json   |  7 ++
+ frontend/src/layout/builtins/index.ts         | 93 ++++++++++++++++---
+ frontend/tests/builtin-compositions.test.mjs  | 78 ++++++++++++++++
+ 3 files changed, 166 insertions(+), 12 deletions(-)
+ create mode 100644 frontend/src/layout/builtins/emergency.home.json
+
+diff --git a/frontend/src/layout/builtins/emergency.home.json b/frontend/src/layout/builtins/emergency.home.json
+new file mode 100644
+index 0000000..850bfbc
+--- /dev/null
++++ b/frontend/src/layout/builtins/emergency.home.json
+@@ -0,0 +1,7 @@
++{
++  "version": 1,
++  "items": [
++    { "widget": "battery", "span": 12 },
++    { "widget": "footer", "span": 12 }
++  ]
++}
+diff --git a/frontend/src/layout/builtins/index.ts b/frontend/src/layout/builtins/index.ts
+index e200fd4..ec1e5c3 100644
+--- a/frontend/src/layout/builtins/index.ts
++++ b/frontend/src/layout/builtins/index.ts
+@@ -1,6 +1,7 @@
+ import { WIDGET_IDS } from '@/components/widgets/registry';
+ import { parseLayout, type LayoutDefinition } from '@/layout/schema';
+ import adventureHome from './adventure.home.json';
++import emergencyHome from './emergency.home.json';
+ 
+ /**
+  * BUILT-IN COMPOSITIONS.
+@@ -21,36 +22,104 @@ import adventureHome from './adventure.home.json';
+  * THE RULE THIS ENFORCES MECHANICALLY: if a built-in composition needs a
+  * capability, that capability is available to an installable package
+  * too, because there is one gate and both go through it.
+- *
+- * A built-in that fails validation is a BUILD BUG, not a runtime
+- * condition. tests/builtin-compositions.test.mjs asserts every one of
+- * them parses, so CI catches it. At runtime a failure is swallowed and
+- * logged rather than white-screening the van, because a cockpit that
+- * will not start is worse than one missing a panel.
+  */
+ const SOURCES: Record<string, unknown> = {
+   adventure: adventureHome,
+ };
+ 
+-function load(): Record<string, LayoutDefinition> {
++/**
++ * THE EMERGENCY COMPOSITION.
++ *
++ * What a built-in degrades to when its own JSON fails validation. It is
++ * deliberately boring: the battery, which is the one reading that
++ * matters when you are off-grid, and the position footer. Two widgets,
++ * full width, nothing conditional.
++ *
++ * It is NOT a second normal built-in. It is not selectable, it is not in
++ * SOURCES, and nothing chooses it - it is only ever reached by failure.
++ *
++ * IT GOES THROUGH parseLayout LIKE EVERYTHING ELSE. A hand-built literal
++ * here would be the exact mistake ADVENTURE_HOME was: an unvalidated
++ * composition, privileged precisely where the guarantee matters most.
++ * tests/builtin-compositions.test.mjs parses every JSON file in this
++ * directory, so the fallback is held to the same rules it is rescuing
++ * another composition from breaking.
++ *
++ * WHY A FALLBACK AT ALL, when an invalid built-in is a build bug CI
++ * catches. Because measured, the previous behaviour was not the graceful
++ * degrade its comment claimed. A failed built-in was logged and omitted,
++ * resolution returned undefined, Home took the legacy branch, and
++ * Adventure has no component - so the cockpit rendered BLANK. "A cockpit
++ * missing a panel is better than one that will not start" was the right
++ * principle attached to code that did the opposite.
++ */
++const EMERGENCY_SOURCE: unknown = emergencyHome;
++
++/**
++ * Parses a set of built-in sources, degrading a failed one to the
++ * emergency composition rather than dropping it.
++ *
++ * Exported so the FAILURE path can be tested with a deliberately broken
++ * source. Testing only the happy path here would leave the branch that
++ * matters - the one that runs when something is already wrong -
++ * unexercised, which is how the blank cockpit went unnoticed.
++ */
++export function loadCompositions(
++  sources: Record<string, unknown>,
++  emergency: LayoutDefinition | undefined,
++): Record<string, LayoutDefinition> {
+   const out: Record<string, LayoutDefinition> = {};
+-  for (const [id, raw] of Object.entries(SOURCES)) {
++  for (const [id, raw] of Object.entries(sources)) {
+     try {
+       out[id] = parseLayout(raw, WIDGET_IDS).layout;
+     } catch (err) {
+-      // Never fatal - see the note above.
+       console.error(`[vanos] built-in composition "${id}" failed validation:`, err);
++      if (emergency) {
++        // Every id in `sources` keeps an entry, so resolution can never
++        // return undefined for an appearance that HAS a built-in. That
++        // is what keeps the failure inside the themed path instead of
++        // falling through to a component this cockpit does not have.
++        console.error(`[vanos] "${id}" is rendering the emergency composition instead`);
++        out[id] = emergency;
++      } else {
++        // Only reachable if the emergency composition ITSELF fails to
++        // validate, which is a build bug CI fails on. There is no
++        // second fallback on purpose: inventing one here would mean
++        // hand-writing a compo
