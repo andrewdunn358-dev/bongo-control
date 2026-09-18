@@ -20,9 +20,9 @@ export function Home() {
 
   // Instrument and Control are still hand-written components in this
   // build, so they have no composition to resolve. That branch is the
-  // LEGACY path and is deliberately the exception: a package carrying a
-  // composition and naming one of them is refused at import rather than
-  // accepted and ignored. It disappears when they are migrated.
+  // LEGACY path, and it is reached only when the selected theme brings no
+  // composition of its own: a theme carrying one is drawn above, whatever
+  // built-in it names. The branch disappears when they are migrated.
   if (composition) return <ThemedHome composition={composition} />;
   return <LegacyCockpit />;
 }

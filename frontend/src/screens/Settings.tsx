@@ -73,8 +73,6 @@ import { signalToBars, getDistanceUnit, setDistanceUnit } from '@/lib/format';
 import { SET } from '@/constants/testIds';
 import { cn } from '@/lib/utils';
 import { mapCacheEntries, clearMapCache } from '@/lib/mapStyle';
-import { assertCompositionSupported } from '@/layout/schema';
-import { COMPOSITION_COCKPITS } from '@/layout/builtins';
 
 /**
  * A native <details>/<summary> collapsible wrapper for grouping
@@ -1297,15 +1295,11 @@ export function Settings() {
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       // Parsed here only to fail fast with a readable message before
-      // uploading several hundred KB over the tunnel.
-      const pkg = await parseThemePackage(bytes);
-
-      // A composition this build cannot draw is refused HERE, before the
-      // upload, so the user learns at import rather than wondering why
-      // their layout had no effect. The browser owns this check because
-      // the browser owns the renderer and the widget registry - a copy of
-      // either on the Pi would go stale and start refusing valid themes.
-      assertCompositionSupported(pkg.definition, COMPOSITION_COCKPITS);
+      // uploading several hundred KB over the tunnel. A malformed layout
+      // throws from parseLayout inside here; which cockpit the package
+      // names is not checked, because a theme's own composition is drawn
+      // whatever it names - see the note in layout/schema.ts.
+      await parseThemePackage(bytes);
 
       // Refuse up front rather than failing partway through the write.
       // Validated in the browser above for immediate feedback, then

@@ -23,14 +23,16 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
 const builtinsDir = join(root, 'src/layout/builtins');
 
-/** Bundle the real schema. The widget components are stubbed: the
- *  registry is imported for its IDS, and pulling React in to read a
- *  list of strings would make this test fail for reasons that have
- *  nothing to do with layouts. */
-const stubWidgets = {
-  name: 'stub-widget-components',
+/** Bundle the real schema, registry and resolver. Everything that needs
+ *  a DOM is stubbed - the widget components, the hooks and the renderer.
+ *  The three functions under test are pure; pulling React and a
+ *  stylesheet in behind them would make this test fail for reasons that
+ *  have nothing to do with layouts. */
+const STUBBED = /Widget$|useAutoFit|useLayoutMode|useCockpitTheme|LayoutRenderer|\.css$/;
+const stubDom = {
+  name: 'stub-dom-dependencies',
   setup(b) {
-    b.onResolve({ filter: /Widget$/ }, (args) => ({ path: args.path, namespace: 'stub' }));
+    b.onResolve({ filter: STUBBED }, (args) => ({ path: args.path, namespace: 'stub' }));
     // CommonJS, so any named import resolves: the registry imports one
     // named component per file and this test should not have to list
     // them.
@@ -44,8 +46,9 @@ const stubWidgets = {
 const bundled = await build({
   stdin: {
     contents: `
-      export { parseLayout, assertCompositionSupported, LayoutError } from '@/layout/schema';
+      export { parseLayout } from '@/layout/schema';
       export { WIDGET_IDS } from '@/components/widgets/registry';
+      export { resolveComposition } from '@/layout/ThemedHome';
     `,
     resolveDir: root,
     loader: 'ts',
@@ -55,13 +58,14 @@ const bundled = await build({
   format: 'esm',
   platform: 'neutral',
   alias: { '@': join(root, 'src') },
-  plugins: [stubWidgets],
+  plugins: [stubDom],
+  jsx: 'transform',
 });
 
 const mod = await import(
   `data:text/javascript;base64,${Buffer.from(bundled.outputFiles[0].text).toString('base64')}`
 );
-const { parseLayout, assertCompositionSupported, LayoutError, WIDGET_IDS } = mod;
+const { parseLayout, WIDGET_IDS, resolveComposition } = mod;
 
 let passed = 0;
 function ok(name) {
@@ -101,26 +105,47 @@ for (const file of files) {
   ok(`${file} validates (${layout.items.length} items, no unknown widgets)`);
 }
 
-// The other half of the rule: a composition naming a cockpit the
-// renderer cannot draw must be REFUSED, not accepted and ignored. If
-// this ever stops throwing, the third failure class is back.
-assert.throws(
-  () => assertCompositionSupported({ home: { layout: { version: 1, items: [] } }, cockpit: 'instrument' }, ['adventure']),
-  LayoutError,
-  'an unsupported cockpit composition was accepted',
-);
-ok('composition for an unsupported cockpit is refused');
+// THE INVARIANT THAT MADE THE OLD IMPORT CHECK OBSOLETE.
+//
+// A Theme Definition's OWN composition is drawn whatever it names. An
+// earlier Stage 1 draft refused, at import, a package carrying a layout
+// while naming a cockpit with no renderer path - because such a layout
+// used to be accepted and then silently discarded. It is not any more,
+// and the check was rejecting themes that work.
+//
+// This is what replaced it. If any of these three stop holding, that
+// discard path is back and the refusal is needed again - so this test
+// failing is the signal to reinstate it, not to delete the assertion.
+const OWN = { version: 1, items: [{ widget: 'battery', span: 6 }, { widget: 'solar', span: 6 }] };
 
-assert.throws(
-  () => assertCompositionSupported({ home: { layout: { version: 1, items: [] } } }, ['adventure']),
-  LayoutError,
-  'a composition with no cockpit named was accepted',
-);
-ok('composition naming no cockpit is refused');
+// 'adventure' is the discriminating case and must stay in this list. It
+// is the only name with a built-in to lose to, so it is the only one
+// that fails if the precedence is ever reversed. Checked: inverting
+// resolveComposition to `builtin ?? themeLayout` leaves the other two
+// passing, because there is no built-in for them either way.
+for (const named of ['adventure', 'instrument', 'control']) {
+  assert.deepEqual(
+    resolveComposition(named, OWN), OWN,
+    `a theme naming "${named}" had its own composition discarded`,
+  );
+  ok(`own composition wins over the "${named}" base it extends`);
+}
 
-// And it must NOT refuse the supported case, or no package could ever
-// carry a layout.
-assertCompositionSupported({ home: { layout: { version: 1, items: [] } }, cockpit: 'adventure' }, ['adventure']);
-ok('composition for a supported cockpit is accepted');
+// Bringing none of its own, a Theme Definition inherits the built-in it
+// extends - which is what lets a tokens-only package work unchanged.
+assert.equal(
+  resolveComposition('adventure', undefined)?.items.length,
+  JSON.parse(readFileSync(join(builtinsDir, 'adventure.home.json'), 'utf8')).items.length,
+  'a theme with no composition did not inherit the built-in it extends',
+);
+ok('no own composition -> inherits the extended built-in');
+
+// And an appearance that is still a hand-written component resolves to
+// nothing, so Home falls back to it rather than rendering an empty grid.
+assert.equal(
+  resolveComposition('instrument', undefined), undefined,
+  'an unmigrated appearance resolved to a composition it does not have',
+);
+ok('unmigrated appearance resolves to undefined, not an empty layout');
 
 console.log(`\n${passed} checks passed`);

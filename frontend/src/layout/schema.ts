@@ -170,42 +170,27 @@ export function parseWidgetPresentation(
   return { presentation: out, skipped };
 }
 
-/**
- * Refuses a composition the selected cockpit cannot draw.
+/*
+ * THERE IS NO assertCompositionSupported, DELIBERATELY.
  *
- * WHY THIS IS FATAL RATHER THAN IGNORED. Before this check, a package
- * carrying home.layout while naming a cockpit with no renderer path was
- * validated by the browser, validated again by the Pi, stored, delivered
- * to the client, and then discarded with no error anywhere. Measured:
- * with the layout targeting Instrument, or with `cockpit` omitted (which
- * defaults to Instrument), the composition never reached a renderer.
+ * One lived here. It refused, at import, a package carrying home.layout
+ * while naming a cockpit with no renderer path - on the reasoning that
+ * such a composition was validated, stored, delivered and then silently
+ * discarded, and that accepting data and dropping it is not one of the
+ * two legitimate outcomes.
  *
- * There are two legitimate outcomes for data a system accepts - consume
- * it, or refuse it. Accepting and dropping it is not one of them.
+ * That reasoning described the code BEFORE the single themed path
+ * existed. It does not describe this one. resolveComposition is
+ * `themeLayout ?? builtinComposition(cockpitId)`, so a theme's own
+ * composition wins unconditionally, whatever it names, and Home has no
+ * cockpit test between resolution and render. Measured against the real
+ * modules: a definition naming `instrument` or `control` and carrying a
+ * layout resolves to THAT LAYOUT and is drawn by the generic renderer.
+ * Nothing is discarded, so there is nothing to refuse - the check was
+ * rejecting themes that work.
  *
- * `supported` is passed in rather than imported: this module stays free
- * of React and of the widget registry, which is what lets the theme
- * parser use it without a dependency cycle.
+ * `cockpit` is temporary compatibility and inheritance metadata: it says
+ * which built-in Theme Definition a package extends when it brings no
+ * composition of its own. It is not a rendering dependency and nothing
+ * below Validated Composition may consult it.
  */
-export function assertCompositionSupported(
-  definition: Record<string, unknown>,
-  supported: readonly string[],
-): void {
-  const home = definition.home;
-  const hasLayout =
-    home !== null && typeof home === 'object' && !Array.isArray(home) &&
-    (home as Record<string, unknown>).layout !== undefined;
-  if (!hasLayout) return;
-
-  const named = typeof definition.cockpit === 'string' ? definition.cockpit : undefined;
-  if (named && supported.includes(named)) return;
-
-  const list = supported.join(', ');
-  throw new LayoutError(
-    named
-      ? `This theme defines a Home composition, but the "${named.slice(0, 24)}" cockpit cannot draw one ` +
-        `in this version of VanOS. Cockpits that can: ${list}.`
-      : `This theme defines a Home composition but does not say which cockpit to draw it with, so it ` +
-        `would fall back to one that cannot. Add "cockpit": "${supported[0] ?? 'adventure'}" to theme.json.`,
-  );
-}

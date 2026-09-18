@@ -47,12 +47,18 @@ function load(): Record<string, LayoutDefinition> {
 
 export const BUILTIN_COMPOSITIONS: Record<string, LayoutDefinition> = load();
 
-/** Cockpit ids the generic renderer can draw. A cockpit NOT in here is
- *  still a hand-written component in this build, which is why a package
- *  carrying a composition and naming one is refused at import rather
- *  than accepted and quietly ignored. */
-export const COMPOSITION_COCKPITS: string[] = Object.keys(SOURCES);
-
+/**
+ * The built-in composition a Theme Definition INHERITS when it brings
+ * none of its own. Undefined means that appearance is still a
+ * hand-written component in this build, and Home falls back to it.
+ *
+ * `cockpitId` is the name a Theme Definition extends - temporary
+ * compatibility and inheritance metadata, nothing more. It is consulted
+ * HERE, at the Theme Definition step, and nowhere below Validated
+ * Composition. A package carrying its own composition never reaches
+ * this function at all, so what it names cannot decide whether its
+ * layout is drawn.
+ */
 export function builtinComposition(cockpitId: string): LayoutDefinition | undefined {
   return BUILTIN_COMPOSITIONS[cockpitId];
 }
