@@ -77,19 +77,26 @@ def check_connectivity_domain() -> None:
 def check_roof_position_claims() -> None:
     """There is no roof position sensor. OPEN/CLOSE as BUTTON LABELS is
     fine; presenting them as a known state is not."""
-    roof = SRC / "screens" / "Roof.tsx"
-    if not roof.is_file():
-        failures.append("screens/Roof.tsx is missing")
+    # Follows the roof UI wherever it lives. Phase 2 of the composable
+    # work moves telemetry cards into components/widgets/, and a guard
+    # that only greps screens/ would go on passing against a file that
+    # no longer drives the UI - the safety net lapsing exactly when the
+    # most is moving. Repointed BEFORE the roof becomes widget-driven,
+    # deliberately, rather than after.
+    sources = [SRC / "screens" / "Roof.tsx"] + sorted((SRC / "components" / "widgets").glob("*Roof*.tsx"))
+    present = [f for f in sources if f.is_file()]
+    if not present:
+        failures.append("no roof UI found in screens/ or components/widgets/")
         return
-    body = roof.read_text()
+    body = "\n".join(f.read_text() for f in present)
     if "UNKNOWN" not in body:
         failures.append(
-            "screens/Roof.tsx no longer shows position as UNKNOWN. There is no position "
+            "The roof UI no longer shows position as UNKNOWN. There is no position "
             "sensor - the app must never claim the roof is open or closed."
         )
     if not re.search(r"position sensor", body, re.I):
         failures.append(
-            "screens/Roof.tsx no longer explains that no position sensor is fitted."
+            "The roof UI no longer explains that no position sensor is fitted."
         )
 
 
@@ -97,14 +104,18 @@ def check_relay_state_claims() -> None:
     """Relays sit in parallel with physical wall switches with no sense
     line, so state is commanded and never measured. The Switches screen
     must say so."""
-    sw = SRC / "screens" / "Switches.tsx"
-    if not sw.is_file():
-        failures.append("screens/Switches.tsx is missing")
+    # Same reasoning as the roof check above: follow the relay UI into
+    # components/widgets/ when it moves there.
+    sources = [SRC / "screens" / "Switches.tsx"] + sorted((SRC / "components" / "widgets").glob("*Relay*.tsx")) \
+        + sorted((SRC / "components" / "widgets").glob("*Switch*.tsx"))
+    present = [f for f in sources if f.is_file()]
+    if not present:
+        failures.append("no relay UI found in screens/ or components/widgets/")
         return
-    body = sw.read_text()
+    body = "\n".join(f.read_text() for f in present)
     if not re.search(r"command|parallel|cannot measure", body, re.I):
         failures.append(
-            "screens/Switches.tsx no longer discloses that relay state is commanded, "
+            "The relay UI no longer discloses that relay state is commanded, "
             "not measured. Relays are wired in parallel with the wall switches."
         )
 
