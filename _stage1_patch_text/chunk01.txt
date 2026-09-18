@@ -1,0 +1,199 @@
+e mode 100644
+index bd0f61d..0000000
+--- a/frontend/src/components/cockpits/adventure.css
++++ /dev/null
+@@ -1,49 +0,0 @@
+-/* ADVENTURE — the cockpit's SURFACE, and nothing else.
+-   Phase 6, 18 Sep 2026.
+-
+-   Everything that used to be here - the hero, the card styling, the
+-   action tiles, the footer - is now owned by the widgets that draw it,
+-   and their arrangement is layout data. What is left is the surface the
+-   renderer measures and the private palette the widgets resolve against.
+-
+-   Rewritten by hand rather than pattern-matched out of the old file:
+-   removing a grouped selector with a regex twice deleted rules that
+-   were still needed, which measurement caught both times. */
+-
+-:root {
+-  --vm-ink-soft: rgb(var(--ink-soft));
+-  --vm-ink-faint: rgb(var(--ink-faint));
+-  --vm-bg: rgb(var(--surface-sunken));
+-  --vm-panel: rgb(var(--surface));
+-  --vm-panel2: rgb(var(--surface-raised));
+-  --vm-line: rgb(var(--line) / .28);
+-  --vm-cyan: rgb(var(--aurora-teal));
+-  --vm-teal: rgb(var(--aurora-lime));
+-  --vm-blue: rgb(var(--aurora-blue));
+-  --vm-yellow: rgb(var(--status-amber));
+-  --vm-orange: rgb(var(--brand-orange));
+-  --vm-text: rgb(var(--ink));
+-  --vm-muted: rgb(var(--ink-muted));
+-}
+-
+-/* The surface. useAutoFit measures this element, publishes --fit on it
+-   and raises data-fit-step when scaling is spent; the grid and the
+-   widgets inside respond to both. */
+-.vm-page {
+-  width: 100%;
+-  max-width: 1560px;
+-  margin: 0 auto;
+-  padding: 0 0 24px;
+-  color: var(--vm-text);
+-  container-type: inline-size;
+-  container-name: cockpit;
+-}
+-
+-/* Clearance for the bottom dock, which only exists below this width. */
+-@media (max-width: 760px) {
+-  .vm-page { padding-bottom: 80px; }
+-}
+-
+-/* In landscape the navigation is a side rail, so there is no dock to
+-   clear and the clearance would be pure lost height. */
+-html[data-layout='landscape'] .vm-page { padding-bottom: 6px; }
+diff --git a/frontend/src/layout/ThemedHome.tsx b/frontend/src/layout/ThemedHome.tsx
+new file mode 100644
+index 0000000..c872a6a
+--- /dev/null
++++ b/frontend/src/layout/ThemedHome.tsx
+@@ -0,0 +1,64 @@
++import { useAutoFit } from '@/lib/useAutoFit';
++import { useLayoutMode } from '@/lib/useLayoutMode';
++import { useCockpitTheme } from '@/lib/useCockpitTheme';
++import { LayoutRenderer } from './LayoutRenderer';
++import { builtinComposition } from './builtins';
++import type { LayoutDefinition } from './schema';
++
++/**
++ * THE SINGLE THEMED HOME PATH.
++ *
++ * Everything a composition needs in order to be drawn, and nothing that
++ * belongs to any particular appearance:
++ *
++ *   - the measured SURFACE, whose --fit and ladder step the grid and the
++ *     widgets respond to;
++ *   - the PRESENTATION STATE for the available surface;
++ *   - the COMPOSITION, from the selected theme or from the built-in it
++ *     names;
++ *   - the per-widget DRAWING the theme asked for.
++ *
++ * This replaces AdventureCockpit. That component did exactly these four
++ * things and nothing else, so keeping it would have left one appearance
++ * with a privileged React path while every other appearance had to come
++ * through data. Adventure is now a composition like any other.
++ */
++export function ThemedHome({ composition }: { composition: LayoutDefinition }) {
++  // Fitted in EVERY mode, portrait included. Disabling it in portrait
++  // was tried and reverted: on the face of it there is nothing to fit
++  // there, because the page scrolls and the ladder was taking Adventure
++  // to its 0.78 floor and shedding two rungs on a phone with room below
++  // the fold. But measured, the ladder turned out to be carrying the
++  // narrow column too - unfitted at 363px the 56px headline collides
++  // with the quote and the footer runs off the side. The widgets' own
++  // container queries are what should be handling that width, and until
++  // they do, --fit is the only thing holding portrait together.
++  // See tablet-panel-milestone: this is width work, not fit work.
++  const fitRef = useAutoFit<HTMLDivElement>();
++  const mode = useLayoutMode();
++  const { widgetPresentation } = useCockpitTheme();
++  // The renderer decides the state; widgets are told, and never inspect
++  // the layout mode themselves.
++  const state = mode === 'landscape' ? 'compact' : 'full';
++  return (
++    <div className="vl-surface" ref={fitRef}>
++      <LayoutRenderer layout={composition} state={state} presentation={widgetPresentation} />
++    </div>
++  );
++}
++
++/**
++ * Which composition a selected theme resolves to, or undefined when the
++ * theme names a cockpit this build still renders as a hand-written
++ * component.
++ *
++ * A theme's own composition wins. A theme without one inherits the
++ * composition of the built-in it names, which is what lets a
++ * colours-and-imagery-only package work unchanged.
++ */
++export function resolveComposition(
++  cockpitId: string,
++  themeLayout: LayoutDefinition | undefined,
++): LayoutDefinition | undefined {
++  return themeLayout ?? builtinComposition(cockpitId);
++}
+diff --git a/frontend/src/layout/builtins/adventure.home.json b/frontend/src/layout/builtins/adventure.home.json
+new file mode 100644
+index 0000000..e66088a
+--- /dev/null
++++ b/frontend/src/layout/builtins/adventure.home.json
+@@ -0,0 +1,15 @@
++{
++  "version": 1,
++  "items": [
++    { "widget": "hero", "span": 12 },
++    { "widget": "battery", "span": 3 },
++    { "widget": "solar", "span": 3 },
++    { "widget": "power-flow", "span": 3 },
++    { "widget": "weather", "span": 3 },
++    { "widget": "action-heater", "span": 3 },
++    { "widget": "action-roof", "span": 3 },
++    { "widget": "action-switches", "span": 3 },
++    { "widget": "action-camera", "span": 3 },
++    { "widget": "footer", "span": 12 }
++  ]
++}
+diff --git a/frontend/src/layout/builtins/index.ts b/frontend/src/layout/builtins/index.ts
+new file mode 100644
+index 0000000..119341f
+--- /dev/null
++++ b/frontend/src/layout/builtins/index.ts
+@@ -0,0 +1,58 @@
++import { WIDGET_IDS } from '@/components/widgets/registry';
++import { parseLayout, type LayoutDefinition } from '@/layout/schema';
++import adventureHome from './adventure.home.json';
++
++/**
++ * BUILT-IN COMPOSITIONS.
++ *
++ * A built-in appearance is a composition supplied by VanOS. It is not a
++ * privileged rendering path: the JSON below goes through the SAME
++ * parseLayout, against the SAME widget registry, as a composition that
++ * arrives inside an installed .vanos-theme.
++ *
++ * That is the whole point of putting these in JSON rather than leaving
++ * them as TypeScript object literals. A literal bypasses the validator,
++ * which means a built-in can express something a real package would be
++ * rejected for - and then the built-ins stop being proof that the
++ * schema works. Adventure's old ADVENTURE_HOME constant was exactly
++ * that: never validated, so never held to the rules it was meant to
++ * demonstrate.
++ *
++ * THE RULE THIS ENFORCES MECHANICALLY: if a built-in composition needs a
++ * capability, that capability is available to an installable package
++ * too, because there is one gate and both go through it.
++ *
++ * A built-in that fails validation is a BUILD BUG, not a runtime
++ * condition. tests/builtin-compositions.test.mjs asserts every one of
++ * them parses, so CI catches it. At runtime a failure is swallowed and
++ * logged rather than white-screening the van, because a cockpit that
++ * will not start is worse than one missing a panel.
++ */
++const SOURCES: Record<string, unknown> = {
++  adventure: adventureHome,
++};
++
++function load(): Record<string, LayoutDefinition> {
++  const out: Record<string, LayoutDefinition> = {};
++  for (const [id, raw] of Object.entries(SOURCES)) {
++    try {
++      out[id] = parseLayout(raw, WIDGET_IDS).layout;
++    } catch (err) {
++      // Never fatal - see the note above.
++      console.error(`[vanos] built-in composition "${id}" failed validation:`, err);
++    }
++  }
++  return out;
++}
++
++export const BUILTIN_COMPOSITIONS: Record<string, LayoutDef
