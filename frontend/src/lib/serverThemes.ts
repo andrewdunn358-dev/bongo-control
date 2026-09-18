@@ -1,6 +1,8 @@
 import { api } from '@/lib/api';
 import type { ServerTheme } from '@/lib/api';
 import type { CustomTheme } from '@/lib/customThemes';
+import { parseLayout } from '@/layout/schema';
+import { WIDGET_IDS } from '@/components/widgets/registry';
 
 /**
  * Themes installed on the Pi.
@@ -24,6 +26,18 @@ import type { CustomTheme } from '@/lib/customThemes';
 let cache: CustomTheme[] = [];
 const listeners = new Set<(t: CustomTheme[]) => void>();
 
+function parseThemeLayout(s: { homeLayout?: unknown }): Pick<CustomTheme, 'homeLayout' | 'unknownWidgets'> {
+  if (!s.homeLayout) return {};
+  try {
+    const { layout, skipped } = parseLayout(s.homeLayout, WIDGET_IDS);
+    return { homeLayout: layout, unknownWidgets: skipped.length ? skipped : undefined };
+  } catch {
+    // A stored layout this build cannot read must not take the theme
+    // down with it - the colours and imagery are still perfectly good.
+    return {};
+  }
+}
+
 function toCustomTheme(s: ServerTheme): CustomTheme {
   return {
     id: `custom:${s.id}`,
@@ -41,6 +55,12 @@ function toCustomTheme(s: ServerTheme): CustomTheme {
     serverId: s.id,
     heroCamera: s.heroCamera ?? undefined,
     cockpit: s.cockpit ?? undefined,
+    // The Home composition the theme defines. Re-validated here even
+    // though the Pi validated it on upload: this build owns the widget
+    // registry, so it is the only side that can tell whether the ids
+    // still exist. An unknown id is dropped with a note rather than
+    // breaking the page.
+    ...parseThemeLayout(s as unknown as { homeLayout?: unknown }),
   } as CustomTheme;
 }
 

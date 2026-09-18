@@ -1,5 +1,3 @@
-import { WIDGET_IDS } from '@/components/widgets/registry';
-
 /**
  * THE LAYOUT SCHEMA.
  *
@@ -12,6 +10,11 @@ import { WIDGET_IDS } from '@/components/widgets/registry';
  *
  *   schema   = allocation intent
  *   renderer = physical implementation
+ *
+ * The schema does NOT import the registry. It is handed the list of
+ * known widget ids instead, so this module stays free of React and of
+ * the widget components - which is what lets the theme parser use it
+ * without dragging the whole widget tree, or a cycle, along with it.
  *
  * Twelve columns is a LOGICAL grid, not a promise of twelve physical
  * columns on every screen. A span of 3 means "a quarter of the row when
@@ -52,7 +55,7 @@ export class LayoutError extends Error {}
  * and do throw - they mean the layout is trying to say something this
  * schema deliberately cannot express.
  */
-export function parseLayout(raw: unknown): { layout: LayoutDefinition; skipped: string[] } {
+export function parseLayout(raw: unknown, knownWidgets: readonly string[]): { layout: LayoutDefinition; skipped: string[] } {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     throw new LayoutError('A layout must be a JSON object.');
   }
@@ -86,7 +89,7 @@ export function parseLayout(raw: unknown): { layout: LayoutDefinition; skipped: 
     }
 
     if (typeof it.widget !== 'string') throw new LayoutError('Every layout item needs a "widget".');
-    if (!WIDGET_IDS.includes(it.widget)) {
+    if (!knownWidgets.includes(it.widget)) {
       skipped.push(it.widget.slice(0, 30));
       continue;
     }
