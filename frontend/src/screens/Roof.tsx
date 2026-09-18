@@ -157,10 +157,6 @@ export function Roof() {
             onError={() => setMessage('Roof movement video is not available on this build')}
           />
           <div className="cs-roof-photo-shade" />
-          <div className="cs-roof-photo-label">
-            <span>MAZDA BONGO FRIENDEE</span>
-            <small>POP-TOP CONTROL · LIVE MOVEMENT REFERENCE</small>
-          </div>
           <div className="cs-roof-live">
             <span>{active ? (active === 'up' ? 'OPENING REFERENCE' : 'CLOSING REFERENCE') : 'ROOF POSITION'}</span>
             <b>{active ? `${Math.round(visualPosition * 100)}%` : 'UNKNOWN'}</b>

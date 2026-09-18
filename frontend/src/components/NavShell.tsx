@@ -33,6 +33,7 @@ import { useCockpitTheme } from '@/lib/useCockpitTheme';
 import { api } from '@/lib/api';
 import { useBattery, useEnvironment } from '@/lib/telemetry';
 import { fmtVolt, fmtTemp, DASH } from '@/lib/format';
+import { useLayoutMode } from '@/lib/useLayoutMode';
 
 const BRAND = { sub: isDemo ? 'campervan dashboard' : 'van cockpit' };
 function BrandName() {
@@ -162,6 +163,13 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
   const now = useClock();
   const loc = useQuery({ queryKey: ['location'], queryFn: api.location, retry: false });
   const { effectiveStyle } = useNavigationStyle();
+
+  // The layout mode is published HERE, not in Home. The shell wraps every
+  // page; Home does not. Setting it from Home meant that opening /roof or
+  // /switches directly - or rotating while on them - left <html> with no
+  // data-layout at all, so every landscape rule in the app silently did
+  // nothing. Found by measuring the Roof page and seeing mode=None.
+  useLayoutMode();
 
   // Collapse the rail when the device is ROTATED into landscape, not
   // only when the app starts there. The initial state runs once on

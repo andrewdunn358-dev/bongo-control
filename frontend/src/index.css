@@ -662,3 +662,13 @@ html[data-layout='landscape'] .van-mainel h1 + div > p { display: none; }
 html[data-layout='landscape'] .van-mainel .num.text-4xl,
 html[data-layout='landscape'] .van-mainel .num.text-3xl { font-size: 34px; }
 html[data-layout='landscape'] .glass { padding: 10px; }
+
+/* The two safety notes are hidden in landscape, where a 325-450px
+   viewport cannot spare a paragraph. They remain on tablet and desktop,
+   and the honest indicators they support are always on screen whatever
+   the layout: the roof's ROOF POSITION / UNKNOWN readout, and the
+   switches' TOGGLE / SEND COMMAND wording. The claim is never made
+   anywhere; only the explanation of it is dropped where there is no
+   room for it. */
+html[data-layout='landscape'] .cs-safety-note,
+html[data-layout='landscape'] .sw-note { display: none; }
