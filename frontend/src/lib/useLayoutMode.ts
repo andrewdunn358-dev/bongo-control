@@ -9,8 +9,11 @@ import { useEffect, useState } from 'react';
  * same problem: one has 737px of height and a narrow column, the other
  * has 325px and a wide one.
  *
- *   wide       width >= 900. Tablet and desktop. Unchanged behaviour.
- *   landscape  width < 900 AND height < 500. A phone on its side.
+ *   landscape  height < 500, WHATEVER the width. A phone on its side -
+ *              real ones report about 1080x450, not the 730x325 this
+ *              was first built against - and equally a short desktop
+ *              window, which wants the same treatment.
+ *   wide       height >= 500 and width >= 900. Tablet and desktop.
  *   portrait   everything else. A phone upright.
  *
  * HEIGHT is what separates the two phone cases; width alone cannot see
@@ -30,8 +33,15 @@ const SHORT = '(max-height: 500px)';
 
 function read(): LayoutMode {
   if (typeof window === 'undefined') return 'wide';
-  if (window.matchMedia(WIDE).matches) return 'wide';
-  return window.matchMedia(SHORT).matches ? 'landscape' : 'portrait';
+  // HEIGHT IS TESTED FIRST, deliberately. Checking width first sent a
+  // phone in landscape down the 'wide' path whenever it reported 900px
+  // or more across - and a real phone does: measured 1080x450 on the
+  // device, not the 730x325 this was built against. It then got the
+  // full tablet composition (562px of cockpit) on a 389px content area.
+  // The constraint that matters is height; width only decides which
+  // SHORT layout applies.
+  if (window.matchMedia(SHORT).matches) return 'landscape';
+  return window.matchMedia(WIDE).matches ? 'wide' : 'portrait';
 }
 
 export function useLayoutMode(): LayoutMode {

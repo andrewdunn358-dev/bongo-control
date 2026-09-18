@@ -627,3 +627,38 @@ html[data-layout='portrait'] .vs-header {
   padding-bottom: 7px;
 }
 html[data-layout='portrait'] .vs-clock .num { font-size: 16px; }
+
+/* EVERY PAGE GETS THE COMPACT TREATMENT IN LANDSCAPE, not just Home.
+   Measured at 1080x450 with 389px of content area: every screen spends
+   48-96px on its title block before showing anything, and Power,
+   Nearby, History, Trips and Settings all scroll. The cockpit work so
+   far only ever touched Home, which is the fair complaint - the app is
+   fourteen screens.
+   This is one shared rule set rather than fourteen bespoke ones: the
+   page furniture every screen has in common. Long pages still scroll,
+   which is correct for Settings and History; they just stop spending a
+   quarter of a short viewport on a heading first. */
+html[data-layout='landscape'] .van-shell > .van-mainel {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+html[data-layout='landscape'] .van-mainel h1 {
+  font-size: 26px;
+  line-height: 1.1;
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+html[data-layout='landscape'] .van-mainel h2 { font-size: 18px; }
+/* The descriptive line under a page title is orientation copy, not a
+   reading. It sits in the same wrapper as the h1, not as its sibling -
+   `h1 + p` missed it, which the render showed. */
+html[data-layout='landscape'] .van-mainel h1 ~ p,
+html[data-layout='landscape'] .van-mainel h1 + div > p { display: none; }
+
+/* Display numerals are set with lg: Tailwind steps, so on a 1080px-wide
+   phone they resolve to their DESKTOP size - 60px - on a 411px content
+   area. Capped, not removed: the figure is the reading, and 34px is
+   still three times the label scale beside it. */
+html[data-layout='landscape'] .van-mainel .num.text-4xl,
+html[data-layout='landscape'] .van-mainel .num.text-3xl { font-size: 34px; }
+html[data-layout='landscape'] .glass { padding: 10px; }
