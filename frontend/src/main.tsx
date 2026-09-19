@@ -11,11 +11,11 @@ import '@/components/widgets/widgets.css';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { App } from '@/App';
 import { ThemeProvider } from '@/lib/theme';
-import { adoptTokenFromUrl } from '@/lib/localFallback';
+import { adoptMoveParams } from '@/lib/connection';
 
-// Arriving from the internet copy of the app by its local fallback: take
+// Arriving by a local/remote connection switch (lib/connection.ts): take
 // over the login it carried, before anything checks for one.
-adoptTokenFromUrl();
+adoptMoveParams();
 
 const qc = new QueryClient({
   defaultOptions: {

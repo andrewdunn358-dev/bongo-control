@@ -10,7 +10,7 @@ import logging
 import os
 import signal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from app.api.routes.auth import require_app_token
 
@@ -105,17 +105,65 @@ def _lan_ipv4() -> str | None:
     return None if ip.startswith("127.") else ip
 
 
-@router.get("/local-address")
-async def local_address() -> dict:
-    """Where this van's app can be reached WITHOUT the internet: its
-    address on the van's own network. The app remembers it while online,
-    and switches to it by itself when the internet address stops
-    answering (see frontend lib/localFallback.ts).
+def _own_ipv6_prefixes() -> set[str]:
+    """The /64 networks this Pi has global IPv6 addresses in - i.e. the
+    van's own network, as the router hands it out. Read from the kernel
+    (the backend runs with host networking, so these are the Pi's)."""
+    prefixes: set[str] = set()
+    try:
+        with open("/proc/net/if_inet6") as f:
+            for line in f:
+                parts = line.split()
+                addr, scope = parts[0], parts[3]
+                if scope == "00":  # global scope only
+                    prefixes.add(addr[:16])  # first 64 bits, as hex
+    except OSError:
+        pass
+    return prefixes
 
-    Behind the app token like the rest of /api/system: it reveals nothing
-    much, but there is no reason to hand it to anyone who finds the
-    public hostname.
+
+def _same_network(client_ip: str | None) -> bool:
+    """Is this request from a device on the van's own network, arriving
+    the long way round (out through the router, Cloudflare, the tunnel)?
+
+    Decided ONLY from IPv6, where it is certain: every device on the
+    van's network shares the router's /64. IPv4 is not used - behind the
+    mobile carrier's shared NAT, strangers (or the same phone on its own
+    mobile data) can share the van's public IPv4, and a wrong "yes" would
+    send the phone to a local address it cannot reach.
     """
-    ip = _lan_ipv4()
-    port = os.environ.get("VANOS_LOCAL_PORT", "8090")
-    return {"url": f"http://{ip}:{port}" if ip else None}
+    import ipaddress
+
+    if not client_ip:
+        return False
+    try:
+        ip = ipaddress.ip_address(client_ip.strip())
+    except ValueError:
+        return False
+    if ip.version != 6 or not ip.is_global:
+        return False
+    return ip.exploded.replace(":", "")[:16] in _own_ipv6_prefixes()
+
+
+@router.get("/local-address")
+async def local_address(request: Request) -> dict:
+    """Where this van's app can be reached directly on the van's own
+    network, and whether the caller is on that network right now.
+
+    The app prefers the direct address (faster, needs no internet) and
+    uses this to decide - see frontend lib/connection.ts.
+
+    VANOS_LOCAL_URL overrides the detected address.
+    """
+    url = os.environ.get("VANOS_LOCAL_URL") or None
+    if not url:
+        ip = _lan_ipv4()
+        port = os.environ.get("VANOS_LOCAL_PORT", "8090")
+        url = f"http://{ip}:{port}" if ip else None
+    # Cloudflare sets CF-Connecting-IP to the real client and overwrites
+    # any value a client sends, so through the tunnel it can be trusted.
+    # A request that did not come through the tunnel is already local.
+    return {
+        "url": url,
+        "same_network": _same_network(request.headers.get("cf-connecting-ip")),
+    }

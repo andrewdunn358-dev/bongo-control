@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { connectionMode } from '@/lib/connection';
 import { NavLink } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import brandMark from '../assets/brand-mark.png';
@@ -265,11 +266,23 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
               <StatusPill tone="purple" data-testid={NAV.wsIndicator}>DEMO · view source</StatusPill>
             </a>
           ) : (
+            <>
+            {/* Which road this page takes to the Pi - lib/connection.ts. */}
+            {connectionMode() === 'local' ? (
+              <StatusPill tone="teal" title="LOCAL — Direct to VanOS Pi">
+                LOCAL<span className="hidden sm:inline"> — Direct to VanOS Pi</span>
+              </StatusPill>
+            ) : (
+              <StatusPill tone="purple" title="REMOTE — via the internet">
+                REMOTE<span className="hidden sm:inline"> — via the internet</span>
+              </StatusPill>
+            )}
             <StatusPill
               tone={wsConnected ? 'teal' : 'red'}
               data-testid={NAV.wsIndicator}
               title={wsConnected ? 'Live telemetry connected' : getTelemetryCloseReason() ?? 'Connecting…'}
             >{wsConnected ? 'LIVE' : 'OFFLINE'}</StatusPill>
+            </>
           )}
         </div>
       </header>
