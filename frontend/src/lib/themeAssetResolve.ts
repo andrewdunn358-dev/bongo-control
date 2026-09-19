@@ -13,10 +13,10 @@
  * WHY BOTH. A previous version fell back to a conventional filename
  * (battery -> assets/battery.jpg) when a role was not declared, and
  * returned that URL without knowing whether the file was in the
- * package. A filename is not evidence of a file. The illustrated
- * graphics draw a packaged image INSTEAD of themselves whenever they
- * are handed one, so every installed theme lost its illustrated SVGs to
- * a guessed path - either the package's own picture, or a 404.
+ * package. A filename is not evidence of a file. A packaged image
+ * replaces a widget's drawing (layout/graphicChoice.ts), so every
+ * installed theme lost its illustrated SVGs to a guessed path - either
+ * the package's own picture, or a 404.
  *
  * Declaration alone is not enough either: the Pi validates that every
  * file in a package is an allowed type, but not that each path in the

@@ -63,6 +63,29 @@ export const PRESENTATION_TABLES: Record<string, Record<string, VariantEnvelope>
   },
 };
 
+/**
+ * THE DRAWING A GRAPHIC WIDGET USES WHEN THE THEME CHOOSES NONE.
+ *
+ * The animated illustrations, for every theme - including the
+ * built-in ones and a colours-only package. Still subject to the same
+ * size envelope as any other variant, so a slot too small for one gets
+ * the standard drawing rather than a squeezed one.
+ *
+ * A theme that wants the plain drawing names "standard" explicitly.
+ */
+export const DEFAULT_VARIANTS: Record<string, string> = {
+  battery: 'illustrated',
+  solar: 'illustrated',
+  weather: 'illustrated',
+  'power-flow': 'illustrated',
+};
+
+/** Widgets whose drawing is a GRAPHIC - chosen by the precedence in
+ *  layout/graphicChoice.ts, and replaceable by a packaged image. The
+ *  asset role for each is its widget id. Action tiles are not here: they
+ *  are presentation styles, and their packaged photos are backgrounds. */
+export const GRAPHIC_WIDGETS = new Set(Object.keys(DEFAULT_VARIANTS));
+
 /** The envelope tables the renderer resolves against, per widget id. */
 export const VARIANT_TABLES: Record<string, Record<string, VariantEnvelope>> = {
   battery: BATTERY_GRAPHICS,

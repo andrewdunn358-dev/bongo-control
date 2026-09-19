@@ -1,13 +1,12 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Thermometer } from 'lucide-react';
-import { useThemeAssets } from '@/lib/useThemeAssets';
-
 import { api } from '@/lib/api';
 import { useEnvironment, useWeather } from '@/lib/telemetry';
 import { fmtTemp, DASH } from '@/lib/format';
 import { DataRow } from './shared';
-import { WEATHER_GRAPHICS, pick } from './graphics/registry';
+import { WEATHER_GRAPHICS } from './graphics/registry';
+import { GraphicSlot, choiceFromVariant } from './graphics/GraphicSlot';
 import type { WidgetProps } from './types';
 
 /** PHASE 2 NOTE: this widget still renders Adventure's vm-* classes,
@@ -19,9 +18,7 @@ import type { WidgetProps } from './types';
  *  TRUTH: the temperature is a real DS18B20 reading; the tomorrow
  *  radiation ratio is a FORECAST and is labelled relative to today
  *  rather than presented as measurement. */
-export function WeatherWidget({ state = 'full', variant }: WidgetProps) {
-  const WeatherArt = pick(WEATHER_GRAPHICS, variant);
-  const { asset } = useThemeAssets();
+export function WeatherWidget({ state = 'full', variant, graphic }: WidgetProps) {
   const env = useEnvironment(), weather = useWeather();
   const loc = useQuery({ queryKey: ['location'], queryFn: api.location, retry: false });
   const wp = weather.payload;
@@ -36,7 +33,17 @@ export function WeatherWidget({ state = 'full', variant }: WidgetProps) {
           <span className="vw-eyebrow">OUTSIDE</span>
           <h3>Weather</h3>
         </div>
-        <WeatherArt condition={weatherDescription} size={42} asset={asset('weather', '') || undefined} />
+        <GraphicSlot
+          table={WEATHER_GRAPHICS}
+          choice={graphic ?? choiceFromVariant(variant)}
+          artClass="weather"
+          alt={weatherDescription || 'Weather'}
+          props={{
+            condition: weatherDescription,
+            size: 42,
+            tempC: env.payload?.external_temp_c ?? null,
+          }}
+        />
       </div>
       <div className="vw-weather-main">
         <div>

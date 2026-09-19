@@ -110,6 +110,10 @@ jobs:
           npm run test:variants
           npm run test:builtins
           npm run test:assets
+          # Called directly, not through an npm script: any edit to
+          # package.json invalidates the Pi's `npm ci` layer and costs a
+          # full dependency reinstall on the next deploy.
+          node tests/graphic-choice.test.mjs
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
