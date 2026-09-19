@@ -1,4 +1,10 @@
-FROM node:20-slim AS build
+# The build stage runs on the BUILDING machine's own architecture, not the
+# Pi's. Its output is static HTML/JS/CSS - identical whatever CPU made it -
+# so there is no reason to compile it under emulation. On GitHub this is
+# what makes the image fast to produce: npm ci and vite run natively on the
+# runner, and only the tiny nginx stage below is the Pi's architecture.
+# Built on the Pi itself, BUILDPLATFORM is the Pi, so nothing changes there.
+FROM --platform=$BUILDPLATFORM node:20-slim AS build
 
 WORKDIR /app
 

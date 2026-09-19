@@ -5,9 +5,18 @@
 ```
 cd ~/bongo-control
 git pull
+docker compose pull frontend
 docker compose stop backend
 docker compose --profile cloudflare-tunnel up -d --build --remove-orphans
 ```
+
+**The frontend is not built on the Pi.** GitHub builds it (see
+`.github/workflows/images.yml`) once the Safety gate passes on `main`, and
+`docker compose pull frontend` downloads only the layers that changed - a
+couple of MB, instead of a 9+ minute compile on a Pi 2. So after merging,
+**wait for the "Build Pi images" run to go green** before deploying, or
+the pull fetches the previous build. `--build` now only builds the
+backend, which is cached unless backend code changed.
 
 **The `docker compose stop backend` step matters and isn't optional** —
 see below for why. Frontend and cloudflared don't need this; only
@@ -17,6 +26,7 @@ If you're not running the Cloudflare tunnel on this box, drop that
 profile flag:
 
 ```
+docker compose pull frontend
 docker compose stop backend
 docker compose up -d --build
 ```
