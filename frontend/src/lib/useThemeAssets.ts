@@ -1,6 +1,7 @@
 import { api } from '@/lib/api';
 import { getServerThemes, onServerThemesChanged } from '@/lib/serverThemes';
 import { useCockpitTheme } from '@/lib/useCockpitTheme';
+import { createAssetProbe, probeDeclaredAssets, resolveThemeAsset } from '@/lib/themeAssetResolve';
 import { useEffect, useState } from 'react';
 
 /**
@@ -8,32 +9,35 @@ import { useEffect, useState } from 'react';
  *
  * A theme package can carry images and name them by ROLE:
  *
- *   "assets": { "hero": "assets/hero.jpg", "camera": "assets/camera.jpg" }
+ *   "assets": { "hero": "assets/hero.jpg", "battery": "assets/battery.jpg" }
  *
  * A cockpit asks for a role and gets back either a URL served from the
  * Pi, or the built-in fallback. It never asks for an arbitrary path.
  *
- * Backward compatibility: early VanOS theme packages could contain
- * widget artwork files without listing every widget role in the
- * "assets" map. For the bounded widget artwork roles below, an omitted
- * role falls back to the package's conventional filename. This lets
- * those already-installed packages use the artwork they already contain;
- * explicit role mappings always win.
+ * A packaged image is used only when the theme DECLARES it for that role
+ * and it has been confirmed to EXIST - see themeAssetResolve.ts. There
+ * is no conventional-filename fallback: a guessed path such as
+ * assets/battery.jpg suppressed the built-in illustrated graphics on
+ * every installed theme, whether or not the package contained the file.
  *
  * Images are served by the backend with a Content-Type from an
  * allow-list and used here as a CSS background or an <img> src only -
  * never inlined - so an SVG in a theme cannot execute anything.
  */
 
-const CONVENTIONAL_ROLE_ASSETS: Record<string, string> = {
-  battery: 'assets/battery.jpg',
-  solar: 'assets/solar.jpg',
-  weather: 'assets/weather.jpg',
-  'power-flow': 'assets/power-flow.jpg',
-  heater: 'assets/heater.jpg',
-  roof: 'assets/roof.jpg',
-  switches: 'assets/switches.jpg',
-};
+/** Loads an image to find out whether it is really there. Shared by
+ *  every widget on the page, so each asset is fetched once. The browser
+ *  caches the response, so the image the widget then shows costs no
+ *  second download. */
+const probe = createAssetProbe(
+  (url) =>
+    new Promise<boolean>((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(true);
+      img.onerror = () => resolve(false);
+      img.src = url;
+    }),
+);
 
 export function useThemeAssets(): {
   asset: (role: string, fallback: string) => string;
@@ -47,20 +51,25 @@ export function useThemeAssets(): {
   // The server theme list arrives asynchronously; re-render when it
   // does so imagery appears rather than waiting for a navigation.
   useEffect(() => onServerThemesChanged(() => tick((n) => n + 1)), []);
+  // Likewise when an asset check comes back.
+  useEffect(() => probe.subscribe(() => tick((n) => n + 1)), []);
 
   const theme = themeId.startsWith('custom:')
     ? getServerThemes().find((t) => t.id === themeId)
     : undefined;
 
+  // Check every asset the theme declares, and nothing it does not. Until
+  // an answer arrives the role shows its built-in drawing; a confirmed
+  // image then replaces it.
+  const serverId = theme?.serverId;
+  const declared = theme?.assets;
+  useEffect(() => {
+    probeDeclaredAssets({ serverId, assets: declared }, api.themeAssetUrl, probe);
+  }, [serverId, declared]);
+
   return {
-    asset: (role: string, fallback: string): string => {
-      if (!theme?.serverId) return fallback;
-
-      const path = theme.assets?.[role] ?? CONVENTIONAL_ROLE_ASSETS[role];
-      if (!path) return fallback;
-
-      return api.themeAssetUrl(theme.serverId, path);
-    },
+    asset: (role: string, fallback: string): string =>
+      resolveThemeAsset(theme, role, api.themeAssetUrl, probe.status) ?? fallback,
     heroCamera: theme?.heroCamera ?? true,
   };
 }
