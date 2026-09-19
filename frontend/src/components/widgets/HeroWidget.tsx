@@ -23,7 +23,7 @@ export function HeroWidget({ state = 'full' }: WidgetProps) {
   const eyebrow = heroContent?.eyebrow ?? 'MAZDA BONGO · VANOS';
   const title = heroContent?.title ?? 'Adventure\\nlooks good\\non you.';
   const subtitle = heroContent?.subtitle ?? 'Explore · Relax · Disconnect · Repeat';
-  const quote = heroContent?.quote ?? '“Not all those who wander are lost.”';
+  const quote = heroContent?.quote ?? '“Not all those who wander\nare lost.”';
   const quoteAuthor = heroContent?.quoteAuthor ?? 'J.R.R. Tolkien';
   return (
     <section className="vw-hero" data-vw-state={state}>
@@ -32,14 +32,16 @@ export function HeroWidget({ state = 'full' }: WidgetProps) {
         <div className="vw-hero-overlay" />
         <div className="vw-hero-copy">
           <span className="vw-hero-eyebrow">{eyebrow}</span>
-          <h2>{title.split(/\\n|\\r\\n/).map((line, i) => (
+          <h2>{title.split(/(?:\r\n|\n|\\r\\n|\\n)/g).map((line, i) => (
             <span key={i}>{line}{i < title.split(/\\n|\\r\\n/).length - 1 ? <br /> : null}</span>
           ))}</h2>
           <div className="vw-hero-rule" />
           <p>{subtitle}</p>
         </div>
         <div className="vw-quote">
-          {quote}<small>{quoteAuthor}</small>
+          {quote.split(/(?:\r\n|\n|\\r\\n|\\n)/g).map((line, i) => (
+            <span key={i}>{line}{i < quote.split(/(?:\r\n|\n|\\r\\n|\\n)/g).length - 1 ? <br /> : null}</span>
+          ))}<small>{quoteAuthor}</small>
         </div>
       </div>
     </section>
