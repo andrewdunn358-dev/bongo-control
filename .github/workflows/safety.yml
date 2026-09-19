@@ -114,6 +114,7 @@ jobs:
           # package.json invalidates the Pi's `npm ci` layer and costs a
           # full dependency reinstall on the next deploy.
           node tests/graphic-choice.test.mjs
+          node tests/time-to-full.test.mjs
         working-directory: frontend
       - run: npm run build
         working-directory: frontend

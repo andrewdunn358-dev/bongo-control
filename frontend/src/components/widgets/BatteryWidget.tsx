@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { hasShunt, useBattery, useEnvironment, useSparkBuffer } from '@/lib/telemetry';
 import { fmtVolt, fmtTemp, fmtPct, DASH } from '@/lib/format';
 import type { BatteryPayload } from '@/lib/types';
+import { RESTING_CURRENT_A, timeToFullMins } from '@/lib/batteryDerive';
 import { Spark, DataRow } from './shared';
 import { BATTERY_GRAPHICS } from './graphics/registry';
 import { GraphicSlot, choiceFromVariant } from './graphics/GraphicSlot';
@@ -31,7 +32,7 @@ export function BatteryWidget({ state = 'full', variant, graphic }: WidgetProps)
   const topPred = brief?.predictions?.[0];
   const predictedUsage = topPred?.value == null ? DASH : `${topPred.value}${topPred.unit ? ` ${topPred.unit}` : ''}`;
   const batteryState =
-    bp == null ? DASH : bp.charging ? 'CHARGING' : bp.current_a != null && Math.abs(bp.current_a) < 0.2 ? 'RESTING' : 'DISCHARGING';
+    bp == null ? DASH : bp.charging ? 'CHARGING' : bp.current_a != null && Math.abs(bp.current_a) < RESTING_CURRENT_A ? 'RESTING' : 'DISCHARGING';
   // Shunt-only readings are handed to the graphic only when a shunt is
   // fitted, per hasShunt() - so a graphic can never draw a current the
   // van did not measure.
@@ -60,6 +61,7 @@ export function BatteryWidget({ state = 'full', variant, graphic }: WidgetProps)
             currentA: shunt ? bp?.current_a ?? null : null,
             powerW: shunt ? bp?.power_w ?? null : null,
             timeRemainingMins: shunt ? bp?.time_remaining_mins ?? null : null,
+            timeToFullMins: timeToFullMins(bp),
           }}
         />
         <div className="vw-battery-value">
