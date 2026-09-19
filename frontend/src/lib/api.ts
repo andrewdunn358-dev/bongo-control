@@ -442,5 +442,7 @@ export interface ServerTheme {
   cockpit?: string | null;
   /** null = use the cockpit's default (live camera in the hero). */
   heroCamera?: boolean | null;
+  /** Optional copy for the Home hero. */
+  heroContent?: { eyebrow?: string; title?: string; subtitle?: string; quote?: string; quoteAuthor?: string } | null;
   sizeBytes: number;
 }
