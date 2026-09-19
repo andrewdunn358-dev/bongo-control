@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test:maps": "bash scripts/test-offline-maps.sh",
     "test:variants": "node tests/variant-fit.test.mjs",
-    "test:builtins": "node tests/builtin-compositions.test.mjs"
+    "test:builtins": "node tests/builtin-compositions.test.mjs",
+    "test:assets": "node tests/theme-assets.test.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.0",
