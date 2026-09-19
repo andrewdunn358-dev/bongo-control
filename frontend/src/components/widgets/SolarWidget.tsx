@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Sun } from 'lucide-react';
+import { useThemeAssets } from '@/lib/useThemeAssets';
 
 import { useSolar, useSparkBuffer } from '@/lib/telemetry';
 import { fmtWatt, DASH } from '@/lib/format';
@@ -17,6 +18,7 @@ import type { WidgetProps } from './types';
  *  nothing here should imply otherwise. */
 export function SolarWidget({ state = 'full', variant }: WidgetProps) {
   const SolarArt = pick(SOLAR_GRAPHICS, variant);
+  const { asset } = useThemeAssets();
   const solar = useSolar();
   const solarSeries = useSparkBuffer<SolarPayload>('solar', (p) => p.watts);
   const sp = solar.payload;
@@ -31,7 +33,7 @@ export function SolarWidget({ state = 'full', variant }: WidgetProps) {
         <Sun size={27} className="vw-sun" />
       </div>
       <div className="vw-solar-visual">
-        <SolarArt size={74} active={Boolean(sp?.watts)} />
+        <SolarArt size={74} active={Boolean(sp?.watts)} asset={asset('solar', '') || undefined} />
         <div>
           <strong>{fmtWatt(sp?.watts)}</strong>
           <span>{sp?.watts ? 'GENERATING' : (sp?.charge_state || 'OFF').toUpperCase()}</span>
