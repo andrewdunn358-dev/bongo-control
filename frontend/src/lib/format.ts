@@ -123,3 +123,13 @@ export function wmoLabel(code: number | null | undefined): string {
   if (code >= 95) return 'Thunder';
   return 'Unknown';
 }
+
+/** Minutes as "2h 14m" / "45m" / "0m". Unknown (null) renders as DASH,
+ *  never as zero - zero is a real answer ("already full"). */
+export function fmtDuration(mins: number | null | undefined): string {
+  if (!finite(mins) || mins < 0) return DASH;
+  const total = Math.round(mins);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}

@@ -47,6 +47,11 @@ export interface BatteryGraphicProps {
   powerW?: number | null;
   /** The shunt's estimate of time to empty, in minutes. Shunt only. */
   timeRemainingMins?: number | null;
+  /** ESTIMATED minutes to full at the current charge rate (see
+   *  lib/batteryDerive.ts): 0 when full, null whenever it can't honestly
+   *  be worked out - not charging, no state of charge, no capacity, no
+   *  measured charge current. Show null as unknown, never as a number. */
+  timeToFullMins?: number | null;
 }
 
 /** SOLAR. */
