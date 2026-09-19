@@ -11,14 +11,30 @@ import { useEffect, useState } from 'react';
  *   "assets": { "hero": "assets/hero.jpg", "camera": "assets/camera.jpg" }
  *
  * A cockpit asks for a role and gets back either a URL served from the
- * Pi, or the built-in fallback. It never asks for a path, so a theme
- * cannot point a cockpit at something arbitrary, and a theme that omits
- * an image simply keeps the default rather than rendering an empty box.
+ * Pi, or the built-in fallback. It never asks for an arbitrary path.
+ *
+ * Backward compatibility: early VanOS theme packages could contain
+ * widget artwork files without listing every widget role in the
+ * "assets" map. For the bounded widget artwork roles below, an omitted
+ * role falls back to the package's conventional filename. This lets
+ * those already-installed packages use the artwork they already contain;
+ * explicit role mappings always win.
  *
  * Images are served by the backend with a Content-Type from an
  * allow-list and used here as a CSS background or an <img> src only -
  * never inlined - so an SVG in a theme cannot execute anything.
  */
+
+const CONVENTIONAL_ROLE_ASSETS: Record<string, string> = {
+  battery: 'assets/battery.jpg',
+  solar: 'assets/solar.jpg',
+  weather: 'assets/weather.jpg',
+  'power-flow': 'assets/power-flow.jpg',
+  heater: 'assets/heater.jpg',
+  roof: 'assets/roof.jpg',
+  switches: 'assets/switches.jpg',
+};
+
 export function useThemeAssets(): {
   asset: (role: string, fallback: string) => string;
   /** false when the theme wants its own hero imagery instead of the
@@ -38,8 +54,11 @@ export function useThemeAssets(): {
 
   return {
     asset: (role: string, fallback: string): string => {
-      const path = theme?.assets?.[role];
-      if (!theme?.serverId || !path) return fallback;
+      if (!theme?.serverId) return fallback;
+
+      const path = theme.assets?.[role] ?? CONVENTIONAL_ROLE_ASSETS[role];
+      if (!path) return fallback;
+
       return api.themeAssetUrl(theme.serverId, path);
     },
     heroCamera: theme?.heroCamera ?? true,
