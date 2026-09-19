@@ -156,9 +156,17 @@ services:
     # changed blind, since getting it wrong silently breaks relays/BLE/camera.
 
   frontend:
-    build:
-      context: .
-      dockerfile: docker/frontend.Dockerfile
+    # BUILT ON GITHUB, not on the Pi. .github/workflows/images.yml builds
+    # this image for the Pi's architecture after the Safety gate passes on
+    # main, and the Pi downloads it: a frontend change costs a couple of MB
+    # instead of a 9+ minute compile on a Pi 2. There is deliberately no
+    # `build:` here - with one, `up --build` would recompile it locally
+    # anyway and throw the saving away.
+    #
+    # To build it on the Pi instead (no network, say):
+    #   docker build -f docker/frontend.Dockerfile \
+    #     -t ghcr.io/andrewdunn358-dev/bongo-control-frontend:latest .
+    image: ghcr.io/andrewdunn358-dev/bongo-control-frontend:latest
     ports:
       - "8090:80"
     volumes:
