@@ -325,6 +325,22 @@ def validate_package(data: bytes) -> dict[str, Any]:
     if preview and preview not in assets:
         raise ThemeError(f"The manifest names a preview ({preview}) that is not in the package.")
 
+    hero = definition.get("hero")
+    hero_copy = None
+    if isinstance(hero, dict):
+        def clean_hero(key: str, limit: int) -> str:
+            value = hero.get(key)
+            return value[:limit] if isinstance(value, str) else ""
+        hero_copy = {
+            "eyebrow": clean_hero("eyebrow", 80),
+            "title": clean_hero("title", 120),
+            "subtitle": clean_hero("subtitle", 160),
+            "quote": clean_hero("quote", 180),
+            "quoteAuthor": clean_hero("quoteAuthor", 80),
+        }
+        if not any(hero_copy.values()):
+            hero_copy = None
+
     return {
         "id": _slug(name),
         "name": name,
@@ -347,6 +363,7 @@ def validate_package(data: bytes) -> dict[str, Any]:
             if isinstance(definition.get("cockpit"), str) and definition["cockpit"] in COCKPIT_LAYOUTS
             else None
         ),
+        "heroContent": hero_copy,
         "heroCamera": (
             bool(definition["home"]["heroCamera"])
             if isinstance(definition.get("home"), dict) and isinstance(definition["home"].get("heroCamera"), bool)
