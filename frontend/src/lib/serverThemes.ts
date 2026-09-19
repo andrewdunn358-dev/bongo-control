@@ -67,6 +67,7 @@ function toCustomTheme(s: ServerTheme): CustomTheme {
     /** Bare id, needed to build asset URLs against the Pi. */
     serverId: s.id,
     heroCamera: s.heroCamera ?? undefined,
+    heroContent: s.heroContent ?? undefined,
     cockpit: s.cockpit ?? undefined,
     // The Home composition the theme defines. Re-validated here even
     // though the Pi validated it on upload: this build owns the widget
