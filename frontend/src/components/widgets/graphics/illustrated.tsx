@@ -114,10 +114,9 @@ export function IllustratedWeather({ condition, size, asset }: WeatherGraphicPro
   );
 }
 
-export function IllustratedPowerFlow({ solarWatts, loadWatts, netWatts, asset }: PowerFlowGraphicProps) {
+export function IllustratedPowerFlow({ solarWatts, loadWatts, asset }: PowerFlowGraphicProps) {
   const incoming = Number(solarWatts || 0) > 0;
   const outgoing = Number(loadWatts || 0) > 0;
-  const balanced = Number(netWatts || 0);
   if (asset) {
     return <img className="vw-theme-art vw-theme-art-power" src={asset} alt="Solar to battery to systems power flow" />;
   }
