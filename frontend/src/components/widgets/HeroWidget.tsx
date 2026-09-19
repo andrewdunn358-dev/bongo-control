@@ -25,6 +25,11 @@ export function HeroWidget({ state = 'full' }: WidgetProps) {
   const subtitle = heroContent?.subtitle ?? 'Explore · Relax · Disconnect · Repeat';
   const quote = heroContent?.quote ?? '“Not all those who wander\nare lost.”';
   const quoteAuthor = heroContent?.quoteAuthor ?? 'J.R.R. Tolkien';
+  // Split ONCE and use the same lines for the text and the breaks. A theme
+  // writes a line break in JSON as \n, which arrives as a real newline;
+  // the literal backslash-n form is accepted too.
+  const titleLines = splitHeroLines(title);
+  const quoteLines = splitHeroLines(quote);
   return (
     <section className="vw-hero" data-vw-state={state}>
       <div className="vw-hero-photo">
@@ -32,18 +37,22 @@ export function HeroWidget({ state = 'full' }: WidgetProps) {
         <div className="vw-hero-overlay" />
         <div className="vw-hero-copy">
           <span className="vw-hero-eyebrow">{eyebrow}</span>
-          <h2>{title.split(/(?:\r\n|\n|\\r\\n|\\n)/g).map((line, i) => (
-            <span key={i}>{line}{i < title.split(/\\n|\\r\\n/).length - 1 ? <br /> : null}</span>
+          <h2>{titleLines.map((line, i) => (
+            <span key={i}>{line}{i < titleLines.length - 1 ? <br /> : null}</span>
           ))}</h2>
           <div className="vw-hero-rule" />
           <p>{subtitle}</p>
         </div>
         <div className="vw-quote">
-          {quote.split(/(?:\r\n|\n|\\r\\n|\\n)/g).map((line, i) => (
-            <span key={i}>{line}{i < quote.split(/(?:\r\n|\n|\\r\\n|\\n)/g).length - 1 ? <br /> : null}</span>
-          ))}<small>{quoteAuthor}</small>
+          {quoteLines.map((line, i) => (
+            <span key={i}>{line}{i < quoteLines.length - 1 ? <br /> : null}</span>
+          ))}{quoteAuthor ? <small>{quoteAuthor}</small> : null}
         </div>
       </div>
     </section>
   );
+}
+
+function splitHeroLines(text: string): string[] {
+  return text.split(/\r\n|\n|\\r\\n|\\n/);
 }
