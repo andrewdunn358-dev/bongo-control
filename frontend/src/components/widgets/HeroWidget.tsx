@@ -1,4 +1,5 @@
 import { useThemeAssets } from '@/lib/useThemeAssets';
+import { useCockpitTheme } from '@/lib/useCockpitTheme';
 import { publicUrl } from '@/lib/publicUrl';
 import type { WidgetProps } from './types';
 
@@ -17,7 +18,13 @@ import type { WidgetProps } from './types';
  *  nothing useful to draw at a given state is the widget's own call. */
 export function HeroWidget({ state = 'full' }: WidgetProps) {
   const { asset } = useThemeAssets();
+  const { heroContent } = useCockpitTheme();
   if (state !== 'full') return null;
+  const eyebrow = heroContent?.eyebrow ?? 'MAZDA BONGO · VANOS';
+  const title = heroContent?.title ?? 'Adventure\\nlooks good\\non you.';
+  const subtitle = heroContent?.subtitle ?? 'Explore · Relax · Disconnect · Repeat';
+  const quote = heroContent?.quote ?? '“Not all those who wander are lost.”';
+  const quoteAuthor = heroContent?.quoteAuthor ?? 'J.R.R. Tolkien';
   return (
     <section className="vw-hero" data-vw-state={state}>
       <div className="vw-hero-photo">
@@ -27,7 +34,7 @@ export function HeroWidget({ state = 'full' }: WidgetProps) {
           <span className="vw-hero-eyebrow">MAZDA BONGO · VANOS</span>
           <h2>Adventure<br />looks good<br />on you.</h2>
           <div className="vw-hero-rule" />
-          <p>Explore · Relax · Disconnect · Repeat</p>
+          <p>{subtitle}</p>
         </div>
         <div className="vw-quote">
           “Not all those who wander<br />are lost.”<small>J.R.R. Tolkien</small>
