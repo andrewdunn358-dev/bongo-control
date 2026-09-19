@@ -4,54 +4,86 @@ import type { ComponentType } from 'react';
  * GRAPHIC SLOTS.
  *
  * A widget owns its DATA; a graphic owns how that data is DRAWN. The
- * widget computes the values, hands them to whichever graphic the
- * theme's variant selected, and keeps everything else - the readings,
- * the labels, the truth line, the disclosures.
+ * widget computes the values, hands them to whichever graphic was
+ * chosen, and keeps everything else - the readings, the labels, the
+ * truth line, the disclosures.
  *
- * That split is what makes a variant safe. A graphic receives numbers
- * and draws; it cannot fetch, cannot decide what a reading means, and
- * has no route to inventing telemetry the van does not produce. Adding
- * a variant adds a drawing, never a data path.
+ * That split is what makes a graphic safe. It receives numbers and
+ * draws; it cannot fetch, cannot decide what a reading means, and has no
+ * route to inventing telemetry the van does not produce. Adding a
+ * graphic adds a drawing, never a data path.
  *
- * Props are FIXED PER WIDGET TYPE. A graphic cannot ask for more than
- * its widget was built to supply, so a variant can never widen what a
- * widget reads.
+ * Props are FIXED PER WIDGET TYPE and carry everything the van actually
+ * measures for that widget, so a new graphic - a themed battery, an
+ * animated power flow - can be as rich as the data allows without
+ * touching the widget. Every field that can be missing is typed as
+ * missing: a graphic must draw "unknown" as unknown, never as zero,
+ * empty or full.
+ *
+ * What is deliberately NOT here, because nothing measures it: battery
+ * temperature, and solar panel voltage.
+ *
+ * A graphic never receives a packaged image. Whether a theme's image
+ * replaces the drawing is decided once, in layout/graphicChoice.ts, and
+ * a graphic that is being drawn at all is always drawn in full.
  */
 
-/** BATTERY. soc is null when no shunt is fitted - the graphic must
- *  render that as unknown, never as empty or full. */
+/** BATTERY. */
 export interface BatteryGraphicProps {
+  /** State of charge, 0-100. Null until a SmartShunt has synchronised,
+   *  and always null without one. */
   soc: number | null | undefined;
   charging: boolean | undefined;
   size: number;
-  /** Optional theme-provided artwork. The graphic owns presentation only. */
-  asset?: string;
+  /** Battery voltage, when reported. */
+  voltage?: number | null;
+  /** True only when a SmartShunt is fitted, per hasShunt() - never
+   *  inferred from current alone. The four fields below are null
+   *  whenever it is false. */
+  shuntFitted?: boolean;
+  /** Amps; positive is INTO the battery, negative is out. Shunt only. */
+  currentA?: number | null;
+  /** Watts at the battery. Shunt only. */
+  powerW?: number | null;
+  /** The shunt's estimate of time to empty, in minutes. Shunt only. */
+  timeRemainingMins?: number | null;
 }
 
-/** SOLAR. `active` is simply whether the array is producing. */
+/** SOLAR. */
 export interface SolarGraphicProps {
+  /** Whether the array is producing at all. */
   active: boolean;
   size: number;
-  /** Optional theme-provided artwork. */
-  asset?: string;
+  /** MPPT output in watts. */
+  watts?: number | null;
+  /** The charger's own stage: "bulk" | "absorption" | "float" | "off". */
+  chargeState?: string | null;
 }
 
-/** WEATHER. A condition string from the forecast, or nothing. */
+/** Which way energy is going through the battery, derived from the net
+ *  balance. See powerFlowDirection() in derive.ts. */
+export type PowerFlowDirection = 'charging' | 'discharging' | 'balanced' | 'unknown';
+
+/** POWER FLOW. */
 export interface PowerFlowGraphicProps {
   solarWatts: number | null | undefined;
+  /** What the loads the van can see are drawing - NOT total van draw,
+   *  which is not measurable without a shunt. */
   loadWatts: number | null | undefined;
   netWatts: number | null | undefined;
-  /** Optional theme-provided artwork. */
-  asset?: string;
+  direction?: PowerFlowDirection;
 }
 
+/** WEATHER. */
 export interface WeatherGraphicProps {
+  /** A condition string from the forecast, or nothing. */
   condition: string | null | undefined;
   size: number;
-  /** Optional theme-provided artwork. */
-  asset?: string;
+  /** Outside temperature from the van's own sensor, when reported. */
+  tempC?: number | null;
 }
 
 export type BatteryGraphic = ComponentType<BatteryGraphicProps>;
 export type SolarGraphic = ComponentType<SolarGraphicProps>;
 export type WeatherGraphic = ComponentType<WeatherGraphicProps>;
+export type PowerFlowGraphic = ComponentType<PowerFlowGraphicProps>;

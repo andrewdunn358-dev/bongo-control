@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react';
+import type { GraphicChoice } from '@/layout/graphicChoice';
 
 /**
  * WHAT A WIDGET DECLARES ABOUT ITSELF.
@@ -48,6 +49,10 @@ export interface WidgetDefinition {
 }
 
 export interface WidgetProps {
+  /** For GRAPHIC widgets: which drawing to show, already decided by the
+   *  renderer - theme graphic, packaged image or built-in. See
+   *  layout/graphicChoice.ts. Absent outside the layout renderer. */
+  graphic?: GraphicChoice;
   /** Which DRAWING to use, named by the theme and validated against the
    *  graphics registry. A widget's data, readings, labels and truth
    *  line are identical whatever the variant - a variant changes how

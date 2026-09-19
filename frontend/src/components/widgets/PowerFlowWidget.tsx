@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom';
 import { BatteryCharging, Zap } from 'lucide-react';
 import { VanOSSolar } from '@/components/VanOSGraphics';
-import { useThemeAssets } from '@/lib/useThemeAssets';
-import { POWER_FLOW_GRAPHICS, pick } from './graphics/registry';
+import { POWER_FLOW_GRAPHICS } from './graphics/registry';
+import { GraphicSlot, choiceFromVariant } from './graphics/GraphicSlot';
+import { powerFlowDirection } from './graphics/derive';
 import { useBattery, useSolar, useEnergy } from '@/lib/telemetry';
 import { fmtWatt, fmtPct } from '@/lib/format';
 import type { WidgetProps } from './types';
@@ -17,11 +18,13 @@ import type { WidgetProps } from './types';
  *  not measurable without a shunt. This widget shows the three figures
  *  it actually has and the net balance between them; it must not be
  *  presented as a complete account of where the power goes. */
-export function PowerFlowWidget({ state = 'full', variant }: WidgetProps) {
+export function PowerFlowWidget({ state = 'full', variant, graphic }: WidgetProps) {
   const battery = useBattery(), solar = useSolar(), energy = useEnergy();
-  const FlowArt = pick(POWER_FLOW_GRAPHICS, variant);
-  const { asset } = useThemeAssets();
   const bp = battery.payload, sp = solar.payload, ep = energy.payload;
+  // The standard drawing is this widget's own inline markup below; any
+  // other drawing, or a packaged image, goes in the graphic container.
+  const choice = graphic ?? choiceFromVariant(variant);
+  const inContainer = Boolean(variant) || choice.source === 'theme-asset';
 
   return (
     <Link to="/power" className="vw-card vw-flow-card" data-vw-state={state} data-vw-variant={variant ?? 'standard'}>
@@ -32,9 +35,20 @@ export function PowerFlowWidget({ state = 'full', variant }: WidgetProps) {
         </div>
         <Zap size={25} className="vw-cyan" />
       </div>
-      {variant ? (
+      {inContainer ? (
         <div className="vw-flow-visual vw-flow-illustrated">
-          <FlowArt solarWatts={sp?.watts} loadWatts={ep?.load_watts} netWatts={ep?.net_watts} asset={asset('power-flow', '') || undefined} />
+          <GraphicSlot
+            table={POWER_FLOW_GRAPHICS}
+            choice={choice}
+            artClass="power"
+            alt="Solar to battery to systems power flow"
+            props={{
+              solarWatts: sp?.watts,
+              loadWatts: ep?.load_watts,
+              netWatts: ep?.net_watts,
+              direction: powerFlowDirection(ep?.net_watts),
+            }}
+          />
           <div className="vw-flow-readouts">
             <div><strong>{fmtWatt(sp?.watts)}</strong><span>Solar</span></div>
             <div><strong>{fmtPct(bp?.soc_pct)}</strong><span>Battery</span></div>

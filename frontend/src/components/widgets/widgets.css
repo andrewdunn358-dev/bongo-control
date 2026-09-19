@@ -322,6 +322,11 @@
 }
 
 .vw-card[data-vw-variant='illustrated'] .vw-solar-visual { height: 155px; }
+/* On a narrow card the reading used to wrap ("223" / "W"), grow past the
+   fixed-height row and run into the data rows below. It stays on one
+   line; the drawing is the part allowed to give up width. */
+.vw-card[data-vw-variant='illustrated'] .vw-solar-visual strong { white-space: nowrap; }
+.vw-card[data-vw-variant='illustrated'] .vw-solar-visual > svg { flex-shrink: 1; min-width: 0; }
 .vw-card[data-vw-variant='illustrated'] .vw-solar-visual svg {
   width: 155px;
   height: auto;
@@ -345,7 +350,11 @@
   width: 100%;
   height: 132px;
 }
-.vw-flow-readouts {
+/* Specificity matters here: the base `.vw-flow-visual > div:not(...)`
+   rule (0,2,1) also matches this row and used to win, turning the three
+   readouts into a vertical stack drawn over the battery. The doubled
+   class (0,3,0) is what keeps them a row beneath the drawing. */
+.vw-flow-visual.vw-flow-illustrated > .vw-flow-readouts {
   position: absolute;
   left: 4%;
   right: 4%;

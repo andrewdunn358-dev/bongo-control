@@ -26,9 +26,12 @@ const bundled = await build({
   stdin: {
     contents: `
       export * from '@/lib/themeAssetResolve';
+      export { chooseGraphic } from '@/layout/graphicChoice';
+      export { GraphicSlot } from '@/components/widgets/graphics/GraphicSlot';
       export {
-        IllustratedBattery, IllustratedSolar, IllustratedWeather, IllustratedPowerFlow,
-      } from '@/components/widgets/graphics/illustrated';
+        BATTERY_GRAPHICS, SOLAR_GRAPHICS, WEATHER_GRAPHICS, POWER_FLOW_GRAPHICS,
+        DEFAULT_VARIANTS, VARIANT_TABLES,
+      } from '@/components/widgets/graphics/registry';
       export { createElement } from 'react';
       export { renderToStaticMarkup } from 'react-dom/server';
     `,
@@ -59,7 +62,8 @@ try {
 }
 const {
   declaredAssetPath, resolveThemeAsset, createAssetProbe, probeDeclaredAssets,
-  IllustratedBattery, IllustratedSolar, IllustratedWeather, IllustratedPowerFlow,
+  chooseGraphic, GraphicSlot, DEFAULT_VARIANTS, VARIANT_TABLES,
+  BATTERY_GRAPHICS, SOLAR_GRAPHICS, WEATHER_GRAPHICS, POWER_FLOW_GRAPHICS,
   createElement, renderToStaticMarkup,
 } = mod;
 
@@ -70,15 +74,31 @@ function ok(name) {
 }
 
 const urlFor = (id, path) => `/api/themes/${id}/assets/${path}`;
-const render = (Comp, props) => renderToStaticMarkup(createElement(Comp, props));
 
-/** The four widget roles #50 built illustrated graphics for. */
+/** The four widget roles #50 built illustrated graphics for:
+ *  [role, drawing table, packaged-image class, data props]. */
 const GRAPHICS = [
-  ['battery', IllustratedBattery, { soc: 64, charging: true, size: 118 }],
-  ['solar', IllustratedSolar, { size: 74, active: true }],
-  ['weather', IllustratedWeather, { condition: 'Partly cloudy', size: 42 }],
-  ['power-flow', IllustratedPowerFlow, { solarWatts: 120, loadWatts: 45, netWatts: 75 }],
+  ['battery', BATTERY_GRAPHICS, 'battery', { soc: 64, charging: true, size: 118 }],
+  ['solar', SOLAR_GRAPHICS, 'solar', { size: 74, active: true }],
+  ['weather', WEATHER_GRAPHICS, 'weather', { condition: 'Partly cloudy', size: 42 }],
+  ['power-flow', POWER_FLOW_GRAPHICS, 'power', { solarWatts: 120, loadWatts: 45, netWatts: 75 }],
 ];
+const graphic = (role) => GRAPHICS.find((g) => g[0] === role);
+
+/** Renders a role the way the page does: the resolved asset (or none)
+ *  goes through the one precedence rule and the one slot that draws it.
+ *  A packaged image is never handed to a drawing directly any more. */
+function render(role, asset) {
+  const [, table, artClass, props] = graphic(role);
+  const choice = chooseGraphic({
+    asset,
+    defaultVariant: DEFAULT_VARIANTS[role],
+    table: VARIANT_TABLES[role],
+    state: 'full',
+    box: { width: 400, height: 300 },
+  });
+  return renderToStaticMarkup(createElement(GraphicSlot, { table, choice, artClass, props }));
+}
 
 // ---------------------------------------------------------------------
 // 1. GALLOWAY: an installed theme with its own hero imagery but NO
@@ -91,12 +111,12 @@ const GALLOWAY = { serverId: 'galloway', assets: { hero: 'assets/hero.jpg' } };
 // an undeclared role still must not use it.
 const everythingPresent = () => 'present';
 
-for (const [role, Comp, props] of GRAPHICS) {
+for (const [role] of GRAPHICS) {
   assert.equal(declaredAssetPath(GALLOWAY, role), undefined, `${role}: an undeclared role produced a path`);
   const asset = resolveThemeAsset(GALLOWAY, role, urlFor, everythingPresent);
   assert.equal(asset, undefined, `${role}: an undeclared role resolved to ${asset}`);
 
-  const html = render(Comp, { ...props, asset });
+  const html = render(role, asset);
   assert.ok(html.includes('<svg'), `${role}: the built-in illustrated SVG did not render`);
   assert.ok(!html.includes('<img'), `${role}: rendered an <img> instead of the illustrated SVG`);
   ok(`Galloway, no ${role} imagery -> built-in illustrated SVG renders`);
@@ -131,7 +151,7 @@ const statusFor = (map) => (url) => map[url] ?? 'unknown';
 {
   const asset = resolveThemeAsset(WITH_BATTERY, 'battery', urlFor, statusFor({ [BATTERY_URL]: 'present' }));
   assert.equal(asset, BATTERY_URL);
-  const html = render(IllustratedBattery, { soc: 64, charging: false, size: 118, asset });
+  const html = render('battery', asset);
   assert.ok(html.includes('<img'), 'a declared, present battery.jpg was not used');
   assert.ok(html.includes(`src="${BATTERY_URL}"`), 'the packaged image was not the declared one');
   assert.ok(!html.includes('<svg'), 'the SVG drew as well as the packaged image');
@@ -142,7 +162,7 @@ const statusFor = (map) => (url) => map[url] ?? 'unknown';
 {
   const asset = resolveThemeAsset(WITH_BATTERY, 'solar', urlFor, statusFor({ [BATTERY_URL]: 'present' }));
   assert.equal(asset, undefined);
-  const html = render(IllustratedSolar, { size: 74, active: true, asset });
+  const html = render('solar', asset);
   assert.ok(html.includes('<svg') && !html.includes('<img'), 'an unprovided role did not fall through to the SVG');
   ok('theme does not provide solar.jpg -> built-in SVG is used');
 }
@@ -152,7 +172,7 @@ const statusFor = (map) => (url) => map[url] ?? 'unknown';
 {
   const asset = resolveThemeAsset(WITH_BATTERY, 'battery', urlFor, statusFor({ [BATTERY_URL]: 'missing' }));
   assert.equal(asset, undefined, 'a declared asset that 404s was still used');
-  const html = render(IllustratedBattery, { soc: 64, size: 118, asset });
+  const html = render('battery', asset);
   assert.ok(html.includes('<svg') && !html.includes('<img'));
   ok('declared but missing -> built-in SVG, not a broken image');
 }

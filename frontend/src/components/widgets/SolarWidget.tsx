@@ -1,12 +1,11 @@
 import { Link } from 'react-router-dom';
 import { Sun } from 'lucide-react';
-import { useThemeAssets } from '@/lib/useThemeAssets';
-
 import { useSolar, useSparkBuffer } from '@/lib/telemetry';
 import { fmtWatt, DASH } from '@/lib/format';
 import type { SolarPayload } from '@/lib/types';
 import { Spark, DataRow } from './shared';
-import { SOLAR_GRAPHICS, pick } from './graphics/registry';
+import { SOLAR_GRAPHICS } from './graphics/registry';
+import { GraphicSlot, choiceFromVariant } from './graphics/GraphicSlot';
 import type { WidgetProps } from './types';
 
 /** PHASE 2 NOTE: this widget still renders Adventure's vm-* classes,
@@ -16,9 +15,7 @@ import type { WidgetProps } from './types';
 /** SOLAR. Real telemetry from the Victron MPPT. Yield and peak are the
  *  MPPT's own figures - they are NOT total van production or draw, and
  *  nothing here should imply otherwise. */
-export function SolarWidget({ state = 'full', variant }: WidgetProps) {
-  const SolarArt = pick(SOLAR_GRAPHICS, variant);
-  const { asset } = useThemeAssets();
+export function SolarWidget({ state = 'full', variant, graphic }: WidgetProps) {
   const solar = useSolar();
   const solarSeries = useSparkBuffer<SolarPayload>('solar', (p) => p.watts);
   const sp = solar.payload;
@@ -33,7 +30,17 @@ export function SolarWidget({ state = 'full', variant }: WidgetProps) {
         <Sun size={27} className="vw-sun" />
       </div>
       <div className="vw-solar-visual">
-        <SolarArt size={74} active={Boolean(sp?.watts)} asset={asset('solar', '') || undefined} />
+        <GraphicSlot
+          table={SOLAR_GRAPHICS}
+          choice={graphic ?? choiceFromVariant(variant)}
+          artClass="solar"
+          props={{
+            size: 74,
+            active: Boolean(sp?.watts),
+            watts: sp?.watts ?? null,
+            chargeState: sp?.charge_state ?? null,
+          }}
+        />
         <div>
           <strong>{fmtWatt(sp?.watts)}</strong>
           <span>{sp?.watts ? 'GENERATING' : (sp?.charge_state || 'OFF').toUpperCase()}</span>

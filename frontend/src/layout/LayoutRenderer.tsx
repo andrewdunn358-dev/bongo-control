@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getWidget } from '@/components/widgets/registry';
-import { VARIANT_TABLES } from '@/components/widgets/graphics/registry';
+import { DEFAULT_VARIANTS, GRAPHIC_WIDGETS, VARIANT_TABLES } from '@/components/widgets/graphics/registry';
 import type { WidgetState } from '@/components/widgets/types';
+import { useThemeAssets } from '@/lib/useThemeAssets';
+import { chooseGraphic, type GraphicChoice } from './graphicChoice';
 import { LAYOUT_COLUMNS, type LayoutDefinition } from './schema';
 import { resolveVariant, STANDARD } from './variantFit';
 import './layout.css';
@@ -43,9 +45,21 @@ export function LayoutRenderer({
   // avoided.
   const [boxes, setBoxes] = useState<Record<number, { width: number; height: number }>>({});
   const observer = useRef<ResizeObserver | null>(null);
+  // Every slot element handed to `attach`, kept so the observer can pick
+  // them up when it is created.
+  //
+  // WHY THIS EXISTS. React attaches refs during commit, BEFORE it runs
+  // effects - so on first render `attach` ran while the observer did not
+  // exist yet, and `attach` is a stable callback that React never calls
+  // again. No slot was ever observed, every slot stayed at
+  // "not-measured-yet", and every variant fell back to the standard
+  // drawing on every screen. That is why a theme asking for the
+  // illustrated graphics never got them. Measured: 380x377 slots at
+  // 1920x1080, reason "not-measured-yet", indefinitely.
+  const slots = useRef(new Set<HTMLDivElement>());
 
   useEffect(() => {
-    observer.current = new ResizeObserver((entries) => {
+    const ro = new ResizeObserver((entries) => {
       setBoxes((prev) => {
         let changed = false;
         const next = { ...prev };
@@ -65,12 +79,24 @@ export function LayoutRenderer({
         return changed ? next : prev;
       });
     });
-    return () => observer.current?.disconnect();
+    observer.current = ro;
+    // The slots attached before this effect ran - which on first render
+    // is all of them.
+    slots.current.forEach((node) => ro.observe(node));
+    return () => {
+      ro.disconnect();
+      observer.current = null;
+    };
   }, []);
 
   const attach = useCallback((node: HTMLDivElement | null) => {
-    if (node) observer.current?.observe(node);
+    if (!node) return;
+    slots.current.add(node);
+    observer.current?.observe(node);
   }, []);
+
+  // Packaged images, declared and confirmed present - never guessed.
+  const { asset } = useThemeAssets();
 
   return (
     <div className={className ? `vl-grid ${className}` : 'vl-grid'} data-vl-state={state}>
@@ -80,12 +106,34 @@ export function LayoutRenderer({
         const Widget = def.component;
         const span = Math.min(item.span ?? LAYOUT_COLUMNS, LAYOUT_COLUMNS);
 
-        const decision = resolveVariant(
-          presentation?.[item.widget]?.variant,
-          VARIANT_TABLES[item.widget] ?? {},
-          state,
-          boxes[i] ?? null,
-        );
+        const table = VARIANT_TABLES[item.widget] ?? {};
+        const box = boxes[i] ?? null;
+        const themeVariant = presentation?.[item.widget]?.variant;
+
+        // GRAPHIC widgets go through the one precedence rule: theme
+        // graphic, then packaged image, then VanOS's own drawing. Other
+        // widgets only have presentation styles, resolved as before.
+        let variant: string | undefined;
+        let reason: string;
+        let graphic: GraphicChoice | undefined;
+        let source: GraphicChoice['source'] | undefined;
+        if (GRAPHIC_WIDGETS.has(item.widget)) {
+          graphic = chooseGraphic({
+            themeVariant,
+            asset: asset(item.widget, '') || undefined,
+            defaultVariant: DEFAULT_VARIANTS[item.widget],
+            table,
+            state,
+            box,
+          });
+          source = graphic.source;
+          variant = graphic.variant;
+          reason = graphic.reason;
+        } else {
+          const decision = resolveVariant(themeVariant, table, state, box);
+          variant = decision.variant;
+          reason = decision.reason;
+        }
 
         return (
           <div
@@ -97,13 +145,18 @@ export function LayoutRenderer({
             // Exposed so the decision is inspectable - in the browser,
             // in a test, and by anyone wondering why a theme's
             // illustration did not appear on a particular screen.
-            data-vl-variant={decision.variant}
-            data-vl-variant-reason={decision.reason}
+            data-vl-variant={variant}
+            data-vl-variant-reason={reason}
+            data-vl-graphic-source={source}
             style={{
               gridColumn: item.column ? `${item.column} / span ${span}` : `span ${span}`,
             }}
           >
-            <Widget state={state} variant={decision.variant === STANDARD ? undefined : decision.variant} />
+            <Widget
+              state={state}
+              variant={variant === STANDARD ? undefined : variant}
+              graphic={graphic}
+            />
           </div>
         );
       })}

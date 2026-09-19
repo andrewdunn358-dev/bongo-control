@@ -10,14 +10,11 @@ const reduceMotion = `
 }
 `;
 
-export function IllustratedBattery({ soc, charging, size, asset }: BatteryGraphicProps) {
+export function IllustratedBattery({ soc, charging, size }: BatteryGraphicProps) {
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '');
   const known = soc != null;
   const value = known ? Math.max(0, Math.min(100, soc as number)) : 0;
   const fillHeight = 92 * value / 100;
-  if (asset) {
-    return <img className="vw-theme-art vw-theme-art-battery" src={asset} alt="" aria-hidden="true" />;
-  }
 
   return (
     <svg className="vw-illustrated" width={size} height={Math.round(size * 1.12)} viewBox="0 0 180 202" role="img"
@@ -44,17 +41,14 @@ export function IllustratedBattery({ soc, charging, size, asset }: BatteryGraphi
           stroke="var(--vw-role-illustration)" strokeWidth="3" />
       </g>
       {charging && known && <g className="vw-battery-energy">
-        <path d="M90 116 l-12 19 h10 l-5 20 18-25 h-11z" fill="var(--status-amber)" />
-        <ellipse cx="90" cy="76" rx="42" ry="7" fill="var(--status-amber)" opacity=".16" />
+        <path d="M90 116 l-12 19 h10 l-5 20 18-25 h-11z" fill="rgb(var(--status-amber))" />
+        <ellipse cx="90" cy="76" rx="42" ry="7" fill="rgb(var(--status-amber))" opacity=".16" />
       </g>}
     </svg>
   );
 }
 
-export function IllustratedSolar({ size, active, asset }: SolarGraphicProps) {
-  if (asset) {
-    return <img className="vw-theme-art vw-theme-art-solar" src={asset} alt="" aria-hidden="true" />;
-  }
+export function IllustratedSolar({ size, active }: SolarGraphicProps) {
   return (
     <svg className="vw-illustrated" width={size} height={Math.round(size * .88)} viewBox="0 0 180 158" role="img" aria-label="Solar panel">
       <style>{reduceMotion}</style>
@@ -67,8 +61,8 @@ export function IllustratedSolar({ size, active, asset }: SolarGraphicProps) {
         <path d="M80 94v24M49 118h62" stroke="var(--vw-role-illustration)" strokeWidth="4" strokeLinecap="round" />
       </g>
       <g className={active ? 'vw-solar-active' : ''}>
-        <circle cx="42" cy="34" r="16" fill="var(--status-amber)" opacity=".9" />
-        <g stroke="var(--status-amber)" strokeWidth="3" strokeLinecap="round">
+        <circle cx="42" cy="34" r="16" fill="rgb(var(--status-amber))" opacity=".9" />
+        <g stroke="rgb(var(--status-amber))" strokeWidth="3" strokeLinecap="round">
           <path d="M42 7v10M42 51v10M15 34h10M59 34h10M23 15l7 7M57 53l7 7M61 15l-7 7M23 53l7-7" />
         </g>
       </g>
@@ -81,19 +75,16 @@ export function IllustratedSolar({ size, active, asset }: SolarGraphicProps) {
   );
 }
 
-export function IllustratedWeather({ condition, size, asset }: WeatherGraphicProps) {
+export function IllustratedWeather({ condition, size }: WeatherGraphicProps) {
   const c = (condition || '').toLowerCase();
   const rain = /rain|drizzle|shower/.test(c);
   const cloud = /cloud|overcast/.test(c);
   const clear = !cloud;
-  if (asset) {
-    return <img className="vw-theme-art vw-theme-art-weather" src={asset} alt={condition || 'Weather'} />;
-  }
   return (
     <svg className="vw-illustrated" width={size} height={size} viewBox="0 0 150 150" role="img" aria-label={condition || 'Weather'}>
       <style>{reduceMotion}</style>
-      {clear && <g className="vw-weather-sun"><circle cx="52" cy="48" r="24" fill="var(--status-amber)" />
-        <g stroke="var(--status-amber)" strokeWidth="4" strokeLinecap="round">
+      {clear && <g className="vw-weather-sun"><circle cx="52" cy="48" r="24" fill="rgb(var(--status-amber))" />
+        <g stroke="rgb(var(--status-amber))" strokeWidth="4" strokeLinecap="round">
           <path d="M52 10v15M52 71v15M14 48h15M75 48h15M25 21l11 11M68 64l11 11M79 21L68 32M36 64L25 75" />
         </g></g>}
       {cloud && <g>
@@ -114,20 +105,17 @@ export function IllustratedWeather({ condition, size, asset }: WeatherGraphicPro
   );
 }
 
-export function IllustratedPowerFlow({ solarWatts, loadWatts, asset }: PowerFlowGraphicProps) {
+export function IllustratedPowerFlow({ solarWatts, loadWatts }: PowerFlowGraphicProps) {
   const incoming = Number(solarWatts || 0) > 0;
   const outgoing = Number(loadWatts || 0) > 0;
-  if (asset) {
-    return <img className="vw-theme-art vw-theme-art-power" src={asset} alt="Solar to battery to systems power flow" />;
-  }
   return (
     <svg className="vw-illustrated vw-power-art" viewBox="0 0 420 170" role="img" aria-label="Solar to battery to systems power flow">
       <style>{reduceMotion}</style>
       <g className={incoming ? 'vw-flow-active' : ''}>
-        <path d="M20 70 H135" stroke="var(--status-amber)" strokeWidth="3" strokeDasharray="8 8" opacity=".7" />
-        <path d="M113 60 l18 10 -18 10" fill="none" stroke="var(--status-amber)" strokeWidth="4" />
-        <circle cx="45" cy="70" r="18" fill="var(--status-amber)" opacity=".9" />
-        <g stroke="var(--status-amber)" strokeWidth="3"><path d="M45 42v-10M45 108v-10M17 70H7M83 70H73" /></g>
+        <path d="M20 70 H135" stroke="rgb(var(--status-amber))" strokeWidth="3" strokeDasharray="8 8" opacity=".7" />
+        <path d="M113 60 l18 10 -18 10" fill="none" stroke="rgb(var(--status-amber))" strokeWidth="4" />
+        <circle cx="45" cy="70" r="18" fill="rgb(var(--status-amber))" opacity=".9" />
+        <g stroke="rgb(var(--status-amber))" strokeWidth="3"><path d="M45 42v-10M45 108v-10M17 70H7M83 70H73" /></g>
       </g>
       <rect x="139" y="22" width="142" height="126" rx="38" fill="var(--vw-panel2)" stroke="var(--vw-role-illustration)" strokeWidth="3" />
       <path d="M169 92 Q210 48 251 92 L251 128 H169Z" fill="var(--vw-role-energy-path)" opacity=".18" />

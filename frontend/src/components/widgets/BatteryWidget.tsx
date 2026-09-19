@@ -1,14 +1,13 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { BatteryCharging } from 'lucide-react';
-import { useThemeAssets } from '@/lib/useThemeAssets';
-
 import { api } from '@/lib/api';
-import { useBattery, useEnvironment, useSparkBuffer } from '@/lib/telemetry';
+import { hasShunt, useBattery, useEnvironment, useSparkBuffer } from '@/lib/telemetry';
 import { fmtVolt, fmtTemp, fmtPct, DASH } from '@/lib/format';
 import type { BatteryPayload } from '@/lib/types';
 import { Spark, DataRow } from './shared';
-import { BATTERY_GRAPHICS, pick } from './graphics/registry';
+import { BATTERY_GRAPHICS } from './graphics/registry';
+import { GraphicSlot, choiceFromVariant } from './graphics/GraphicSlot';
 import type { WidgetProps } from './types';
 
 /** PHASE 2 NOTE: this widget still renders Adventure's vm-* classes,
@@ -22,10 +21,8 @@ import type { WidgetProps } from './types';
  *  presence is never inferred from current_a alone - that bug has been
  *  fixed here once already. Anything absent renders as DASH rather than
  *  as a plausible-looking number. */
-export function BatteryWidget({ state = 'full', variant }: WidgetProps) {
-  // The DRAWING comes from the theme's variant; the DATA does not.
-  const BatteryArt = pick(BATTERY_GRAPHICS, variant);
-  const { asset } = useThemeAssets();
+export function BatteryWidget({ state = 'full', variant, graphic }: WidgetProps) {
+  // The DRAWING was chosen by the renderer; the DATA comes from here.
   const battery = useBattery();
   const env = useEnvironment();
   const voltSeries = useSparkBuffer<BatteryPayload>('battery', (p) => p.voltage);
@@ -35,6 +32,10 @@ export function BatteryWidget({ state = 'full', variant }: WidgetProps) {
   const predictedUsage = topPred?.value == null ? DASH : `${topPred.value}${topPred.unit ? ` ${topPred.unit}` : ''}`;
   const batteryState =
     bp == null ? DASH : bp.charging ? 'CHARGING' : bp.current_a != null && Math.abs(bp.current_a) < 0.2 ? 'RESTING' : 'DISCHARGING';
+  // Shunt-only readings are handed to the graphic only when a shunt is
+  // fitted, per hasShunt() - so a graphic can never draw a current the
+  // van did not measure.
+  const shunt = hasShunt(bp);
 
   return (
     <Link to="/power" className="vw-card vw-battery-card" data-vw-state={state} data-vw-variant={variant ?? 'standard'}>
@@ -46,7 +47,21 @@ export function BatteryWidget({ state = 'full', variant }: WidgetProps) {
         <BatteryCharging size={25} className={bp?.charging ? 'vw-green' : ''} />
       </div>
       <div className="vw-battery-main">
-        <BatteryArt soc={bp?.soc_pct} charging={bp?.charging} size={118} asset={asset('battery', '') || undefined} />
+        <GraphicSlot
+          table={BATTERY_GRAPHICS}
+          choice={graphic ?? choiceFromVariant(variant)}
+          artClass="battery"
+          props={{
+            soc: bp?.soc_pct,
+            charging: bp?.charging,
+            size: 118,
+            voltage: bp?.voltage ?? null,
+            shuntFitted: shunt,
+            currentA: shunt ? bp?.current_a ?? null : null,
+            powerW: shunt ? bp?.power_w ?? null : null,
+            timeRemainingMins: shunt ? bp?.time_remaining_mins ?? null : null,
+          }}
+        />
         <div className="vw-battery-value">
           <strong>{fmtPct(bp?.soc_pct)}</strong>
           <span>{fmtVolt(bp?.voltage)}</span>
