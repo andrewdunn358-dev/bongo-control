@@ -60,6 +60,8 @@ export interface CustomTheme {
   serverId?: string;
   /** false = hero shows the theme's own image, camera stays in its tile. */
   heroCamera?: boolean;
+  /** Optional hero copy supplied by the installed theme. */
+  heroContent?: { eyebrow?: string; title?: string; subtitle?: string; quote?: string; quoteAuthor?: string };
   /** Built-in cockpit layout this theme renders in. Validated against
    *  the registry; unknown or absent falls back to the default. */
   cockpit?: string;
@@ -269,6 +271,21 @@ export function themeFromPackage(
   // and reports it, so a theme written for a newer VanOS loses one tile
   // rather than the whole page. A layout trying to express CSS IS
   // fatal, and the error says why.
+  let heroContent: CustomTheme['heroContent'];
+  const rawHero = definition.hero;
+  if (rawHero && typeof rawHero === 'object' && !Array.isArray(rawHero)) {
+    const h = rawHero as Record<string, unknown>;
+    const clean = (v: unknown, max: number) => typeof v === 'string' ? v.slice(0, max) : undefined;
+    heroContent = {
+      eyebrow: clean(h.eyebrow, 80),
+      title: clean(h.title, 120),
+      subtitle: clean(h.subtitle, 160),
+      quote: clean(h.quote, 180),
+      quoteAuthor: clean(h.quoteAuthor, 80),
+    };
+    if (!Object.values(heroContent).some(Boolean)) heroContent = undefined;
+  }
+
   let homeLayout: LayoutDefinition | undefined;
   let unknownWidgets: string[] | undefined;
   const rawHome = definition.home;
@@ -301,6 +318,7 @@ export function themeFromPackage(
       typeof definition.cockpit === 'string' &&
       ['instrument', 'adventure', 'control'].includes(definition.cockpit)
     ) ? definition.cockpit : undefined,
+    heroContent,
     heroCamera: (
       typeof definition.home === 'object' &&
       definition.home !== null &&
