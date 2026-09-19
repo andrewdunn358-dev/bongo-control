@@ -421,6 +421,21 @@
 }
 
 
+/* Theme artwork used by generic illustrated graphics. The package supplies
+   the image; live readings remain rendered as text by the widget. */
+.vw-theme-art { display: block; object-fit: contain; max-width: 100%; max-height: 100%; }
+.vw-theme-art-battery { width: auto; height: 155px; }
+.vw-theme-art-solar { width: 155px; height: auto; }
+.vw-theme-art-weather { width: 90px; height: 90px; }
+.vw-theme-art-power { width: 100%; height: 132px; }
+@container card (max-width: 300px) {
+  .vw-theme-art-battery { height: 72px; }
+  .vw-theme-art-solar { width: 82px; }
+  .vw-theme-art-weather { width: 58px; height: 58px; }
+  .vw-theme-art-power { height: 70px; }
+}
+@media (prefers-reduced-motion: reduce) { .vw-theme-art { animation: none; } }
+
 /* Illustrated action surfaces: generic, package-driven imagery with a
    restrained cinematic treatment. The action widget remains a navigation
    control; this changes presentation only. */
