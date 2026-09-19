@@ -24,12 +24,16 @@ export interface BatteryGraphicProps {
   soc: number | null | undefined;
   charging: boolean | undefined;
   size: number;
+  /** Optional theme-provided artwork. The graphic owns presentation only. */
+  asset?: string;
 }
 
 /** SOLAR. `active` is simply whether the array is producing. */
 export interface SolarGraphicProps {
   active: boolean;
   size: number;
+  /** Optional theme-provided artwork. */
+  asset?: string;
 }
 
 /** WEATHER. A condition string from the forecast, or nothing. */
@@ -37,11 +41,15 @@ export interface PowerFlowGraphicProps {
   solarWatts: number | null | undefined;
   loadWatts: number | null | undefined;
   netWatts: number | null | undefined;
+  /** Optional theme-provided artwork. */
+  asset?: string;
 }
 
 export interface WeatherGraphicProps {
   condition: string | null | undefined;
   size: number;
+  /** Optional theme-provided artwork. */
+  asset?: string;
 }
 
 export type BatteryGraphic = ComponentType<BatteryGraphicProps>;

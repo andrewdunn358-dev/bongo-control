@@ -10,11 +10,15 @@ const reduceMotion = `
 }
 `;
 
-export function IllustratedBattery({ soc, charging, size }: BatteryGraphicProps) {
+export function IllustratedBattery({ soc, charging, size, asset }: BatteryGraphicProps) {
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '');
   const known = soc != null;
   const value = known ? Math.max(0, Math.min(100, soc as number)) : 0;
   const fillHeight = 92 * value / 100;
+  if (asset) {
+    return <img className="vw-theme-art vw-theme-art-battery" src={asset} alt="" aria-hidden="true" />;
+  }
+
   return (
     <svg className="vw-illustrated" width={size} height={Math.round(size * 1.12)} viewBox="0 0 180 202" role="img"
       aria-label={known ? `Battery ${Math.round(value)} percent` : 'Battery state unknown'}>
@@ -47,7 +51,10 @@ export function IllustratedBattery({ soc, charging, size }: BatteryGraphicProps)
   );
 }
 
-export function IllustratedSolar({ size, active }: SolarGraphicProps) {
+export function IllustratedSolar({ size, active, asset }: SolarGraphicProps) {
+  if (asset) {
+    return <img className="vw-theme-art vw-theme-art-solar" src={asset} alt="" aria-hidden="true" />;
+  }
   return (
     <svg className="vw-illustrated" width={size} height={Math.round(size * .88)} viewBox="0 0 180 158" role="img" aria-label="Solar panel">
       <style>{reduceMotion}</style>
@@ -74,11 +81,14 @@ export function IllustratedSolar({ size, active }: SolarGraphicProps) {
   );
 }
 
-export function IllustratedWeather({ condition, size }: WeatherGraphicProps) {
+export function IllustratedWeather({ condition, size, asset }: WeatherGraphicProps) {
   const c = (condition || '').toLowerCase();
   const rain = /rain|drizzle|shower/.test(c);
   const cloud = /cloud|overcast/.test(c);
   const clear = !cloud;
+  if (asset) {
+    return <img className="vw-theme-art vw-theme-art-weather" src={asset} alt={condition || 'Weather'} />;
+  }
   return (
     <svg className="vw-illustrated" width={size} height={size} viewBox="0 0 150 150" role="img" aria-label={condition || 'Weather'}>
       <style>{reduceMotion}</style>
@@ -104,10 +114,13 @@ export function IllustratedWeather({ condition, size }: WeatherGraphicProps) {
   );
 }
 
-export function IllustratedPowerFlow({ solarWatts, loadWatts, netWatts }: PowerFlowGraphicProps) {
+export function IllustratedPowerFlow({ solarWatts, loadWatts, netWatts, asset }: PowerFlowGraphicProps) {
   const incoming = Number(solarWatts || 0) > 0;
   const outgoing = Number(loadWatts || 0) > 0;
   const balanced = Number(netWatts || 0);
+  if (asset) {
+    return <img className="vw-theme-art vw-theme-art-power" src={asset} alt="Solar to battery to systems power flow" />;
+  }
   return (
     <svg className="vw-illustrated vw-power-art" viewBox="0 0 420 170" role="img" aria-label="Solar to battery to systems power flow">
       <style>{reduceMotion}</style>

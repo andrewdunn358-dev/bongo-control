@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { BatteryCharging } from 'lucide-react';
+import { useThemeAssets } from '@/lib/useThemeAssets';
 
 import { api } from '@/lib/api';
 import { useBattery, useEnvironment, useSparkBuffer } from '@/lib/telemetry';
@@ -24,6 +25,7 @@ import type { WidgetProps } from './types';
 export function BatteryWidget({ state = 'full', variant }: WidgetProps) {
   // The DRAWING comes from the theme's variant; the DATA does not.
   const BatteryArt = pick(BATTERY_GRAPHICS, variant);
+  const { asset } = useThemeAssets();
   const battery = useBattery();
   const env = useEnvironment();
   const voltSeries = useSparkBuffer<BatteryPayload>('battery', (p) => p.voltage);
@@ -44,7 +46,7 @@ export function BatteryWidget({ state = 'full', variant }: WidgetProps) {
         <BatteryCharging size={25} className={bp?.charging ? 'vw-green' : ''} />
       </div>
       <div className="vw-battery-main">
-        <BatteryArt soc={bp?.soc_pct} charging={bp?.charging} size={118} />
+        <BatteryArt soc={bp?.soc_pct} charging={bp?.charging} size={118} asset={asset('battery', '') || undefined} />
         <div className="vw-battery-value">
           <strong>{fmtPct(bp?.soc_pct)}</strong>
           <span>{fmtVolt(bp?.voltage)}</span>

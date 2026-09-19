@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { BatteryCharging, Zap } from 'lucide-react';
 import { VanOSSolar } from '@/components/VanOSGraphics';
+import { useThemeAssets } from '@/lib/useThemeAssets';
 import { POWER_FLOW_GRAPHICS, pick } from './graphics/registry';
 import { useBattery, useSolar, useEnergy } from '@/lib/telemetry';
 import { fmtWatt, fmtPct } from '@/lib/format';
@@ -19,10 +20,11 @@ import type { WidgetProps } from './types';
 export function PowerFlowWidget({ state = 'full', variant }: WidgetProps) {
   const battery = useBattery(), solar = useSolar(), energy = useEnergy();
   const FlowArt = pick(POWER_FLOW_GRAPHICS, variant);
+  const { asset } = useThemeAssets();
   const bp = battery.payload, sp = solar.payload, ep = energy.payload;
 
   return (
-    <Link to="/power" className="vw-card vw-flow-card" data-vw-state={state}>
+    <Link to="/power" className="vw-card vw-flow-card" data-vw-state={state} data-vw-variant={variant ?? 'standard'}>
       <div className="vw-card-head">
         <div>
           <span className="vw-eyebrow">ENERGY</span>
@@ -32,7 +34,7 @@ export function PowerFlowWidget({ state = 'full', variant }: WidgetProps) {
       </div>
       {variant ? (
         <div className="vw-flow-visual vw-flow-illustrated">
-          <FlowArt solarWatts={sp?.watts} loadWatts={ep?.load_watts} netWatts={ep?.net_watts} />
+          <FlowArt solarWatts={sp?.watts} loadWatts={ep?.load_watts} netWatts={ep?.net_watts} asset={asset('power-flow', '') || undefined} />
           <div className="vw-flow-readouts">
             <div><strong>{fmtWatt(sp?.watts)}</strong><span>Solar</span></div>
             <div><strong>{fmtPct(bp?.soc_pct)}</strong><span>Battery</span></div>
