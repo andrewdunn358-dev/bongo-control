@@ -39,6 +39,7 @@ export function useCockpitTheme(): {
   unknownWidgets?: string[];
   /** Which drawing each widget should use, if the theme names any. */
   widgetPresentation?: Record<string, { variant?: string }>;
+  heroContent?: CustomTheme['heroContent'];
 } {
   const [themeId, setThemeIdState] = useState<CockpitThemeId>(read);
 
@@ -116,5 +117,6 @@ export function useCockpitTheme(): {
     homeLayout: installed?.homeLayout,
     unknownWidgets: installed?.unknownWidgets,
     widgetPresentation: installed?.widgetPresentation,
+    heroContent: installed?.heroContent,
   };
 }
