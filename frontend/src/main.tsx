@@ -11,6 +11,11 @@ import '@/components/widgets/widgets.css';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { App } from '@/App';
 import { ThemeProvider } from '@/lib/theme';
+import { adoptTokenFromUrl } from '@/lib/localFallback';
+
+// Arriving from the internet copy of the app by its local fallback: take
+// over the login it carried, before anything checks for one.
+adoptTokenFromUrl();
 
 const qc = new QueryClient({
   defaultOptions: {

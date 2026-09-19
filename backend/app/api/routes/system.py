@@ -81,3 +81,41 @@ async def restart_backend() -> dict:
     """
     asyncio.create_task(_delayed_shutdown())
     return {"restarting": True}
+
+
+def _lan_ipv4() -> str | None:
+    """This Pi's address on the van's own network, or None.
+
+    Asks the kernel which local address it would use to reach an outside
+    host. A UDP connect() sends nothing - it only picks a route - so this
+    works with no signal too: the router is still the default gateway
+    whether or not it has a 4G connection. Docker bridges (172.17/18) are
+    never the default route, so they are never picked.
+    """
+    import socket
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("192.0.2.1", 9))  # TEST-NET-1: never actually contacted
+        ip = s.getsockname()[0]
+    except OSError:
+        return None
+    finally:
+        s.close()
+    return None if ip.startswith("127.") else ip
+
+
+@router.get("/local-address")
+async def local_address() -> dict:
+    """Where this van's app can be reached WITHOUT the internet: its
+    address on the van's own network. The app remembers it while online,
+    and switches to it by itself when the internet address stops
+    answering (see frontend lib/localFallback.ts).
+
+    Behind the app token like the rest of /api/system: it reveals nothing
+    much, but there is no reason to hand it to anyone who finds the
+    public hostname.
+    """
+    ip = _lan_ipv4()
+    port = os.environ.get("VANOS_LOCAL_PORT", "8090")
+    return {"url": f"http://{ip}:{port}" if ip else None}
