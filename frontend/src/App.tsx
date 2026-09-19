@@ -8,6 +8,7 @@ import { SimBanner } from '@/components/SimBanner';
 import { UpdateBanner } from '@/components/UpdateBanner';
 import { RouteErrorBoundary } from '@/components/RouteErrorBoundary';
 import { AppGate } from '@/components/AppGate';
+import { LocalFallbackNotice } from '@/components/LocalFallbackNotice';
 import { useConnected } from '@/lib/telemetry';
 import { useTheme } from '@/lib/theme';
 import { useAutoLocate } from '@/lib/useAutoLocate';
@@ -43,6 +44,9 @@ export function App() {
     <>
       <SplashScreen />
       <AuroraBackground />
+      {/* Outside AppGate: it must work even when the lock screen can't
+          reach the van to check the login. */}
+      <LocalFallbackNotice />
       <AppGate>
       <Router
         future={{

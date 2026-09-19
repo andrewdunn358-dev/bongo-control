@@ -214,6 +214,15 @@ async function networkFirst(req) {
   try {
     const res = await fetch(req);
     if (res.ok) cache.put(req, res.clone()).catch(() => null);
+    // A 5xx for a PAGE means the van is unreachable behind the tunnel
+    // (Cloudflare answers with its own error page, e.g. 502/530, when the
+    // Pi has no signal). Treat it like being offline and open the cached
+    // app, which can then switch itself to the van's local address - see
+    // src/lib/localFallback.ts. Showing the error page would strand it.
+    if (res.status >= 500) {
+      const cached = (await cache.match(req)) || (await cache.match('/index.html'));
+      if (cached) return cached;
+    }
     return res;
   } catch {
     // Offline: serve the cached page, or the shell for an SPA route
