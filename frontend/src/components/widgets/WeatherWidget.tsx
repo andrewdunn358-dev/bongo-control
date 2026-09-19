@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Thermometer } from 'lucide-react';
+import { useThemeAssets } from '@/lib/useThemeAssets';
 
 import { api } from '@/lib/api';
 import { useEnvironment, useWeather } from '@/lib/telemetry';
@@ -20,6 +21,7 @@ import type { WidgetProps } from './types';
  *  rather than presented as measurement. */
 export function WeatherWidget({ state = 'full', variant }: WidgetProps) {
   const WeatherArt = pick(WEATHER_GRAPHICS, variant);
+  const { asset } = useThemeAssets();
   const env = useEnvironment(), weather = useWeather();
   const loc = useQuery({ queryKey: ['location'], queryFn: api.location, retry: false });
   const wp = weather.payload;
@@ -34,7 +36,7 @@ export function WeatherWidget({ state = 'full', variant }: WidgetProps) {
           <span className="vw-eyebrow">OUTSIDE</span>
           <h3>Weather</h3>
         </div>
-        <WeatherArt condition={weatherDescription} size={42} />
+        <WeatherArt condition={weatherDescription} size={42} asset={asset('weather', '') || undefined} />
       </div>
       <div className="vw-weather-main">
         <div>
