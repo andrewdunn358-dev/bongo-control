@@ -32,9 +32,6 @@ const Coverage = lazy(() => import('@/screens/Coverage').then((m) => ({ default:
 const Chat = lazy(() => import('@/screens/Chat').then((m) => ({ default: m.Chat })));
 const Overview = lazy(() => import('@/screens/Overview').then((m) => ({ default: m.Overview })));
 const RadioPage = lazy(() => import('@/screens/Radio').then((m) => ({ default: m.RadioPage })));
-// The Theme Studio is an authoring tool, not part of driving the van:
-// lazy, so its code never loads on the tablet's cockpit.
-const Studio = lazy(() => import('@/screens/Studio').then((m) => ({ default: m.Studio })));
 
 export function App() {
   const connected = useConnected();
@@ -83,7 +80,6 @@ export function App() {
               <Route path="/chat" element={<Chat />} />
               <Route path="/overview" element={<Overview />} />
               <Route path="/radio" element={<RadioPage />} />
-              <Route path="/studio" element={<Studio />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
             </Suspense>

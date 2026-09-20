@@ -30,3 +30,6 @@ captures/
 
 # Test artefacts written by tests/theme-studio.test.mjs
 frontend/tests/.artifacts/
+
+# The Theme Studio's own build output (see site/README.md)
+frontend/dist-studio/

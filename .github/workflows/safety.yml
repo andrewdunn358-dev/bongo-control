@@ -123,6 +123,11 @@ jobs:
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
+      # The Theme Studio is built separately and is not in the app; it
+      # still has to compile, or it rots unnoticed until someone needs it.
+      - name: Theme Studio build
+        run: npx vite build --config vite.studio.config.ts
+        working-directory: frontend
       - name: Demo build
         run: VITE_DEMO=true npm run build
         working-directory: frontend

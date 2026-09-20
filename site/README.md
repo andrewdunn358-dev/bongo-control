@@ -11,6 +11,26 @@ back. Now they live here.
   live demo and build guide)
 - `build.html` — hardware/setup build guide
 
+## The Theme Studio: `studio/`
+Design a theme against the van's OWN widgets and export a
+`.vanos-theme` package. It is NOT part of the van's app - no route, no
+chunk in the Pi's image - it is a separate page built from the same
+source, so its preview is drawn by the van's real widgets and cannot
+drift from what the van shows.
+
+```bash
+cd frontend
+npx vite build --config vite.studio.config.ts    # -> frontend/dist-studio/
+```
+
+Upload `dist-studio/` to the site as `studio/`, so it lands at
+`vanos.3bty.co.uk/studio/studio.html`. Assets are referenced relatively,
+so the folder can sit anywhere.
+
+It runs on the in-browser simulation, like `app.html`, and cannot reach
+a Pi: a theme is exported, then installed in the van's app under
+Settings -> Themes.
+
 ## The third piece: `app.html`
 The live demo app itself is **not** in this folder — it's a normal
 build of `frontend/` with `VITE_DEMO=true`, which produces the whole

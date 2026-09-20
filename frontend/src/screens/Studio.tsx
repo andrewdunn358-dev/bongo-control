@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Download, Image as ImageIcon, Monitor, Plus, Smartphone, Tablet, Trash2, TriangleAlert, Upload, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { FONT_CHOICES, THEMEABLE_TOKENS } from '@/lib/customThemes';
+import { isDemo } from '@/lib/demo';
 import { refreshServerThemes } from '@/lib/serverThemes';
 import { useCockpitTheme } from '@/lib/useCockpitTheme';
 import { ThemePreviewProvider } from '@/lib/themePreview';
@@ -45,7 +46,7 @@ const DEVICES = [
 ] as const;
 
 export function Studio() {
-  const [draft, setDraft] = useState<ThemeDraft>(() => emptyDraft());
+  const [draft, setDraft] = useState<ThemeDraft>(() => startingDraft());
   const [device, setDevice] = useState<(typeof DEVICES)[number]['id']>('tablet');
   const [selected, setSelected] = useState<string>('hero');
   const [busy, setBusy] = useState<string | null>(null);
@@ -152,10 +153,12 @@ export function Studio() {
         </div>
         <div className="studio-actions">
           <button type="button" onClick={() => importRef.current?.click()}><Upload size={16} /> Open</button>
-          <button type="button" onClick={onExport}><Download size={16} /> Export package</button>
-          <button type="button" className="primary" disabled={!!errors.length || busy === 'install'} onClick={onInstall}>
-            {busy === 'install' ? 'Installing…' : 'Install on the van'}
-          </button>
+          <button type="button" onClick={onExport} disabled={!!errors.length}><Download size={16} /> Export package</button>
+          {!isDemo && (
+            <button type="button" className="primary" disabled={!!errors.length || busy === 'install'} onClick={onInstall}>
+              {busy === 'install' ? 'Installing…' : 'Install on the van'}
+            </button>
+          )}
           <input
             ref={importRef} type="file" accept=".vanos-theme,application/zip" hidden
             onChange={(e) => { const f = e.target.files?.[0]; if (f) void onImport(f); e.target.value = ''; }}
@@ -374,12 +377,28 @@ export function Studio() {
       </div>
 
       <p className="studio-foot">
+        {isDemo && 'Export the package, then install it on the van: Settings → Themes → Install. This page cannot reach your Pi. '}
         A theme can change colours, fonts, corner radii, density, the Home arrangement, which drawing each widget uses, the hero words
         and the images. Artwork that follows the van's data - a different battery image per level, say - is not something the format can
         carry yet, so it is not offered here.
       </p>
     </div>
   );
+}
+
+/** A new theme starts from the colours VanOS is using right now, read
+ *  off the page rather than hard-coded here: a blank theme sets no
+ *  colours, which the Pi refuses, and an author editing from the
+ *  current look is what everyone actually wants. */
+function startingDraft(): ThemeDraft {
+  const draft = emptyDraft();
+  if (typeof window === 'undefined') return draft;
+  const style = getComputedStyle(document.documentElement);
+  for (const token of THEMEABLE_TOKENS) {
+    const value = style.getPropertyValue(`--${token}`).trim();
+    if (value) draft.tokens[token] = value;
+  }
+  return draft;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
