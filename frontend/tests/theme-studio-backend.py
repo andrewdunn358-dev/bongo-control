@@ -10,13 +10,26 @@ Run: node tests/theme-studio.test.mjs && python3 tests/theme-studio-backend.py
 """
 from __future__ import annotations
 
+import importlib.util
 import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent.parent / "backend"))
+MODULE = HERE.parent.parent / "backend" / "app" / "services" / "theme_service.py"
 
-from app.services.theme_service import validate_package  # noqa: E402
+# Loaded BY PATH, not as app.services.theme_service: importing it through
+# the package runs backend/app/services/__init__.py, which imports every
+# service and so needs httpx and the rest of the backend's dependencies.
+# This job has Node and the standard library, nothing else - and
+# theme_service itself imports only the standard library, which is what
+# makes loading it alone both possible and honest: this is the real
+# validator, not a copy of it.
+spec = importlib.util.spec_from_file_location("vanos_theme_service", MODULE)
+assert spec and spec.loader, f"Could not load {MODULE}"
+theme_service = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = theme_service
+spec.loader.exec_module(theme_service)
+validate_package = theme_service.validate_package
 
 package = HERE / ".artifacts" / "studio-sample.vanos-theme"
 if not package.exists():
