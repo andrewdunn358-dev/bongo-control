@@ -31,10 +31,10 @@ import './studio.css';
  * theme ends up looking nothing like its design.
  *
  * WHAT IT DELIBERATELY DOES NOT OFFER: anything the format cannot
- * express. There is no state-driven artwork here (an image per battery
- * level, per heater state), because a package cannot carry it yet. The
- * day the format gains it, it belongs here; until then, offering it
- * would be designing something the van cannot show.
+ * express, and anything the van cannot honestly know. State-driven
+ * artwork is offered because a package now carries it (lib/artwork.ts);
+ * the roof is not, and never will be, because there is no position
+ * sensor to drive it.
  *
  * Everything below is data. The Studio cannot write code into a theme,
  * and the Pi re-validates every package on install regardless.
@@ -572,8 +572,8 @@ export function Studio() {
       <p className="studio-foot">
         {isDemo && 'Export the package, then install it on the van: Settings → Themes → Install. This page cannot reach your Pi. '}
         A theme can change colours, fonts, corner radii, density, the Home arrangement, which drawing each widget uses, the hero words
-        and the images. Artwork that follows the van's data - a different battery image per level, say - is not something the format can
-        carry yet, so it is not offered here.
+        and the images. Artwork follows the van's own readings: a different battery image per level, a fill clipped to the real state of
+        charge, a sky per forecast. A reading the van does not have shows VanOS's own drawing rather than a guess.
       </p>
     </div>
   );

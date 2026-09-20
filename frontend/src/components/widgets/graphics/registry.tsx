@@ -1,5 +1,6 @@
 import { VanOSBattery, VanOSSolar, VanOSWeather } from '@/components/VanOSGraphics';
 import { IllustratedBattery, IllustratedSolar, IllustratedWeather, IllustratedPowerFlow } from './illustrated';
+import { GaugeBattery } from './gauge';
 import type { VariantEnvelope } from '@/layout/variantFit';
 import type { BatteryGraphicProps, SolarGraphicProps, WeatherGraphicProps, PowerFlowGraphicProps } from './types';
 import type { ComponentType } from 'react';
@@ -29,6 +30,9 @@ const ALWAYS_FITS: VariantEnvelope = {
 export const BATTERY_GRAPHICS: Record<string, GraphicEntry<BatteryGraphicProps>> = {
   standard: { ...ALWAYS_FITS, component: (p) => <VanOSBattery soc={p.soc} charging={p.charging} size={p.size} /> },
   illustrated: { minWidth: 170, minHeight: 110, states: ['full', 'compact'], component: IllustratedBattery },
+  // The segmented ring gauge. Square and detailed, so it needs more room
+  // than the illustrated cell; below that the renderer falls back.
+  gauge: { minWidth: 150, minHeight: 150, states: ['full'], component: GaugeBattery },
 };
 
 export const SOLAR_GRAPHICS: Record<string, GraphicEntry<SolarGraphicProps>> = {
