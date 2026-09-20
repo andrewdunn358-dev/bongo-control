@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { DEFAULT_COCKPIT_THEME, getCockpitTheme } from '@/lib/cockpitThemes';
 import { applyCustomTheme } from '@/lib/customThemes';
+import { useThemePreview } from '@/lib/themePreview';
 import { getServerThemes, refreshServerThemes, onServerThemesChanged } from '@/lib/serverThemes';
 import type { CustomTheme } from '@/lib/customThemes';
 import type { CockpitTheme, CockpitThemeId } from '@/lib/cockpitThemes';
@@ -41,6 +42,7 @@ export function useCockpitTheme(): {
   widgetPresentation?: Record<string, { variant?: string }>;
   heroContent?: CustomTheme['heroContent'];
 } {
+  const preview = useThemePreview();
   const [themeId, setThemeIdState] = useState<CockpitThemeId>(read);
 
   // The server list arrives asynchronously, so a selected server theme
@@ -116,7 +118,8 @@ export function useCockpitTheme(): {
     // means Home renders the cockpit's built-in composition.
     homeLayout: installed?.homeLayout,
     unknownWidgets: installed?.unknownWidgets,
-    widgetPresentation: installed?.widgetPresentation,
-    heroContent: installed?.heroContent,
+    widgetPresentation: preview ? preview.widgetPresentation : installed?.widgetPresentation,
+    // The Studio previews hero copy that isn't installed yet.
+    heroContent: preview ? preview.heroContent : installed?.heroContent,
   };
 }

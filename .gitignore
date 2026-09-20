@@ -27,3 +27,6 @@ frontend/dist/
 # Docker
 docker-compose.override.yml
 captures/
+
+# Test artefacts written by tests/theme-studio.test.mjs
+frontend/tests/.artifacts/
