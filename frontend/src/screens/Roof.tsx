@@ -153,7 +153,11 @@ export function Roof() {
             playsInline
             aria-label="Mazda Bongo Auto Free Top roof movement"
             onTimeUpdate={syncVisual}
-            onEnded={stop}
+            // The reference video only ILLUSTRATES a movement; it must never
+            // control the motor. It used to stop the roof when the clip ended -
+            // a couple of seconds, shorter than a real close - so closing cut
+            // out every ~2s. Now it just holds its last frame. Only the finger
+            // (release), the Pi's watchdog and the 30s ceiling stop the roof.
             onError={() => setMessage('Roof movement video is not available on this build')}
           />
           <div className="cs-roof-photo-shade" />
