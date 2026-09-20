@@ -1,0 +1,73 @@
+/* THEME STUDIO.
+   Its own chrome only. Nothing here touches the PREVIEW's insides -
+   those are the van's real widgets and must look exactly as they do on
+   Home, so the only thing applied to .studio-device is the draft's own
+   tokens, set inline. */
+.studio { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.studio-top { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; }
+.studio-top h1 { margin: 2px 0; }
+.studio-top p { color: rgb(var(--ink-muted)); margin: 0; }
+.studio-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.studio-actions button,
+.studio-wide,
+.studio-devices button,
+.studio-stagebar > button {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px;
+  border-radius: var(--radius-md); border: 1px solid rgb(var(--line) / 0.4);
+  background: rgb(var(--surface-raised)); color: rgb(var(--ink)); cursor: pointer;
+}
+.studio-actions button.primary { background: rgb(var(--aurora-teal) / 0.25); border-color: rgb(var(--aurora-teal) / 0.5); }
+.studio-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+.studio-note {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 14px;
+  border-radius: var(--radius-md); background: rgb(var(--surface-raised)); border: 1px solid rgb(var(--line) / 0.4);
+}
+.studio-note button { background: none; border: 0; color: inherit; cursor: pointer; min-height: 32px; }
+
+.studio-work { display: grid; grid-template-columns: minmax(280px, 340px) 1fr; gap: 12px; align-items: start; }
+@media (max-width: 900px) { .studio-work { grid-template-columns: 1fr; } }
+
+.studio-panel {
+  max-height: 78vh; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 14px;
+  border-radius: var(--radius-lg); background: rgb(var(--surface-raised) / 0.6); border: 1px solid rgb(var(--line) / 0.3);
+}
+.studio-section { display: flex; flex-direction: column; gap: 8px; }
+.studio-section h4 { margin: 0; font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; color: rgb(var(--ink-muted)); }
+.studio-field { display: grid; grid-template-columns: 96px 1fr; gap: 8px; align-items: center; font-size: 0.85rem; }
+.studio-field > span { color: rgb(var(--ink-soft)); overflow-wrap: anywhere; }
+.studio-field input[type="text"], .studio-field input:not([type]), .studio-field select, .studio-field textarea, .studio-field input[type="number"] {
+  width: 100%; min-height: 40px; padding: 6px 8px; border-radius: var(--radius-sm);
+  background: rgb(var(--surface-sunken)); color: rgb(var(--ink)); border: 1px solid rgb(var(--line) / 0.4);
+}
+.studio-field textarea { min-height: 62px; resize: vertical; }
+.studio-colour { display: flex; gap: 6px; align-items: center; }
+.studio-colour input[type="color"] { width: 44px; min-height: 40px; background: none; border: 1px solid rgb(var(--line) / 0.4); border-radius: var(--radius-sm); }
+.studio-hint { color: rgb(var(--ink-muted)); font-size: 0.8rem; margin: 0; }
+
+.studio-image { display: flex; gap: 8px; align-items: center; }
+.studio-image img { width: 44px; height: 32px; object-fit: cover; border-radius: var(--radius-sm); }
+.studio-image span { flex: 1; display: flex; flex-direction: column; font-size: 0.85rem; }
+.studio-image small { color: rgb(var(--ink-muted)); }
+.studio-image button, .studio-row button {
+  min-height: 40px; min-width: 40px; display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 1px solid rgb(var(--line) / 0.4); border-radius: var(--radius-sm); color: inherit; cursor: pointer;
+}
+.studio-row { display: grid; grid-template-columns: 1fr 64px 40px 40px; gap: 6px; align-items: center; }
+.studio-row.selected { outline: 1px solid rgb(var(--aurora-teal) / 0.6); border-radius: var(--radius-sm); }
+.studio-row select, .studio-row input { min-height: 40px; padding: 4px 6px; border-radius: var(--radius-sm); background: rgb(var(--surface-sunken)); color: rgb(var(--ink)); border: 1px solid rgb(var(--line) / 0.4); }
+.studio-wide { width: 100%; justify-content: center; }
+
+.studio-stage { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.studio-stagebar { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.studio-devices { display: flex; gap: 6px; }
+.studio-devices button.active { border-color: rgb(var(--aurora-teal) / 0.7); }
+.studio-canvas { overflow: auto; padding: 10px; border-radius: var(--radius-lg); border: 1px solid rgb(var(--line) / 0.3); background: rgb(var(--surface-sunken) / 0.5); }
+/* The preview is rendered at its REAL width - never scaled - so what is
+   measured here is what the device measures. */
+.studio-device { background: rgb(var(--surface)); border-radius: var(--radius-lg); overflow: hidden; }
+.studio-json { margin: 0; max-height: 70vh; overflow: auto; font-size: 0.8rem; }
+.studio-checks { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; }
+.studio-checks .ok { color: rgb(var(--ink-muted)); }
+.studio-checks .error { color: rgb(var(--status-red)); display: flex; gap: 6px; align-items: center; }
+.studio-checks .warning { color: rgb(var(--status-amber)); display: flex; gap: 6px; align-items: center; }
+.studio-foot { color: rgb(var(--ink-muted)); font-size: 0.8rem; max-width: 80ch; }

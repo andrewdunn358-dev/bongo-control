@@ -115,6 +115,11 @@ jobs:
           # full dependency reinstall on the next deploy.
           node tests/graphic-choice.test.mjs
           node tests/time-to-full.test.mjs
+          # The Theme Studio's output, then the same package judged by
+          # the Pi's OWN validator - the only opinion that matters on
+          # install. theme_service imports nothing but the stdlib.
+          node tests/theme-studio.test.mjs
+          python3 tests/theme-studio-backend.py
         working-directory: frontend
       - run: npm run build
         working-directory: frontend

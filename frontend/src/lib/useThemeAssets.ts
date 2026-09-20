@@ -3,6 +3,7 @@ import { getServerThemes, onServerThemesChanged } from '@/lib/serverThemes';
 import { useCockpitTheme } from '@/lib/useCockpitTheme';
 import { createAssetProbe, probeDeclaredAssets, resolveThemeAsset } from '@/lib/themeAssetResolve';
 import { useEffect, useState } from 'react';
+import { useThemePreview } from '@/lib/themePreview';
 
 /**
  * Resolves a theme's packaged imagery to URLs.
@@ -45,6 +46,7 @@ export function useThemeAssets(): {
    *  live camera. The camera then lives in its own Home tile. */
   heroCamera: boolean;
 } {
+  const preview = useThemePreview();
   const { themeId } = useCockpitTheme();
   const [, tick] = useState(0);
 
@@ -66,6 +68,15 @@ export function useThemeAssets(): {
   useEffect(() => {
     probeDeclaredAssets({ serverId, assets: declared }, api.themeAssetUrl, probe);
   }, [serverId, declared]);
+
+  // In the Studio, the draft's own images answer instead - they are not
+  // on the Pi yet, so there is nothing to resolve or probe.
+  if (preview) {
+    return {
+      asset: (role: string, fallback: string): string => preview.assetUrls[role] ?? fallback,
+      heroCamera: preview.heroCamera,
+    };
+  }
 
   return {
     asset: (role: string, fallback: string): string =>
