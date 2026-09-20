@@ -7,6 +7,7 @@ import { fmtTemp, DASH } from '@/lib/format';
 import { DataRow } from './shared';
 import { WEATHER_GRAPHICS } from './graphics/registry';
 import { GraphicSlot, choiceFromVariant } from './graphics/GraphicSlot';
+import { useThemeArtwork } from '@/lib/useThemeArtwork';
 import type { WidgetProps } from './types';
 
 /** PHASE 2 NOTE: this widget still renders Adventure's vm-* classes,
@@ -24,6 +25,8 @@ export function WeatherWidget({ state = 'full', variant, graphic }: WidgetProps)
   const wp = weather.payload;
   const ratio = wp?.tomorrow_vs_today_radiation_ratio;
   const weatherDescription = wp?.current_weather_description;
+  // The theme's own artwork for this condition, if it has any.
+  const artwork = useThemeArtwork();
   const satCount = loc.data?.satellites;
 
   return (
@@ -37,6 +40,7 @@ export function WeatherWidget({ state = 'full', variant, graphic }: WidgetProps)
           table={WEATHER_GRAPHICS}
           choice={graphic ?? choiceFromVariant(variant)}
           artClass="weather"
+          art={artwork.weather({ condition: weatherDescription })}
           alt={weatherDescription || 'Weather'}
           props={{
             condition: weatherDescription,

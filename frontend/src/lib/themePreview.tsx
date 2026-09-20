@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import type { Artwork } from '@/lib/artwork';
 import type { CustomTheme } from '@/lib/customThemes';
 
 /**
@@ -22,6 +23,15 @@ import type { CustomTheme } from '@/lib/customThemes';
 export interface ThemePreview {
   /** Words over the hero image; same shape a package supplies. */
   heroContent?: CustomTheme['heroContent'];
+  /** State-driven artwork the draft declares (lib/artwork.ts). */
+  artwork?: Artwork;
+  /** Package path -> object URL, for artwork not yet installed on the Pi. */
+  artUrls?: Record<string, string>;
+  /** Readings the Studio is pretending to have, so artwork can be seen
+   *  at any level without a van doing it. Preview only - nothing here
+   *  reaches a widget's own readouts, which keep showing the simulated
+   *  telemetry the demo provides. */
+  simulate?: { soc?: number | null; charging?: boolean; watts?: number | null; condition?: string | null };
   /** Which drawing each widget should use, as the draft asks for it. */
   widgetPresentation?: Record<string, { variant?: string }>;
   /** role -> object URL for an image the author has chosen but not yet

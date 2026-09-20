@@ -113,11 +113,11 @@ check('the checks catch what the Pi would refuse', () => {
   assert.match(text(badVariant), /error: "holographic" is not a drawing/);
 
   const tooMany = sampleDraft();
-  tooMany.images = Array.from({ length: 13 }, (_, i) => ({ role: `r${i}`, path: `assets/r${i}.png`, bytes: PNG, contentType: 'image/png', url: '' }));
+  tooMany.images = Array.from({ length: 61 }, (_, i) => ({ role: `r${i}`, path: `assets/r${i}.png`, bytes: PNG, contentType: 'image/png', url: '' }));
   assert.match(text(tooMany), /error: Too many images/);
 
-  const huge = sampleDraft(); huge.images[0].bytes = new Uint8Array(2 * 1024 * 1024 + 1);
-  assert.match(text(huge), /error: .*2MB limit/);
+  const huge = sampleDraft(); huge.images[0].bytes = new Uint8Array(5 * 1024 * 1024 + 1);
+  assert.match(text(huge), /error: .*5MB limit/);
 });
 
 check('the Galloway trap is a warning, not a silent loss', () => {
@@ -167,8 +167,67 @@ await acheck('a package opens back into the same draft', async () => {
   assert.deepEqual([...buildPackage(reopened)], [...buildPackage(original)]);
 });
 
+check('state-driven artwork: frames must be in the package', () => {
+  const d = sampleDraft();
+  d.artwork = { battery: { levels: [{ upTo: 50, image: 'assets/bat-low.png' }] } };
+  const text = (x) => validateDraft(x, WIDGET_IDS, WIDGET_VARIANTS).map((p) => `${p.level}: ${p.text}`).join('\n');
+  assert.match(text(d), /error: The artwork names assets\/bat-low\.png/);
+
+  d.artImages = [{ role: '', path: 'assets/bat-low.png', bytes: PNG, contentType: 'image/png', url: '' }];
+  assert.equal(validateDraft(d, WIDGET_IDS, WIDGET_VARIANTS).filter((p) => p.level === 'error').length, 0);
+});
+
+check('artwork and a drawing on the same widget is called out', () => {
+  const d = sampleDraft();
+  d.artwork = { battery: { levels: [{ upTo: 50, image: 'assets/bat-low.png' }] } };
+  d.artImages = [{ role: '', path: 'assets/bat-low.png', bytes: PNG, contentType: 'image/png', url: '' }];
+  d.widgets = { battery: { variant: 'illustrated' } };
+  assert.ok(validateDraft(d, WIDGET_IDS, WIDGET_VARIANTS).some((p) => /artwork wins/.test(p.text)));
+});
+
+await acheck('a package carries the artwork and its frames, and reopens', async () => {
+  const d = sampleDraft();
+  d.artwork = {
+    battery: {
+      levels: [{ upTo: 25, image: 'assets/bat-25.png' }, { image: 'assets/bat-full.png' }],
+      charging: 'assets/bat-charging.png',
+    },
+    weather: { conditions: { rain: 'assets/w-rain.png' } },
+  };
+  d.artImages = ['assets/bat-25.png', 'assets/bat-full.png', 'assets/bat-charging.png', 'assets/w-rain.png']
+    .map((path) => ({ role: '', path, bytes: PNG, contentType: 'image/png', url: '' }));
+
+  const def = themeDefinition(d);
+  assert.equal(def.artwork.battery.charging, 'assets/bat-charging.png');
+  assert.deepEqual(def.artwork.weather.conditions, { rain: 'assets/w-rain.png' });
+
+  const files = await readZip(buildPackage(d));
+  for (const frame of d.artImages) assert.ok(files.has(frame.path), frame.path);
+
+  const reopened = await draftFromPackage(buildPackage(d));
+  assert.deepEqual(reopened.artwork, def.artwork);
+  assert.deepEqual(reopened.artImages.map((i) => i.path).sort(), d.artImages.map((i) => i.path).sort());
+});
+
 // Left on disk for the backend test to validate with the Pi's own code.
 mkdirSync(join(here, '.artifacts'), { recursive: true });
 writeFileSync(join(here, '.artifacts', 'studio-sample.vanos-theme'), buildPackage(sampleDraft()));
+// And one with state-driven artwork, for the same backend check.
+{
+  const d = sampleDraft();
+  d.artwork = {
+    battery: {
+      levels: [{ upTo: 25, image: 'assets/bat-25.png' }, { image: 'assets/bat-full.png' }],
+      charging: 'assets/bat-charging.png',
+      fill: { body: 'assets/body.png', fill: 'assets/liquid.png', bottom: 0.86, top: 0.14 },
+    },
+    solar: { bands: [{ upTo: 5, image: 'assets/s-idle.png' }, { image: 'assets/s-high.png' }] },
+    weather: { conditions: { Rain: 'assets/w-rain.png' } },
+  };
+  d.artImages = ['assets/bat-25.png', 'assets/bat-full.png', 'assets/bat-charging.png', 'assets/body.png',
+    'assets/liquid.png', 'assets/s-idle.png', 'assets/s-high.png', 'assets/w-rain.png']
+    .map((path) => ({ role: '', path, bytes: PNG, contentType: 'image/png', url: '' }));
+  writeFileSync(join(here, '.artifacts', 'studio-artwork.vanos-theme'), buildPackage(d));
+}
 
 console.log(`\n${passed} theme-studio checks passed`);

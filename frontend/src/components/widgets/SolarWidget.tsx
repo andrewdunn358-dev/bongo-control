@@ -6,6 +6,7 @@ import type { SolarPayload } from '@/lib/types';
 import { Spark, DataRow } from './shared';
 import { SOLAR_GRAPHICS } from './graphics/registry';
 import { GraphicSlot, choiceFromVariant } from './graphics/GraphicSlot';
+import { useThemeArtwork } from '@/lib/useThemeArtwork';
 import type { WidgetProps } from './types';
 
 /** PHASE 2 NOTE: this widget still renders Adventure's vm-* classes,
@@ -19,6 +20,8 @@ export function SolarWidget({ state = 'full', variant, graphic }: WidgetProps) {
   const solar = useSolar();
   const solarSeries = useSparkBuffer<SolarPayload>('solar', (p) => p.watts);
   const sp = solar.payload;
+  // The theme's own artwork for this output, if it has any.
+  const artwork = useThemeArtwork();
 
   return (
     <Link to="/power" className="vw-card vw-solar-card" data-vw-state={state} data-vw-variant={variant ?? 'standard'}>
@@ -34,6 +37,7 @@ export function SolarWidget({ state = 'full', variant, graphic }: WidgetProps) {
           table={SOLAR_GRAPHICS}
           choice={graphic ?? choiceFromVariant(variant)}
           artClass="solar"
+          art={artwork.solar({ watts: sp?.watts })}
           props={{
             size: 74,
             active: Boolean(sp?.watts),

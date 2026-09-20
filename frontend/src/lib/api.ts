@@ -444,5 +444,7 @@ export interface ServerTheme {
   heroCamera?: boolean | null;
   /** Optional copy for the Home hero. */
   heroContent?: { eyebrow?: string; title?: string; subtitle?: string; quote?: string; quoteAuthor?: string } | null;
+  /** State-driven artwork, already checked against the package's files. */
+  artwork?: Record<string, unknown> | null;
   sizeBytes: number;
 }

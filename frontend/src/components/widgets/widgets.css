@@ -478,3 +478,24 @@
 @media (prefers-reduced-motion: reduce) {
   .vw-action[data-vw-variant='illustrated'] .vw-action-image { transition: none; }
 }
+
+/* STATE-DRIVEN ARTWORK (lib/artwork.ts). A theme's own picture, chosen
+   by the live reading, sits exactly where the drawing it replaces sat.
+   The fill variant stacks two images and clips the upper one to the
+   reading, so the artwork's own liquid rises and falls. */
+.vw-theme-art-stack {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+}
+.vw-theme-art-stack > .vw-theme-art-liquid {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* The clip moves with the reading, so ease it rather than jumping. */
+  transition: clip-path 600ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vw-theme-art-stack > .vw-theme-art-liquid { transition: none; }
+}

@@ -31,6 +31,10 @@ It runs on the in-browser simulation, like `app.html`, and cannot reach
 a Pi: a theme is exported, then installed in the van's app under
 Settings -> Themes.
 
+It also edits STATE-DRIVEN ARTWORK - several frames per widget and when
+each shows - with a simulator for previewing any reading. See
+`docs/theme-artwork.md`.
+
 ## The third piece: `app.html`
 The live demo app itself is **not** in this folder — it's a normal
 build of `frontend/` with `VITE_DEMO=true`, which produces the whole

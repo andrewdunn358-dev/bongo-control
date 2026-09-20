@@ -71,3 +71,24 @@
 .studio-checks .error { color: rgb(var(--status-red)); display: flex; gap: 6px; align-items: center; }
 .studio-checks .warning { color: rgb(var(--status-amber)); display: flex; gap: 6px; align-items: center; }
 .studio-foot { color: rgb(var(--ink-muted)); font-size: 0.8rem; max-width: 80ch; }
+
+/* ARTWORK EDITOR. One row per frame: the reading it covers, then the
+   picture. Thumbnails are small on purpose - the preview beside them is
+   the real judge of how the art looks. */
+.studio-sub {
+  margin: 10px 0 2px; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: rgb(var(--ink-soft));
+}
+.studio-step { grid-template-columns: 1fr 26px auto; }
+.studio-step-unit { color: rgb(var(--ink-muted)); font-size: 0.8rem; }
+.studio-frame { display: inline-flex; align-items: center; gap: 6px; }
+.studio-frame img {
+  width: 34px; height: 34px; object-fit: cover; border-radius: var(--radius-sm);
+  background: rgb(var(--surface-sunken));
+}
+.studio-frame button {
+  min-height: 40px; padding: 0 10px; border-radius: var(--radius-sm); cursor: pointer;
+  border: 1px solid rgb(var(--line) / 0.4); background: rgb(var(--surface-raised)); color: rgb(var(--ink));
+  font-size: 0.8rem;
+}
+.studio-field input[type="range"] { width: 100%; }
