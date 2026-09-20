@@ -9,6 +9,7 @@ import { RESTING_CURRENT_A, timeToFullMins } from '@/lib/batteryDerive';
 import { Spark, DataRow } from './shared';
 import { BATTERY_GRAPHICS } from './graphics/registry';
 import { GraphicSlot, choiceFromVariant } from './graphics/GraphicSlot';
+import { useThemeArtwork } from '@/lib/useThemeArtwork';
 import type { WidgetProps } from './types';
 
 /** PHASE 2 NOTE: this widget still renders Adventure's vm-* classes,
@@ -37,6 +38,9 @@ export function BatteryWidget({ state = 'full', variant, graphic }: WidgetProps)
   // fitted, per hasShunt() - so a graphic can never draw a current the
   // van did not measure.
   const shunt = hasShunt(bp);
+  // The theme's own artwork for THIS charge, if it has any. Null
+  // without a state of charge, so art never stands in for a reading.
+  const artwork = useThemeArtwork();
 
   return (
     <Link to="/power" className="vw-card vw-battery-card" data-vw-state={state} data-vw-variant={variant ?? 'standard'}>
@@ -52,6 +56,7 @@ export function BatteryWidget({ state = 'full', variant, graphic }: WidgetProps)
           table={BATTERY_GRAPHICS}
           choice={graphic ?? choiceFromVariant(variant)}
           artClass="battery"
+          art={artwork.battery({ soc: bp?.soc_pct, charging: bp?.charging })}
           props={{
             soc: bp?.soc_pct,
             charging: bp?.charging,

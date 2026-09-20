@@ -14,11 +14,14 @@
  */
 import { FONT_CHOICES, THEMEABLE_TOKENS } from '@/lib/customThemes';
 import { LAYOUT_COLUMNS, LAYOUT_VERSION, type LayoutDefinition } from '@/layout/schema';
+import { cleanArtwork, artworkPaths, type Artwork } from '@/lib/artwork';
 import { createZip, readZip, ZipError, type ZipEntry } from '@/lib/zip';
 
-/** theme_service.MAX_ASSETS / MAX_ASSET_BYTES. */
-export const MAX_ASSETS = 12;
-export const MAX_ASSET_BYTES = 2 * 1024 * 1024;
+/** theme_service.MAX_ASSETS / MAX_ASSET_BYTES. Raised when
+ *  state-driven artwork arrived: a frame per battery level is a set,
+ *  not one picture. */
+export const MAX_ASSETS = 60;
+export const MAX_ASSET_BYTES = 5 * 1024 * 1024;
 /** theme_service: manifest name length. */
 export const MAX_NAME_LENGTH = 40;
 /** The image types the Pi accepts. */
@@ -79,6 +82,12 @@ export interface ThemeDraft {
   layout: LayoutDefinition;
   widgets: Record<string, { variant?: string }>;
   images: DraftImage[];
+  /** Which image shows at which reading. The images it names live in
+   *  artImages; the mapping itself is what goes in theme.json. */
+  artwork: Artwork;
+  /** Artwork frames, keyed by their path inside the package. Separate
+   *  from `images` because a role has one image and artwork has many. */
+  artImages: DraftImage[];
 }
 
 /** Same patterns the Pi enforces (theme_service._RGB / _BACKGROUND, and
@@ -106,6 +115,8 @@ export function emptyDraft(): ThemeDraft {
     layout: { version: LAYOUT_VERSION, items: [] },
     widgets: {},
     images: [],
+    artwork: {},
+    artImages: [],
   };
 }
 
@@ -146,6 +157,8 @@ export function themeDefinition(draft: ThemeDraft): Record<string, unknown> {
   const hero = heroBlock(draft.hero);
   if (hero) def.hero = hero;
   if (Object.keys(draft.widgets).length) def.widgets = draft.widgets;
+  const artwork = cleanArtwork(draft.artwork);
+  if (artwork) def.artwork = artwork;
   def.home = {
     heroCamera: draft.heroCamera,
     ...(draft.layout.items.length ? { layout: draft.layout } : {}),
@@ -172,6 +185,7 @@ export function buildPackage(draft: ThemeDraft): Uint8Array {
     { path: 'manifest.json', data: enc.encode(JSON.stringify(manifestFor(draft), null, 2)) },
     { path: 'theme.json', data: enc.encode(JSON.stringify(themeDefinition(draft), null, 2)) },
     ...draft.images.map((i) => ({ path: i.path, data: i.bytes })),
+    ...draft.artImages.map((i) => ({ path: i.path, data: i.bytes })),
   ];
   return createZip(entries);
 }
@@ -230,7 +244,30 @@ export function validateDraft(draft: ThemeDraft, knownWidgets: readonly string[]
     else if (!allowed.includes(choice)) err(`"${choice}" is not a drawing "${widget}" has.`);
   }
 
-  if (draft.images.length > MAX_ASSETS) err(`Too many images (${draft.images.length}); the Pi accepts ${MAX_ASSETS}.`);
+  const allImages = [...draft.images, ...draft.artImages];
+  if (allImages.length > MAX_ASSETS) err(`Too many images (${allImages.length}); the Pi accepts ${MAX_ASSETS}.`);
+
+  // Every frame the artwork names has to be in the package, or the Pi
+  // drops that frame on install and the theme silently loses a state.
+  const packed = new Set(allImages.map((i) => i.path));
+  for (const path of artworkPaths(cleanArtwork(draft.artwork))) {
+    if (!packed.has(path)) err(`The artwork names ${path}, which is not in the theme.`);
+  }
+  for (const frame of draft.artImages) {
+    if (frame.bytes.length > MAX_ASSET_BYTES) err(`${frame.path} is over the ${MAX_ASSET_BYTES / 1024 / 1024}MB limit for one image.`);
+  }
+  // Artwork follows the data; a named drawing does not. Artwork wins,
+  // so say plainly that the drawing will not be used.
+  const withArtwork = Object.keys(cleanArtwork(draft.artwork) ?? {});
+  for (const widget of withArtwork) {
+    if (draft.widgets[widget]?.variant) {
+      warn(`"${widget}" has artwork AND a drawing. The artwork wins, so the drawing will not be used.`);
+    }
+  }
+  const battery = draft.artwork.battery;
+  if (battery?.fill && battery.levels?.length) {
+    warn('The battery has both a fill pair and level frames. The fill wins; the frames will not be used.');
+  }
   for (const image of draft.images) {
     if (image.bytes.length > MAX_ASSET_BYTES) err(`${image.path} is over the ${MAX_ASSET_BYTES / 1024 / 1024}MB limit for one image.`);
     if (!Object.values(ASSET_TYPES).includes(image.path.slice(image.path.lastIndexOf('.')).toLowerCase())) {
@@ -344,6 +381,17 @@ export async function draftFromPackage(bytes: Uint8Array): Promise<ThemeDraft> {
       const variant = value && typeof value === 'object' ? (value as Record<string, unknown>).variant : undefined;
       if (typeof variant === 'string') draft.widgets[id] = { variant };
     }
+  }
+
+  // State-driven artwork, and the frames it names. Cleaned with the same
+  // rules the app applies, so what reopens is what the van would draw.
+  draft.artwork = cleanArtwork(definition.artwork) ?? {};
+  for (const path of artworkPaths(draft.artwork)) {
+    const frameBytes = files.get(path);
+    if (!frameBytes) continue;
+    const ext = path.slice(path.lastIndexOf('.')).toLowerCase();
+    const contentType = Object.entries(ASSET_TYPES).find(([, e]) => e === ext)?.[0] ?? 'application/octet-stream';
+    draft.artImages.push({ role: '', path, bytes: frameBytes, contentType, url: objectUrl(frameBytes, contentType) });
   }
 
   const assets = definition.assets;

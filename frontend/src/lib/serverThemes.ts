@@ -1,5 +1,6 @@
 import { api } from '@/lib/api';
 import type { ServerTheme } from '@/lib/api';
+import { cleanArtwork } from '@/lib/artwork';
 import type { CustomTheme } from '@/lib/customThemes';
 import { parseLayout, parseWidgetPresentation } from '@/layout/schema';
 import { WIDGET_IDS } from '@/components/widgets/registry';
@@ -68,6 +69,10 @@ function toCustomTheme(s: ServerTheme): CustomTheme {
     serverId: s.id,
     heroCamera: s.heroCamera ?? undefined,
     heroContent: s.heroContent ?? undefined,
+    // Re-checked here as well: this build owns the rules for what it can
+    // draw, so a theme written for a newer VanOS loses the art it cannot
+    // use rather than breaking the page.
+    artwork: cleanArtwork(s.artwork),
     cockpit: s.cockpit ?? undefined,
     // The Home composition the theme defines. Re-validated here even
     // though the Pi validated it on upload: this build owns the widget

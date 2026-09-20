@@ -36,6 +36,7 @@
  *   }
  */
 
+import type { Artwork } from '@/lib/artwork';
 import type { LayoutDefinition } from '@/layout/schema';
 import { parseLayout } from '@/layout/schema';
 
@@ -60,6 +61,8 @@ export interface CustomTheme {
   serverId?: string;
   /** false = hero shows the theme's own image, camera stays in its tile. */
   heroCamera?: boolean;
+  /** Which image shows at which reading (lib/artwork.ts). */
+  artwork?: Artwork;
   /** Optional hero copy supplied by the installed theme. */
   heroContent?: { eyebrow?: string; title?: string; subtitle?: string; quote?: string; quoteAuthor?: string };
   /** Built-in cockpit layout this theme renders in. Validated against

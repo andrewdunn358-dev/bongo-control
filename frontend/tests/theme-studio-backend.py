@@ -51,4 +51,44 @@ assert meta["heroContent"]["quoteAuthor"] == "", meta["heroContent"]
 assert meta["widgets"] == {"battery": {"variant": "illustrated"}}, meta["widgets"]
 assert [i["widget"] for i in meta["homeLayout"]["items"]] == ["hero", "battery", "solar"], meta["homeLayout"]
 
-print("Studio package accepted by the Pi's own validator, with every field it carries intact.")
+# And the one with state-driven artwork: the Pi must keep the mapping,
+# and keep only frames the package really contains.
+artwork_package = HERE / ".artifacts" / "studio-artwork.vanos-theme"
+if not artwork_package.exists():
+    sys.exit("Run tests/theme-studio.test.mjs first - it writes the packages this checks.")
+
+art_meta = validate_package(artwork_package.read_bytes())
+art = art_meta["artwork"]
+assert art is not None, "the Pi dropped the artwork block entirely"
+assert [s["image"] for s in art["battery"]["levels"]] == ["assets/bat-25.png", "assets/bat-full.png"], art["battery"]
+assert art["battery"]["levels"][0]["upTo"] == 25.0
+assert "upTo" not in art["battery"]["levels"][1], "the open-ended frame must stay open-ended"
+assert art["battery"]["charging"] == "assets/bat-charging.png"
+assert art["battery"]["fill"] == {"body": "assets/body.png", "fill": "assets/liquid.png", "bottom": 0.86, "top": 0.14}
+assert [s["image"] for s in art["solar"]["bands"]] == ["assets/s-idle.png", "assets/s-high.png"]
+assert art["weather"]["conditions"] == {"rain": "assets/w-rain.png"}, art["weather"]
+
+# A frame the package does not contain is dropped, not installed broken.
+import io, json, zipfile  # noqa: E402
+
+raw = artwork_package.read_bytes()
+with zipfile.ZipFile(io.BytesIO(raw)) as zf:
+    manifest = json.loads(zf.read("manifest.json"))
+    definition = json.loads(zf.read("theme.json"))
+    keep = [n for n in zf.namelist() if n != "assets/bat-25.png"]
+    parts = {n: zf.read(n) for n in keep}
+definition["artwork"]["battery"]["levels"].append({"upTo": 90, "image": "assets/never-packed.png"})
+parts["theme.json"] = json.dumps(definition).encode()
+parts["manifest.json"] = json.dumps(manifest).encode()
+buffer = io.BytesIO()
+with zipfile.ZipFile(buffer, "w") as zf:
+    for name, data in parts.items():
+        zf.writestr(name, data)
+patched = validate_package(buffer.getvalue())["artwork"]
+images = [s["image"] for s in patched["battery"]["levels"]]
+assert "assets/never-packed.png" not in images, images
+assert "assets/bat-25.png" not in images, "a frame removed from the package must be dropped too"
+assert images == ["assets/bat-full.png"], images
+
+print("Studio packages accepted by the Pi's own validator: fields intact, and artwork")
+print("frames the package does not contain are dropped rather than installed broken.")

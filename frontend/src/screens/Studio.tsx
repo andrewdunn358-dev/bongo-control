@@ -11,6 +11,7 @@ import { builtinComposition } from '@/layout/builtins';
 import { LAYOUT_COLUMNS } from '@/layout/schema';
 import { WIDGET_IDS, getWidget } from '@/components/widgets/registry';
 import { WIDGET_VARIANTS } from '@/components/widgets/graphics/registry';
+import type { ArtworkStep } from '@/lib/artwork';
 import {
   ASSET_ROLES, ASSET_TYPES, COCKPITS, DENSITIES, MAX_ASSET_BYTES, MAX_ASSETS,
   emptyDraft, hexToTriplet, objectUrl, packageFile, slugFor, themeDefinition, tripletToHex,
@@ -54,6 +55,12 @@ export function Studio() {
   const [showJson, setShowJson] = useState(false);
   const importRef = useRef<HTMLInputElement | null>(null);
   const imageRef = useRef<HTMLInputElement | null>(null);
+  const artRef = useRef<HTMLInputElement | null>(null);
+  // Readings the preview pretends to have, so artwork can be seen at any
+  // level. They never leave the Studio.
+  const [simulate, setSimulate] = useState<{ soc: number; charging: boolean; watts: number; condition: string }>({
+    soc: 78, charging: true, watts: 62, condition: 'rain',
+  });
   const { setTheme } = useCockpitTheme();
 
   const edit = (patch: Partial<ThemeDraft>) => setDraft((d) => ({ ...d, ...patch }));
@@ -86,6 +93,12 @@ export function Studio() {
     return urls;
   }, [draft.images]);
 
+  const artUrls = useMemo(() => {
+    const urls: Record<string, string> = {};
+    for (const frame of draft.artImages) if (frame.url) urls[frame.path] = frame.url;
+    return urls;
+  }, [draft.artImages]);
+
   const heroContent = useMemo(() => {
     const hero = draft.hero;
     return Object.values(hero).some((v) => v.trim()) ? hero : undefined;
@@ -115,6 +128,54 @@ export function Studio() {
       ],
     }));
   }
+
+  /** Adds a frame to the package and hands back its path, so the
+   *  artwork rule can name it. */
+  async function addFrame(file: File): Promise<string | null> {
+    const ext = ASSET_TYPES[file.type];
+    if (!ext) { setNote('Images must be PNG, JPEG, WEBP or SVG.'); return null; }
+    if (file.size > MAX_ASSET_BYTES) { setNote(`${file.name} is over the ${MAX_ASSET_BYTES / 1024 / 1024}MB limit for one image.`); return null; }
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const base = file.name.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 32) || 'frame';
+    let path = `assets/${base}${ext}`;
+    let n = 2;
+    const taken = new Set([...draft.images, ...draft.artImages].map((i) => i.path));
+    while (taken.has(path)) path = `assets/${base}-${n++}${ext}`;
+    setDraft((d) => ({ ...d, artImages: [...d.artImages, { role: '', path, bytes, contentType: file.type, url: objectUrl(bytes, file.type) }] }));
+    return path;
+  }
+
+  /** Drops frames no rule names any more, so a package never carries
+   *  images nothing can show. */
+  function pruneFrames(artwork: ThemeDraft['artwork'], frames: ThemeDraft['artImages']) {
+    const used = new Set<string>();
+    for (const step of artwork.battery?.levels ?? []) used.add(step.image);
+    if (artwork.battery?.charging) used.add(artwork.battery.charging);
+    if (artwork.battery?.fill) { used.add(artwork.battery.fill.body); used.add(artwork.battery.fill.fill); }
+    for (const step of artwork.solar?.bands ?? []) used.add(step.image);
+    for (const path of Object.values(artwork.weather?.conditions ?? {})) used.add(path);
+    return frames.filter((f) => used.has(f.path));
+  }
+
+  function setArtwork(next: ThemeDraft['artwork']) {
+    setDraft((d) => ({ ...d, artwork: next, artImages: pruneFrames(next, d.artImages) }));
+  }
+
+  /** Opens the file picker and runs `then` with the stored path. */
+  function pickFrame(then: (path: string) => void) {
+    const input = artRef.current;
+    if (!input) return;
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      input.value = '';
+      if (!file) return;
+      const path = await addFrame(file);
+      if (path) then(path);
+    };
+    input.click();
+  }
+
+  const frameUrl = (path: string | undefined) => draft.artImages.find((f) => f.path === path)?.url;
 
   function onExport() {
     const file = packageFile(draft);
@@ -274,6 +335,128 @@ export function Studio() {
             />
           </Section>
 
+          <Section title="Artwork (follows the van)">
+            <p className="studio-hint">
+              Several frames per widget, and when each one shows. Drawn by the van from the real reading - and nothing is
+              shown when the van hasn't got that reading.
+            </p>
+
+            <h5 className="studio-sub">Battery, by charge</h5>
+            <StepList
+              steps={draft.artwork.battery?.levels ?? []}
+              unit="%"
+              frameUrl={frameUrl}
+              onPick={(then) => pickFrame(then)}
+              onChange={(levels) => setArtwork({ ...draft.artwork, battery: { ...draft.artwork.battery, levels } })}
+            />
+            <Field label="While charging">
+              <FrameButton
+                url={frameUrl(draft.artwork.battery?.charging)}
+                onPick={() => pickFrame((path) => setArtwork({ ...draft.artwork, battery: { ...draft.artwork.battery, charging: path } }))}
+                onClear={() => setArtwork({ ...draft.artwork, battery: { ...draft.artwork.battery, charging: undefined } })}
+              />
+            </Field>
+
+            <h5 className="studio-sub">Or a fill that follows the charge</h5>
+            <Field label="Body">
+              <FrameButton
+                url={frameUrl(draft.artwork.battery?.fill?.body)}
+                onPick={() => pickFrame((path) => setArtwork({
+                  ...draft.artwork,
+                  battery: { ...draft.artwork.battery, fill: { fill: '', ...draft.artwork.battery?.fill, body: path } },
+                }))}
+                onClear={() => setArtwork({ ...draft.artwork, battery: { ...draft.artwork.battery, fill: undefined } })}
+              />
+            </Field>
+            <Field label="Liquid">
+              <FrameButton
+                url={frameUrl(draft.artwork.battery?.fill?.fill)}
+                onPick={() => pickFrame((path) => setArtwork({
+                  ...draft.artwork,
+                  battery: { ...draft.artwork.battery, fill: { body: '', ...draft.artwork.battery?.fill, fill: path } },
+                }))}
+                onClear={() => setArtwork({ ...draft.artwork, battery: { ...draft.artwork.battery, fill: undefined } })}
+              />
+            </Field>
+            {draft.artwork.battery?.fill && (
+              <>
+                {(['bottom', 'top'] as const).map((edge) => (
+                  <Field key={edge} label={edge === 'bottom' ? 'Empty line' : 'Full line'}>
+                    <input
+                      type="number" min={0} max={1} step={0.01}
+                      value={draft.artwork.battery?.fill?.[edge] ?? (edge === 'bottom' ? 1 : 0)}
+                      onChange={(e) => setArtwork({
+                        ...draft.artwork,
+                        battery: {
+                          ...draft.artwork.battery,
+                          fill: { body: '', fill: '', ...draft.artwork.battery?.fill, [edge]: Number(e.target.value) },
+                        },
+                      })}
+                    />
+                  </Field>
+                ))}
+                <p className="studio-hint">
+                  Where empty and full sit in your picture, from the top: 0 is the very top, 1 the very bottom. So a glass
+                  with a lip might be 0.14 full and 0.86 empty.
+                </p>
+              </>
+            )}
+
+            <h5 className="studio-sub">Solar, by watts</h5>
+            <StepList
+              steps={draft.artwork.solar?.bands ?? []}
+              unit="W"
+              frameUrl={frameUrl}
+              onPick={(then) => pickFrame(then)}
+              onChange={(bands) => setArtwork({ ...draft.artwork, solar: { bands } })}
+            />
+
+            <h5 className="studio-sub">Weather, by condition</h5>
+            {WEATHER_CONDITIONS.map((condition) => (
+              <Field key={condition} label={condition}>
+                <FrameButton
+                  url={frameUrl(draft.artwork.weather?.conditions?.[condition])}
+                  onPick={() => pickFrame((path) => setArtwork({
+                    ...draft.artwork,
+                    weather: { conditions: { ...draft.artwork.weather?.conditions, [condition]: path } },
+                  }))}
+                  onClear={() => {
+                    const conditions = { ...draft.artwork.weather?.conditions };
+                    delete conditions[condition];
+                    setArtwork({ ...draft.artwork, weather: { conditions } });
+                  }}
+                />
+              </Field>
+            ))}
+            <p className="studio-hint">
+              The roof is deliberately missing: the van has no sensor for whether it is open, so no artwork may imply one.
+            </p>
+            <input
+              ref={artRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden
+            />
+          </Section>
+
+          <Section title="Simulate (preview only)">
+            <Field label={`Charge ${simulate.soc}%`}>
+              <input type="range" min={0} max={100} value={simulate.soc}
+                onChange={(e) => setSimulate({ ...simulate, soc: Number(e.target.value) })} />
+            </Field>
+            <Field label="Charging">
+              <input type="checkbox" checked={simulate.charging}
+                onChange={(e) => setSimulate({ ...simulate, charging: e.target.checked })} />
+            </Field>
+            <Field label={`Solar ${simulate.watts} W`}>
+              <input type="range" min={0} max={400} value={simulate.watts}
+                onChange={(e) => setSimulate({ ...simulate, watts: Number(e.target.value) })} />
+            </Field>
+            <Field label="Condition">
+              <select value={simulate.condition} onChange={(e) => setSimulate({ ...simulate, condition: e.target.value })}>
+                {WEATHER_CONDITIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </Field>
+            <p className="studio-hint">These stand in for the van's readings so you can see every frame. They are not saved in the theme.</p>
+          </Section>
+
           <Section title="Layout">
             {draft.layout.items.map((item, i) => (
               <div key={`${item.widget}-${i}`} className={`studio-row${selected === item.widget ? ' selected' : ''}`} onClick={() => setSelected(item.widget)}>
@@ -353,7 +536,17 @@ export function Studio() {
               <pre className="studio-json">{JSON.stringify(themeDefinition(draft), null, 2)}</pre>
             ) : composition ? (
               <div className="studio-device" style={{ width, ...previewVars }}>
-                <ThemePreviewProvider value={{ heroContent, widgetPresentation: draft.widgets, assetUrls, heroCamera: draft.heroCamera }}>
+                <ThemePreviewProvider
+                  value={{
+                    heroContent,
+                    widgetPresentation: draft.widgets,
+                    assetUrls,
+                    heroCamera: draft.heroCamera,
+                    artwork: draft.artwork,
+                    artUrls,
+                    simulate,
+                  }}
+                >
                   <ThemedHome composition={composition} />
                 </ThemePreviewProvider>
               </div>
@@ -399,6 +592,58 @@ function startingDraft(): ThemeDraft {
     if (value) draft.tokens[token] = value;
   }
   return draft;
+}
+
+/** The condition words the Weather widget shows (lib/format.ts
+ *  wmoLabel), lower-cased - the only keys artwork can match. */
+const WEATHER_CONDITIONS = ['clear', 'partly cloudy', 'overcast', 'fog', 'rain', 'snow', 'showers', 'thunder'];
+
+/** One frame, with the reading it covers: "up to 25%" and so on. */
+function StepList({
+  steps, unit, frameUrl, onPick, onChange,
+}: {
+  steps: ArtworkStep[];
+  unit: string;
+  frameUrl: (path: string | undefined) => string | undefined;
+  onPick: (then: (path: string) => void) => void;
+  onChange: (steps: ArtworkStep[]) => void;
+}) {
+  return (
+    <>
+      {steps.map((step, i) => (
+        <div key={i} className="studio-row studio-step">
+          <input
+            type="number" placeholder="anything above" value={step.upTo ?? ''}
+            onChange={(e) => {
+              const next = [...steps];
+              next[i] = { ...step, upTo: e.target.value === '' ? undefined : Number(e.target.value) };
+              onChange(next);
+            }}
+          />
+          <span className="studio-step-unit">{unit}</span>
+          <FrameButton
+            url={frameUrl(step.image)}
+            onPick={() => onPick((path) => { const next = [...steps]; next[i] = { ...step, image: path }; onChange(next); })}
+            onClear={() => onChange(steps.filter((_, j) => j !== i))}
+          />
+        </div>
+      ))}
+      <button type="button" className="studio-wide" onClick={() => onPick((path) => onChange([...steps, { image: path }]))}>
+        <Plus size={14} /> Add frame
+      </button>
+    </>
+  );
+}
+
+/** Pick or replace one image, with its thumbnail. */
+function FrameButton({ url, onPick, onClear }: { url?: string; onPick: () => void; onClear: () => void }) {
+  return (
+    <span className="studio-frame">
+      {url ? <img src={url} alt="" /> : <ImageIcon size={15} />}
+      <button type="button" onClick={onPick}>{url ? 'Replace' : 'Choose'}</button>
+      {url && <button type="button" onClick={onClear} aria-label="Remove"><Trash2 size={13} /></button>}
+    </span>
+  );
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

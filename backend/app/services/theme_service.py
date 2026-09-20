@@ -44,9 +44,13 @@ THEMES_DIR = DATA_DIR / "themes"
 PACKAGE_FORMAT = "vanos-theme"
 SUPPORTED_VERSION = 1
 
-MAX_PACKAGE_BYTES = 8 * 1024 * 1024
-MAX_ASSET_BYTES = 2 * 1024 * 1024
-MAX_ASSETS = 12
+MAX_PACKAGE_BYTES = 20 * 1024 * 1024
+# Raised when state-driven artwork arrived: a theme that draws a frame
+# per battery level needs a set, not one picture. Still bounded - the Pi
+# is a 1GB Pi 2 on an SD card, and it holds a whole package in memory to
+# check it.
+MAX_ASSET_BYTES = 5 * 1024 * 1024
+MAX_ASSETS = 60
 # The Pi runs from an SD card; themes are a convenience and must not be
 # able to fill it.
 MAX_TOTAL_BYTES = 64 * 1024 * 1024
@@ -161,6 +165,97 @@ def _clean_widget_presentation(definition: dict) -> dict | None:
         if not isinstance(variant, str) or not variant.strip():
             raise ThemeError("\"variant\" must be a name.")
         clean[widget_id[:40]] = {"variant": variant[:40]}
+    return clean or None
+
+
+# STATE-DRIVEN ARTWORK: several images per widget, and the rule for
+# which one shows. Mirrors frontend lib/artwork.ts, which does the
+# choosing; this only decides what is allowed into a package.
+#
+# NOT THE ROOF, and this is not an oversight: there is no position
+# sensor, so no artwork may vary with a position the van cannot know. A
+# single fixed roof image is still allowed as a plain asset, because it
+# claims nothing. Anything else here is dropped.
+_ARTWORK_MAX_STEPS = 12
+
+
+def _clean_artwork(raw: object, assets: list[str]) -> dict | None:
+    """Keep the artwork VanOS can actually draw.
+
+    An entry naming a file the package does not contain is DROPPED, not
+    refused: a theme missing one frame should lose that frame, not fail
+    to install. What survives is guaranteed to resolve to a real image.
+    """
+    if not isinstance(raw, dict):
+        return None
+    present = set(assets)
+
+    def image(value: object) -> str | None:
+        return value if isinstance(value, str) and value in present else None
+
+    def steps(value: object) -> list[dict] | None:
+        if not isinstance(value, list):
+            return None
+        out: list[dict] = []
+        for entry in value[: _ARTWORK_MAX_STEPS * 2]:
+            if not isinstance(entry, dict):
+                continue
+            path = image(entry.get("image"))
+            if not path:
+                continue
+            step: dict = {"image": path}
+            up_to = entry.get("upTo")
+            if isinstance(up_to, (int, float)) and not isinstance(up_to, bool):
+                step["upTo"] = float(up_to)
+            out.append(step)
+            if len(out) >= _ARTWORK_MAX_STEPS:
+                break
+        # Ascending, with the open-ended step last, so the frontend's
+        # first-match rule gives the same answer wherever it runs.
+        out.sort(key=lambda s: s.get("upTo", float("inf")))
+        return out or None
+
+    clean: dict = {}
+
+    battery = raw.get("battery")
+    if isinstance(battery, dict):
+        entry: dict = {}
+        levels = steps(battery.get("levels"))
+        if levels:
+            entry["levels"] = levels
+        charging = image(battery.get("charging"))
+        if charging:
+            entry["charging"] = charging
+        fill = battery.get("fill")
+        if isinstance(fill, dict):
+            body = image(fill.get("body"))
+            liquid = image(fill.get("fill"))
+            if body and liquid:
+                pair: dict = {"body": body, "fill": liquid}
+                for edge in ("bottom", "top"):
+                    v = fill.get(edge)
+                    if isinstance(v, (int, float)) and not isinstance(v, bool) and 0.0 <= float(v) <= 1.0:
+                        pair[edge] = float(v)
+                entry["fill"] = pair
+        if entry:
+            clean["battery"] = entry
+
+    solar = raw.get("solar")
+    if isinstance(solar, dict):
+        bands = steps(solar.get("bands"))
+        if bands:
+            clean["solar"] = {"bands": bands}
+
+    weather = raw.get("weather")
+    if isinstance(weather, dict) and isinstance(weather.get("conditions"), dict):
+        conditions = {
+            str(k).strip().lower(): v
+            for k, v in weather["conditions"].items()
+            if image(v)
+        }
+        if conditions:
+            clean["weather"] = {"conditions": conditions}
+
     return clean or None
 
 
@@ -364,6 +459,9 @@ def validate_package(data: bytes) -> dict[str, Any]:
             else None
         ),
         "heroContent": hero_copy,
+        # Which image shows at which reading. Data only: the rule is
+        # evaluated by the app, never by anything in the package.
+        "artwork": _clean_artwork(definition.get("artwork"), assets),
         "heroCamera": (
             bool(definition["home"]["heroCamera"])
             if isinstance(definition.get("home"), dict) and isinstance(definition["home"].get("heroCamera"), bool)
