@@ -448,6 +448,14 @@ export function Coverage() {
   const cfg = useQuery({ queryKey: ['config-general'], queryFn: () => api.getConfig('general'), enabled: !isDemo });
   const mapsApiKey = String(cfg.data?.google_maps_api_key ?? '').trim();
   const useGoogle = !isDemo && mapsApiKey.length > 0;
+  // Wait for the config before mounting ANY map - the same fix Nearby and
+  // Trips already had, missed here. On the first render cfg.data is
+  // undefined, so useGoogle is false: MapLibre mounted and pulled the
+  // CARTO/OpenStreetMap basemap, then was torn down for Google the moment
+  // the config arrived. Seen on every refresh of this page. !isLoading
+  // rather than isSuccess so a failed or offline config still falls back
+  // to MapLibre instead of leaving the map blank.
+  const mapConfigReady = isDemo || !cfg.isLoading;
 
   // "Scan this area" — explicit tap (or a search landing somewhere new,
   // see onResult below) only. Each new postcode in range spends a real
@@ -517,7 +525,9 @@ export function Coverage() {
 
       <GlassCard className={cn('overflow-hidden', fullscreen ? 'rounded-none ring-0' : 'p-0')}>
         <div className={cn('relative w-full', fullscreen ? 'h-screen' : 'h-[68vh] min-h-[420px]')}>
-          {useGoogle ? (
+          {!mapConfigReady ? (
+            <div className="h-full grid place-items-center text-sm text-ink-muted">Loading map…</div>
+          ) : useGoogle ? (
             <GoogleCoverageCanvas
               pins={pins}
               homeNetwork={homeNetwork}
