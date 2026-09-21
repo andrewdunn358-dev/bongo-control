@@ -4,7 +4,22 @@ import { Sparkline } from '@/components/primitives/Sparkline';
 import { useBattery, useSolar, useEnergy, useSparkBuffer } from '@/lib/telemetry';
 import { hasShunt } from '@/lib/telemetry';
 import type { BatteryPayload, SolarPayload } from '@/lib/types';
-import { fmtVolt, fmtWatt, fmtAmp, fmtWh, DASH } from '@/lib/format';
+import { fmtVolt, fmtWatt, fmtAmp, fmtWh, fmtDuration, DASH } from '@/lib/format';
+import { estimateTimeToFull, type TimeToFullReason } from '@/lib/batteryDerive';
+
+/** Why there's no time-to-full figure, in words. The estimate is only
+ *  ever the shared one in lib/batteryDerive.ts - the same number the Home
+ *  battery widget shows - so the two pages can never disagree. */
+const TTF_WHY: Record<TimeToFullReason, string> = {
+  estimated: '',
+  full: '',
+  'no-data': 'no battery reading yet',
+  'not-charging': 'not charging',
+  'no-soc': 'needs the shunt’s state of charge',
+  'no-capacity': 'bank capacity not set',
+  'no-charge-current': 'charge current too low to estimate',
+  'soc-capacity-mismatch': 'unknown while the external battery is linked',
+};
 import { POWER } from '@/constants/testIds';
 
 /**
@@ -30,6 +45,7 @@ export function Power() {
   const solarSeries = useSparkBuffer<SolarPayload>('solar', (x) => x.watts);
   const loads = ep?.loads ?? {};
   const loadEntries = Object.entries(loads);
+  const ttf = estimateTimeToFull(bp);
 
   return (
     <div data-testid={POWER.root} className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-10 py-6 lg:py-10">
@@ -96,6 +112,25 @@ export function Power() {
               <span className="text-ink-muted">State of charge</span>
               <span className="num">{bp?.soc_pct != null ? `${bp.soc_pct.toFixed(0)}%` : <span className="text-ink-faint">{DASH}%</span>}</span>
             </li>
+            {/* Time to full - an ESTIMATE, labelled as one. It assumes the
+                current going in now holds until full; real charging tapers
+                near the top, so the true time is usually longer. When it
+                can't be worked out, the reason is shown, never a guess. */}
+            <li className="flex justify-between gap-3 border-t border-ink/5 pt-2" data-testid={POWER.timeToFull}>
+              <span className="text-ink-muted">Time to full <span className="text-ink-faint">(estimate)</span></span>
+              {ttf.reason === 'estimated' ? (
+                <span className="num">≈ {fmtDuration(ttf.minutes)}</span>
+              ) : ttf.reason === 'full' ? (
+                <span className="text-status-green">Full</span>
+              ) : (
+                <span className="text-ink-faint text-right">{TTF_WHY[ttf.reason]}</span>
+              )}
+            </li>
+            {ttf.reason === 'estimated' && (
+              <li className="text-[11px] text-ink-faint -mt-1">
+                At the current charge rate — usually longer, as charging slows near full.
+              </li>
+            )}
             {/* Which bank the percentage was worked out against. Not a
                 footnote: the figure shifts substantially when the
                 external battery is paralleled on, and without this it

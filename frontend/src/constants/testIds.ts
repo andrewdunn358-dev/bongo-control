@@ -49,6 +49,7 @@ export const POWER = {
   solarChargeState: 'power-solar-charge-state',
   net: 'power-net',
   loads: 'power-loads',
+  timeToFull: 'power-time-to-full',
 } as const;
 
 export const WEATHER = {
