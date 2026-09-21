@@ -115,8 +115,10 @@ function SidebarNavigation({ expanded, onToggle }: { expanded: boolean; onToggle
         <img src={brandMark} alt="" className="h-8 w-8 rounded-lg shrink-0" />
         {expanded && (
           <div className="min-w-0">
-            <div className="text-sm font-semibold leading-tight truncate">VanOS</div>
-            <div className="text-[10px] uppercase tracking-[0.16em] text-ink-muted truncate">Van cockpit</div>
+            {/* Same name and subtitle as the header's brand, which this
+                replaces while the sidebar is on - not a hand-typed copy. */}
+            <div className="text-sm font-semibold leading-tight truncate"><BrandName /></div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-ink-muted truncate">{BRAND.sub}</div>
           </div>
         )}
       </div>
@@ -241,18 +243,26 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
         // wider than the screen and it scrolled sideways.
         className="vs-header sticky top-0 z-40 grid grid-cols-[auto_1fr] md:grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 md:px-6 py-3 bg-surface-raised border-b border-line/40"
       >
+        {/* The sidebar carries the logo and name whenever it is showing, so
+            the header's copy only appears without it (dock nav, phones).
+            The cell itself stays even when empty: it is the left column
+            that keeps the clock centred. */}
         <div data-testid={NAV.brand} className="flex items-center gap-2.5 justify-self-start min-w-0">
-          <img
-            src={brandMark}
-            alt=""
-            width={36}
-            height={36}
-            className="h-9 w-9 rounded-xl object-cover shadow-[0_0_14px_rgba(178,97,0,0.4)]"
-          />
-          <div className="vs-brand-text leading-tight hidden sm:block">
-            <div className="font-semibold tracking-tight text-sm"><BrandName /></div>
-            <div className="text-[10px] uppercase tracking-[0.18em] text-ink-muted">{BRAND.sub}</div>
-          </div>
+          {!sidebarOn && (
+            <>
+              <img
+                src={brandMark}
+                alt=""
+                width={36}
+                height={36}
+                className="h-9 w-9 rounded-xl object-cover shadow-[0_0_14px_rgba(178,97,0,0.4)]"
+              />
+              <div className="vs-brand-text leading-tight hidden sm:block">
+                <div className="font-semibold tracking-tight text-sm"><BrandName /></div>
+                <div className="text-[10px] uppercase tracking-[0.18em] text-ink-muted">{BRAND.sub}</div>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="vs-clock text-right md:text-center justify-self-end md:justify-self-center">
