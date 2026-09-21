@@ -225,9 +225,23 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
 
       <header
         data-testid={NAV.root}
-        className="vs-header sticky top-0 z-40 flex items-center justify-between gap-3 px-4 md:px-6 py-3 bg-surface-raised border-b border-line/40"
+        // Three columns, the outer two of equal width, so the clock sits at the
+        // true centre of the header. With flex + justify-between the clock was
+        // centred in the GAP between brand and pills instead, so every pill
+        // added on the right (the LOCAL/REMOTE one did it) dragged the clock
+        // left - measured 119px off centre at 1143x685. Plain 1fr (whose
+        // minimum is the content) not minmax(0,1fr): when the pills fit their
+        // column the clock is exactly centred; when they don't, the column
+        // widens just enough and the clock gives way by that much, instead of
+        // the pills wrapping to a second row and the header growing ~20px on
+        // a tablet that cannot scroll. Measured both ways; this one won.
+        // Below md (phones upright) there is no room for three columns: the
+        // pills take their own full-width row under brand + clock and wrap
+        // there. Before this, five pills on a 411px phone made the page 139px
+        // wider than the screen and it scrolled sideways.
+        className="vs-header sticky top-0 z-40 grid grid-cols-[auto_1fr] md:grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 md:px-6 py-3 bg-surface-raised border-b border-line/40"
       >
-        <div data-testid={NAV.brand} className="flex items-center gap-2.5 shrink-0">
+        <div data-testid={NAV.brand} className="flex items-center gap-2.5 justify-self-start min-w-0">
           <img
             src={brandMark}
             alt=""
@@ -241,12 +255,12 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
           </div>
         </div>
 
-        <div className="vs-clock text-center">
+        <div className="vs-clock text-right md:text-center justify-self-end md:justify-self-center">
           <span className="num text-lg font-semibold">{timeStr}</span>
           <span className="vs-date text-[10px] text-ink-muted ml-2 tracking-wider">{dateStr}</span>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+        <div className="col-span-2 md:col-span-1 flex items-center gap-2 flex-wrap md:flex-nowrap whitespace-nowrap justify-start md:justify-end md:justify-self-end">
           {loc.data?.satellites != null && (
             <span className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs bg-surface-sunken ring-1 ring-line/30 text-ink-soft">
               <Satellite size={12} className="text-aurora-teal" /> GPS {loc.data.satellites}
@@ -267,14 +281,17 @@ export function NavShell({ children, wsConnected }: { children: React.ReactNode;
             </a>
           ) : (
             <>
-            {/* Which road this page takes to the Pi - lib/connection.ts. */}
+            {/* Which road this page takes to the Pi - lib/connection.ts.
+                The long wording only shows at 2xl (1536px+): on the van's
+                1143px tablet it made the pill cluster too wide for its
+                column. The full wording is in the title either way. */}
             {connectionMode() === 'local' ? (
               <StatusPill tone="teal" title="LOCAL — Direct to VanOS Pi">
-                LOCAL<span className="hidden sm:inline"> — Direct to VanOS Pi</span>
+                LOCAL<span className="hidden 2xl:inline"> — Direct to VanOS Pi</span>
               </StatusPill>
             ) : (
               <StatusPill tone="purple" title="REMOTE — via the internet">
-                REMOTE<span className="hidden sm:inline"> — via the internet</span>
+                REMOTE<span className="hidden 2xl:inline"> — via the internet</span>
               </StatusPill>
             )}
             <StatusPill
