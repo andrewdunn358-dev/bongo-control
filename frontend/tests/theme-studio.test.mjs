@@ -44,7 +44,7 @@ let m;
 try { m = await import(tmp); } finally { rmSync(tmp, { force: true }); }
 const {
   emptyDraft, buildPackage, themeDefinition, validateDraft, draftFromPackage,
-  hexToTriplet, tripletToHex, readZip, WIDGET_IDS, WIDGET_VARIANTS,
+  hexToTriplet, tripletToHex, readZip, WIDGET_IDS, WIDGET_VARIANTS, ASSET_TYPES,
 } = m;
 
 let passed = 0;
@@ -73,6 +73,11 @@ function sampleDraft() {
   d.images = [{ role: 'hero', path: 'assets/hero.png', bytes: PNG, contentType: 'image/png', url: '' }];
   return d;
 }
+
+check('animated GIF assets are accepted by the Studio package format', () => {
+  assert.equal(ASSET_TYPES['image/gif'], '.gif');
+  assert.equal(ASSET_TYPES['image/webp'], '.webp');
+});
 
 check('colour conversion round-trips', () => {
   assert.equal(hexToTriplet('#0a141e'), '10 20 30');

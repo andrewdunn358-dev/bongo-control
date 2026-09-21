@@ -60,6 +60,7 @@ ASSET_TYPES: dict[str, str] = {
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
     ".webp": "image/webp",
+    ".gif": "image/gif",
     ".svg": "image/svg+xml",
 }
 

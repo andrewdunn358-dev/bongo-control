@@ -117,7 +117,7 @@ export function Studio() {
 
   async function onAddImage(role: string, file: File) {
     const ext = ASSET_TYPES[file.type];
-    if (!ext) { setNote('Images must be PNG, JPEG, WEBP or SVG.'); return; }
+    if (!ext) { setNote('Images must be PNG, JPEG, WEBP, GIF or SVG.'); return; }
     if (file.size > MAX_ASSET_BYTES) { setNote(`${file.name} is over the 2MB limit for one image.`); return; }
     const bytes = new Uint8Array(await file.arrayBuffer());
     setDraft((d) => ({
@@ -325,7 +325,7 @@ export function Studio() {
               </select>
             </Field>
             <input
-              ref={imageRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden
+              ref={imageRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" hidden
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 const role = e.target.dataset.role;

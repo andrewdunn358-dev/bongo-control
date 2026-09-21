@@ -44,6 +44,12 @@ In `theme.json`, alongside `assets`:
 - `conditions` keys are the words the Weather widget shows, lower-cased:
   clear, partly cloudy, overcast, fog, rain, snow, showers, thunder.
 
+## Animated artwork
+
+PNG, JPEG, WEBP, GIF and SVG assets are supported. Animated GIFs and animated WEBPs remain animated when VanOS displays them; the artwork rule chooses the asset, and the browser renders its animation. For example, a battery charging GIF can be assigned to `battery.charging`, or an animated GIF can be used as any battery level frame.
+
+Animation does not change the telemetry rules: the selected asset still represents only the live state that caused VanOS to choose it.
+
 ## The rules VanOS applies
 
 1. **A reading the van does not have shows NO artwork.** No state of
