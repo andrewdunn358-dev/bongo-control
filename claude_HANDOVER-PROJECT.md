@@ -478,13 +478,16 @@ Settings -> Viewport readout in the app. Work to that number.
         #26 mapping the card border to --line silently killed the cyan
         edge. Both were invisible in a screenshot.
 
-2. FIT INSTRUMENT. It is 154px over at the real size. It was restored
+2. FIT INSTRUMENT. [DONE by 21 Sep - re-measured on the real build:
+   6px spare at 1143x628, 63px spare at 1143x685. Kept for history.]
+   It was 154px over at the real size. It was restored
    in #18 deliberately WITHOUT the sizing treatment, because mixing a
    restore with a resize is how it went wrong the first time. It now
    needs what Adventure got: container queries for structure, scaling
    for decoration only, touch targets exempt.
 
-3. ADVENTURE'S LAST 23px at 1143x628. Small enough that it may fall out
+3. [DONE by 21 Sep - Adventure now has 9px spare at 1143x628.]
+   ADVENTURE'S LAST 23px at 1143x628. Small enough that it may fall out
    of the composition-ladder work below rather than needing its own
    pass.
 
@@ -509,9 +512,12 @@ Settings -> Viewport readout in the app. Work to that number.
    Also ink-faint at 170 152 158 measures 2.73:1 for the footer slogan
    on white; about 146 124 132 fixes it.
 
-6. cam1-5.jpg ARE NOT IN public/ AT ALL. demo.ts references them, so
-   demo camera frames 404 - on the Pages preview and on the Pi's own
-   demo build. Pre-existing, unrelated to any of today's work.
+6. cam1-5.jpg ARE NOT IN public/ AT ALL. [Corrected 21 Sep: this is
+   BY DESIGN, not a bug. demo.ts probes for them as optional real
+   stills and only uses the ones that load; missing ones fall back to
+   the drawn van scene, so nothing shows broken. The 404s in the
+   network log are the probe. Dropping five real stills in as
+   cam1.jpg..cam5.jpg gives the preview a real time-lapse.]
 
 7. camera-live-producer: THREE FINISHED COMMITS, NEVER OPENED AS A PR.
    A shared Live producer so streaming and snapshots stop fighting for
@@ -530,6 +536,56 @@ Settings -> Viewport readout in the app. Work to that number.
    stale by the service worker). Both are findings this project paid
    for once. The behaviour still holds; the reasons do not, so someone
    will undo them.
+
+## 21 Sep 2026 (evening) - what landed
+
+  07c3689 Header: clock truly centred, no sideways scroll on phones
+  5e7112b Power: time to full on the battery card
+  #67     Signal page: no OSM map before Google on refresh
+          Header: one logo, not two, when the sidebar is showing
+
+- HEADER GRID. The LOCAL/REMOTE pill widened the right-hand pills, and
+  the header was flex + justify-between, which centres the clock in the
+  GAP, not the header. Measured on main with all five pills: clock 211px
+  off centre at 1143x685; page 139px wider than a 411px phone, so the
+  whole app scrolled sideways. Now a grid, 1fr/auto/1fr: centred when
+  the pills fit, gives way (74px worst case) rather than wrapping and
+  costing tablet height. Phones: pills on their own row. The long
+  LOCAL/REMOTE wording only shows at 2xl.
+- TIME TO FULL on Power reuses estimateTimeToFull() - same figure as the
+  Home widget - and says WHY when there's no figure.
+- MAP FLASH. Coverage picked its map before config loaded, so MapLibre
+  pulled the CARTO basemap then was replaced by Google. Nearby and Trips
+  already gated on !cfg.isLoading; Coverage now does too. Tested with a
+  1.5s config delay, a missing key and a failing config.
+- ONE LOGO. The header's brand is hidden while the sidebar shows (the
+  empty cell stays - it keeps the clock centred). The sidebar's name
+  and subtitle now use BrandName/BRAND.sub instead of hand-typed text.
+
+Measured state, real (non-demo) build, 21 Sep. "below" is how far the
+lowest content sits past the bottom of the screen; negative is spare.
+
+                      below
+  adventure 1143x685   -18
+  adventure 1143x628    -9
+  adventure 1024x600   466   sidebar open: drops to 2 columns
+  instrument 1143x685  -63
+  instrument 1143x628   -6
+  instrument 1024x600   40
+  control   all three   -4
+
+MEASURING TRAP: document.scrollHeight shows 0 overflow on every theme,
+because the cockpit CLIPS rather than scrolls. Measure the lowest
+content box against innerHeight. And the demo build adds the ~60px
+"Simulated data" banner, so a demo screenshot looks overflowing when
+the van isn't - measure the real build.
+
+relays_runtime_state in config.json is NOT stale (an older note said
+it was). relay_service writes it on clean shutdown and consumes it on
+start to restore commanded relay state. Do not delete it.
+
+Workflow from 21 Sep: changes go in as PRs (branch -> push -> safety
+gate -> merge), not straight to main. #67 was the first done that way.
 
 ## Not reproduced, do not chase blind
 
