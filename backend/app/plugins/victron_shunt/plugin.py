@@ -56,6 +56,13 @@ VICTRON_MANUFACTURER_ID = 0x02E1
 STALE_AFTER_SECONDS = 60
 SUPERVISOR_INTERVAL_SECONDS = 10
 MAX_BACKOFF_SECONDS = 30
+# Below this, the aux input is not reading a battery at all. The external
+# battery is removable; with its Anderson unplugged the aux wire floats
+# and the shunt reports ~0.01V rather than nothing. Every consumer of
+# external_voltage (Power screen, divergence alarm, bank capacity) treats
+# None as "not fitted", so a near-zero reading is published as None. No
+# real 12V battery, however flat, sits anywhere near 3V.
+AUX_DISCONNECTED_BELOW_VOLTS = 3.0
 
 
 class VictronShuntPlugin(Plugin):
@@ -211,6 +218,8 @@ class VictronShuntPlugin(Plugin):
         # Voltage only - the aux input cannot measure current, so there
         # is no state of charge for that battery and none is invented.
         aux_voltage = data.get_starter_voltage()
+        if aux_voltage is not None and aux_voltage < AUX_DISCONNECTED_BELOW_VOLTS:
+            aux_voltage = None  # unplugged, not a 12V gap - see the constant
         remaining_mins = data.get_remaining_mins()
 
         # Sign convention: victron-ble reports current POSITIVE into the
