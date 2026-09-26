@@ -162,6 +162,17 @@ class WifiService:
             if existing is None or (entry["signal"] or 0) > (existing["signal"] or 0):
                 networks[ssid] = entry
 
+        # The scan's ACTIVE column goes stale the same way status() used to
+        # (see its docstring): the network the adapter is actually on can
+        # show as not-current. Take "current" from device state instead.
+        try:
+            connected_ssid = (await self.status()).get("ssid")
+        except WifiUnavailableError:
+            connected_ssid = None
+        if connected_ssid:
+            for entry in networks.values():
+                entry["current"] = entry["ssid"] == connected_ssid
+
         return sorted(networks.values(), key=lambda n: n["signal"] or 0, reverse=True)
 
     async def known_networks(self) -> list[str]:
