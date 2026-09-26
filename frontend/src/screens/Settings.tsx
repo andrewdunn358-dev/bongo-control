@@ -1688,7 +1688,7 @@ export function Settings() {
                       </span>
                     )}
                   </div>
-                  <div className="text-[11px] text-ink-faint num">signal {n.signal} dBm</div>
+                  <div className="text-[11px] text-ink-faint num">signal {n.signal}%</div>
                 </div>
                 <Bars dbm={n.signal} />
                 {!n.current && (
