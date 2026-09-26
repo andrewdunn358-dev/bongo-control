@@ -175,11 +175,130 @@ class WifiService:
         return names
 
     async def connect(self, ssid: str, password: str | None = None) -> dict[str, Any]:
-        args = ["device", "wifi", "connect", ssid]
-        if password:
-            args += ["password", password]
+        """Join a network, including WPA3 and WPA2/WPA3 mixed-mode ones.
+
+        The old one-liner (`nmcli device wifi connect SSID password PW`)
+        leaves NetworkManager to guess the key-management type. Against a
+        WPA3 or WPA2/WPA3 "transition mode" access point (the ZTE U50 5G
+        MiFi's default, with no option to change it) that guess fails with
+        "802-11-wireless-security.key-mgmt: property is missing". So for
+        secured networks we build the profile explicitly with the right
+        key-mgmt instead:
+
+          WPA2 / WPA1 only  -> wpa-psk
+          WPA3 only         -> sae (WPA3), PMF required
+          WPA2 + WPA3 mixed -> wpa-psk first (works on any adapter),
+                               falling back to sae if the AP refuses it
+
+        The new profile is created under a temporary name and only takes
+        over the SSID's name once it has actually connected, so a wrong
+        password or unsupported adapter never destroys a working saved
+        profile for that network.
+        """
+        if not password:
+            if ssid in await self.known_networks():
+                await self._run("connection", "up", "id", ssid)
+            else:
+                # Open network (or NM already knows it some other way).
+                await self._run("device", "wifi", "connect", ssid)
+            return await self.status()
+
+        security = await self._security_for_ssid(ssid)
+        attempts = self._key_mgmt_attempts(security)
+        ifname = await self._wifi_device()
+
+        errors: list[str] = []
+        for key_mgmt in attempts:
+            try:
+                await self._connect_with_profile(ssid, password, key_mgmt, ifname)
+                return await self.status()
+            except WifiUnavailableError as e:
+                logger.warning("WiFi connect to %r with key-mgmt %s failed: %s", ssid, key_mgmt, e)
+                errors.append(f"{key_mgmt}: {e}")
+
+        detail = "; ".join(errors)
+        if "sae" in attempts:
+            detail += (
+                " — this network uses WPA3. If the password is correct, the WiFi "
+                "adapter's driver may not support WPA3 (SAE)."
+            )
+        raise WifiUnavailableError(detail)
+
+    async def _connect_with_profile(self, ssid: str, password: str, key_mgmt: str, ifname: str) -> None:
+        temp_name = f"{ssid} (vanos-new)"
+        await self._delete_profiles_named(temp_name)  # leftover from an interrupted attempt
+
+        args = [
+            "connection", "add",
+            "type", "wifi",
+            "ifname", ifname,
+            "con-name", temp_name,
+            "ssid", ssid,
+            "wifi-sec.key-mgmt", key_mgmt,
+            "wifi-sec.psk", password,
+        ]
+        if key_mgmt == "sae":
+            args += ["wifi-sec.pmf", "required"]  # WPA3 mandates PMF
         await self._run(*args)
-        return await self.status()
+
+        try:
+            await self._run("connection", "up", "id", temp_name)
+        except WifiUnavailableError:
+            await self._delete_profiles_named(temp_name)
+            raise
+
+        # Connected: retire any older profile for this SSID, then give the
+        # new one the SSID as its name so Settings shows it as "saved".
+        await self._delete_profiles_named(ssid)
+        await self._run("connection", "modify", "id", temp_name, "connection.id", ssid)
+
+    async def _delete_profiles_named(self, name: str) -> None:
+        try:
+            output = await self._run("-t", "-f", "NAME,UUID,TYPE", "connection", "show")
+        except WifiUnavailableError:
+            return
+        for line in output.splitlines():
+            parts = self._split_terse(line)
+            if len(parts) >= 3 and parts[0] == name and "wireless" in parts[2]:
+                try:
+                    await self._run("connection", "delete", "uuid", parts[1])
+                except WifiUnavailableError as e:
+                    logger.warning("Could not delete WiFi profile %r: %s", name, e)
+
+    async def _security_for_ssid(self, ssid: str) -> str:
+        """The SECURITY column nmcli reports for this SSID, e.g. 'WPA2 WPA3'.
+
+        Tries the cached scan first (fast); rescans once if the SSID isn't
+        in it. Empty string if the network can't be seen at all.
+        """
+        for rescan in ("no", "yes"):
+            output = await self._run("-t", "-f", "SSID,SECURITY", "device", "wifi", "list", "--rescan", rescan)
+            for line in output.splitlines():
+                parts = self._split_terse(line)
+                if len(parts) >= 2 and parts[0] == ssid:
+                    return parts[1]
+        return ""
+
+    @staticmethod
+    def _key_mgmt_attempts(security: str) -> list[str]:
+        tokens = security.upper().split()
+        has_wpa3 = "WPA3" in tokens or "SAE" in tokens
+        has_wpa2 = "WPA2" in tokens or "WPA1" in tokens or "WPA" in tokens
+        if has_wpa3 and not has_wpa2:
+            return ["sae"]
+        if has_wpa3 and has_wpa2:
+            return ["wpa-psk", "sae"]
+        # WPA2/WPA1, or not visible in the scan: WPA2 is the safest guess,
+        # with WPA3 as a fallback in case the scan simply missed it.
+        return ["wpa-psk"] if has_wpa2 else ["wpa-psk", "sae"]
+
+    async def _wifi_device(self) -> str:
+        output = await self._run("-t", "-f", "DEVICE,TYPE", "device", "status")
+        for line in output.splitlines():
+            parts = self._split_terse(line)
+            if len(parts) >= 2 and parts[1] == "wifi":
+                return parts[0]
+        raise WifiUnavailableError("No WiFi adapter found — is the USB WiFi adapter plugged in?")
 
     @staticmethod
     def _split_terse(line: str) -> list[str]:
