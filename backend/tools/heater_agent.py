@@ -79,6 +79,7 @@ import logging
 import os
 import threading
 import time
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -100,6 +101,26 @@ POLL_SECONDS = float(os.environ.get("HEATER_POLL_SECONDS", "1"))
 # collide with the container's Victron discovery, the exact problem
 # this agent living on the host was built to avoid.
 SCAN_ON_MISS_TIMEOUT_SECONDS = float(os.environ.get("HEATER_SCAN_ON_MISS_SECONDS", "8"))
+
+# Whether to hold the Bluetooth link at all is decided by VanOS, not by
+# this service: turning the heater plugin off in Settings must free the
+# heater for the official Hcalory phone app, which cannot connect while
+# anything else holds the link (the heater accepts one connection).
+# The backend runs on the host network, so it is on loopback.
+LINK_WANTED_URL = os.environ.get(
+    "HEATER_LINK_WANTED_URL", "http://127.0.0.1:8000/api/heater-agent/link"
+)
+LINK_CHECK_SECONDS = float(os.environ.get("HEATER_LINK_CHECK_SECONDS", "10"))
+
+
+def _fetch_link_wanted(url: str = LINK_WANTED_URL) -> bool | None:
+    """True/False from VanOS, or None if VanOS can't be asked right now."""
+    try:
+        with urllib.request.urlopen(url, timeout=3) as response:
+            return bool(json.loads(response.read()).get("hold_link"))
+    except Exception:  # noqa: BLE001 - backend restarting, not up yet, etc.
+        return None
+
 
 MVP2_WRITE = "0000bdf7-0000-1000-8000-00805f9b34fb"
 MVP2_NOTIFY = "0000bdf8-0000-1000-8000-00805f9b34fb"
@@ -289,6 +310,12 @@ class Heater:
         self._attempts = 0
         self._last_failure: str | None = None
         self.connects = 0
+        # Last answer from VanOS. Starts True so behaviour is unchanged
+        # until the backend first answers; if it's unreachable later,
+        # the last known answer stands rather than flapping the link.
+        self.link_wanted = True
+        self._link_checked_at = 0.0
+        self._fetch_link_wanted = _fetch_link_wanted
 
     # ------------------------------------------------------- commands
 
@@ -353,6 +380,8 @@ class Heater:
         return await self._write(self._protocol.build_command(command, argument, PIN))
 
     def _require_connection(self) -> None:
+        if not self.link_wanted:
+            raise Unavailable("The heater is disabled in VanOS Settings, so the Pi has released it.")
         if not (self._client and self._client.is_connected and self._protocol):
             raise Unavailable("Not connected to the heater.")
 
@@ -387,13 +416,39 @@ class Heater:
 
     # ------------------------------------------------------ connection
 
+    async def _refresh_link_wanted(self, force: bool = False) -> bool:
+        now = time.monotonic()
+        if force or now - self._link_checked_at >= LINK_CHECK_SECONDS:
+            self._link_checked_at = now
+            answer = await asyncio.to_thread(self._fetch_link_wanted)
+            if answer is not None and answer != self.link_wanted:
+                logger.info(
+                    "Heater %s in VanOS - %s the Bluetooth link",
+                    "enabled" if answer else "disabled",
+                    "taking" if answer else "releasing",
+                )
+            if answer is not None:
+                self.link_wanted = answer
+        return self.link_wanted
+
     async def run(self) -> None:
         backoff = 5.0
 
         while True:
+            if not await self._refresh_link_wanted(force=True):
+                # Released: stay off the heater entirely so the phone
+                # app can connect. Nothing is scanned or connected here.
+                self.connected = False
+                self.error = "Released - heater is disabled in VanOS Settings"
+                await asyncio.sleep(LINK_CHECK_SECONDS)
+                continue
             try:
                 await self._connect_and_poll()
                 backoff = 5.0
+            except LinkReleased:
+                self.connected = False
+                self._client = None
+                continue
             except Exception as e:  # noqa: BLE001 - BLE fails routinely
                 self.connected = False
                 self.error = str(e)
@@ -541,6 +596,9 @@ class Heater:
             while True:
                 if not client.is_connected:
                     raise RuntimeError("Heater disconnected")
+                if not await self._refresh_link_wanted():
+                    # `finally` below disconnects - that is the release.
+                    raise LinkReleased()
                 async with self._lock:
                     await self._query()
                 await asyncio.sleep(POLL_SECONDS)
@@ -652,6 +710,10 @@ class Heater:
 
 
 class Busy(Exception): ...
+class LinkReleased(Exception):
+    """Heater disabled in VanOS: drop the link so the phone app can use it."""
+
+
 class Unavailable(Exception): ...
 class BadValue(Exception): ...
 
@@ -707,6 +769,7 @@ class Handler(BaseHTTPRequestHandler):
             # is worth being able to see.
             "connects": heater.connects,
             "failed_attempts": heater._attempts,
+            "released": not heater.link_wanted,
             "state": heater.state,
         })
 
