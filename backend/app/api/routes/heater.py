@@ -25,6 +25,24 @@ from app.api.routes.plugins import get_manager
 
 router = APIRouter(prefix="/api/heater", tags=["heater"], dependencies=[Depends(require_app_token)])
 
+# Asked by the host-side agent, every few seconds: should it be holding
+# the Bluetooth link at all? The heater accepts ONE connection, so while
+# the agent holds it the official Hcalory phone app cannot connect.
+# Turning the heater plugin off in Settings must therefore release the
+# link - before this, it only stopped the dashboard polling and the
+# agent kept the heater to itself, which is not what "off" means.
+#
+# Unauthenticated on purpose: the agent has no app token, and the answer
+# is a single boolean that reveals nothing and controls nothing.
+agent_router = APIRouter(prefix="/api/heater-agent", tags=["heater"])
+
+
+@agent_router.get("/link")
+async def agent_link() -> dict:
+    from app.services.configuration_service import configuration_service
+
+    return {"hold_link": bool(configuration_service.is_plugin_enabled("hcalory_heater", default=False))}
+
 # Generous: a command waits for the heater to act before reading back,
 # and the agent deliberately pauses to avoid returning a stale state.
 COMMAND_TIMEOUT = 45.0
