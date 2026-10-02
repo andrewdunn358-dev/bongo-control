@@ -26,7 +26,13 @@ timeout, BleakClient's service cache, a second Bluetooth adapter,
 BlueZ's stored connection parameters. Recorded in
 claude_hcalory-heater-plugin.md so nobody re-treads them.
 
-WHICH ADAPTER (HEATER_ADAPTER, default hci0)
+WHICH ADAPTER (HEATER_ADAPTER_USB_ID, default 0a12:0001 = the CSR dongle)
+Chosen by USB ID before every connect - see resolve_adapter(). hciN
+numbers follow boot order, so with two dongles fitted a reboot could
+give "hci0" to the wrong one. HEATER_ADAPTER (default hci0) is now only
+the fallback when no dongle with that USB ID is present. The notes
+below are the history of how hci0 was arrived at.
+
 `hci0`, shared with the container's Victron scan. That works, now the
 poll command is right.
 
@@ -90,6 +96,43 @@ PIN = int(os.environ.get("HEATER_PIN", "0"))
 PORT = int(os.environ.get("HEATER_AGENT_PORT", "8091"))
 # Which Bluetooth adapter to use. THIS MATTERS - see the note below.
 ADAPTER = os.environ.get("HEATER_ADAPTER", "hci0")
+# Pick the adapter by its USB vendor:product ID instead of trusting the
+# hciN number. hciN is just the order Linux found the dongles in at
+# boot, so with two dongles fitted a power cycle can hand "hci0" to the
+# wrong one - which is exactly how the heater stopped connecting after a
+# reboot on 2 Oct 2026. The USB ID never changes. Default 0a12:0001 is
+# the CSR dongle that has worked reliably; empty disables matching and
+# falls back to HEATER_ADAPTER.
+ADAPTER_USB_ID = os.environ.get("HEATER_ADAPTER_USB_ID", "0a12:0001").strip().lower()
+SYS_BLUETOOTH = "/sys/class/bluetooth"
+
+
+def resolve_adapter(usb_id: str = ADAPTER_USB_ID, fallback: str = ADAPTER, sys_root: str = SYS_BLUETOOTH) -> str:
+    """hciN of the adapter whose USB ID is `usb_id`, else `fallback`.
+
+    Re-resolved before every connect attempt, so a dongle that drops off
+    the bus and re-enumerates under a different number is followed.
+    """
+    if not usb_id:
+        return fallback
+    try:
+        names = sorted(n for n in os.listdir(sys_root) if n.startswith("hci") and ":" not in n)
+    except OSError:
+        return fallback
+    for name in names:
+        # hciN/device -> the USB *interface*; idVendor/idProduct live on
+        # its parent, the USB device itself.
+        usb_device = os.path.dirname(os.path.realpath(os.path.join(sys_root, name, "device")))
+        try:
+            with open(os.path.join(usb_device, "idVendor")) as f:
+                vendor = f.read().strip().lower()
+            with open(os.path.join(usb_device, "idProduct")) as f:
+                product = f.read().strip().lower()
+        except OSError:
+            continue
+        if f"{vendor}:{product}" == usb_id:
+            return name
+    return fallback
 # 1 second, matching the official app. Not a guess about efficiency:
 # at 10s the link was observed dropping after ~11s twice - one poll
 # cycle plus a moment - which points at an idle timeout on the heater.
@@ -310,6 +353,7 @@ class Heater:
         self._attempts = 0
         self._last_failure: str | None = None
         self.connects = 0
+        self._last_adapter: str | None = None
         # Last answer from VanOS. Starts True so behaviour is unchanged
         # until the backend first answers; if it's unreachable later,
         # the last known answer stands rather than flapping the link.
@@ -518,13 +562,19 @@ class Heater:
         # late.
         await self._force_disconnect()
 
-        device = await _find_device(MAC, ADAPTER)
+        adapter = resolve_adapter()
+        if adapter != self._last_adapter:
+            logger.info("Using Bluetooth adapter %s%s", adapter,
+                        f" (USB {ADAPTER_USB_ID})" if adapter != ADAPTER or ADAPTER_USB_ID else "")
+            self._last_adapter = adapter
+
+        device = await _find_device(MAC, adapter)
 
         if device is None:
             raise RuntimeError(
-                f"{MAC} is not known to BlueZ on {ADAPTER}, even after a "
+                f"{MAC} is not known to BlueZ on {adapter}, even after a "
                 f"{SCAN_ON_MISS_TIMEOUT_SECONDS:g}s scan. It may be powered down, out of "
-                f"range, already connected to the phone app, or {ADAPTER} may not exist "
+                f"range, already connected to the phone app, or {adapter} may not exist "
                 "- check `hciconfig -a`."
             )
 
@@ -552,7 +602,7 @@ class Heater:
             # Pinned again here: establish_connection creates its own
             # client, and without this bleak would fall back to the
             # default adapter.
-            adapter=ADAPTER,
+            adapter=adapter,
         )
 
         try:
