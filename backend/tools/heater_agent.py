@@ -713,6 +713,22 @@ class Heater:
         if not parsed:
             return self.state
 
+        # The library's Hcalory map puts the error code in byte 22, but on
+        # this heater that byte reads 0 during a fault, so every fault logs
+        # as "error 0". Log the raw packet whenever the state byte changes
+        # (start, glow, run, fault) so the real E-code byte can be found by
+        # comparing a fault packet with the code on the heater's display.
+        state_byte = reply[20] if len(reply) > 20 else None
+        if state_byte != getattr(self, "_last_state_byte", None):
+            self._last_state_byte = state_byte
+            logger.info(
+                "Heater packet (state 0x%02x, step %s, status %s): %s",
+                state_byte if state_byte is not None else 0,
+                parsed.get("running_step"),
+                parsed.get("hcalory_status"),
+                bytes(reply).hex(" "),
+            )
+
         # See the DEBUG note above - same reasoning, same demotion.
         logger.debug("Heater reports running_mode=%s running_step=%s", parsed.get("running_mode"), parsed.get("running_step"))
 
