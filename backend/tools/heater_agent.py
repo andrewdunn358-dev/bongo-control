@@ -413,6 +413,15 @@ class Heater:
         """
         state = self.state.get("state")
 
+        # After a fault the obvious next move is fan-only to dry out the
+        # burner, but the heater won't ventilate from its fault state.
+        # Clear the fault with a power-off first, then ventilate.
+        if state == STATUS_ERROR:
+            self._require_connection()
+            await self._command(CMD_POWER, 0)
+            await asyncio.sleep(3)
+            return await self._write(self._protocol.set_ventilation_mode())
+
         if state not in (None, STATUS_OFF):
             raise Busy(
                 "Ventilation only works from standby. Stop the heater first, let it "
