@@ -413,14 +413,15 @@ class Heater:
         """
         state = self.state.get("state")
 
-        # After a fault the obvious next move is fan-only to dry out the
-        # burner, but the heater won't ventilate from its fault state.
-        # Clear the fault with a power-off first, then ventilate.
+        # Tested 2 Oct 2026: while faulted this Hcalory ignores both
+        # power-off and ventilation over Bluetooth (stayed 0xFF for 15+
+        # min). Only a power cycle clears it. Say so instead of sending
+        # commands that silently do nothing.
         if state == STATUS_ERROR:
-            self._require_connection()
-            await self._command(CMD_POWER, 0)
-            await asyncio.sleep(3)
-            return await self._write(self._protocol.set_ventilation_mode())
+            raise Busy(
+                "The heater ignores fan-only while it's showing a fault. Switch its "
+                "power off and on (fuse or plug) to clear the fault, then press Start blowing."
+            )
 
         if state not in (None, STATUS_OFF):
             raise Busy(
