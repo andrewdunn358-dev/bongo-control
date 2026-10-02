@@ -5,31 +5,32 @@
 ```
 cd ~/bongo-control
 git pull
-docker compose pull frontend
+docker compose --profile cloudflare-tunnel pull
 docker compose stop backend
-docker compose --profile cloudflare-tunnel up -d --build --remove-orphans
+docker compose --profile cloudflare-tunnel up -d --remove-orphans
+sudo systemctl restart vanos-heater-agent   # only if backend/tools/ changed
 ```
 
-**The frontend is not built on the Pi.** GitHub builds it (see
-`.github/workflows/images.yml`) once the Safety gate passes on `main`, and
-`docker compose pull frontend` downloads only the layers that changed - a
-couple of MB, instead of a 9+ minute compile on a Pi 2. So after merging,
-**wait for the "Build Pi images" run to go green** before deploying, or
-the pull fetches the previous build. `--build` now only builds the
-backend, which is cached unless backend code changed.
+**Nothing is built on the Pi - backend or frontend.** GitHub builds both
+images (`.github/workflows/images.yml`, "Build Pi images") once the
+Safety gate passes on `main`, and `pull` downloads only the layers that
+changed. **Wait for "Build Pi images" to go green** (both jobs) before
+deploying, or the pull fetches the previous build.
 
-**The `docker compose stop backend` step matters and isn't optional** —
-see below for why. Frontend and cloudflared don't need this; only
-backend has been confirmed to need it.
+**No `--build`.** It would make the Pi compile the backend itself - 30+
+minutes on a Pi 2B when its build cache is gone (2 Oct 2026). The
+backend's `build:` section is kept only as an emergency fallback for
+when GitHub is down: `docker compose build backend`.
 
-If you're not running the Cloudflare tunnel on this box, drop that
-profile flag:
+The heater agent (`backend/tools/heater_agent.py`) runs on the host from
+the repo checkout, not in Docker, so `git pull` + the systemctl restart
+is what deploys it.
 
-```
-docker compose pull frontend
-docker compose stop backend
-docker compose up -d --build
-```
+**The `docker compose stop backend` step matters and isn't optional** -
+see below for why.
+
+If you're not running the Cloudflare tunnel on this box, drop the
+profile flags.
 
 ## Why the extra step, when it used to just be `up -d --build`
 

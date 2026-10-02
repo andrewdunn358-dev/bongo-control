@@ -1,5 +1,11 @@
 services:
   backend:
+    # BUILT ON GITHUB, like the frontend (.github/workflows/images.yml).
+    # Deploy with `docker compose pull` + `up -d` - no --build, so the Pi
+    # never compiles. `build:` stays only as a fallback for when GitHub
+    # is unavailable: `docker compose build backend` (slow on a Pi 2B).
+    image: ghcr.io/andrewdunn358-dev/bongo-control-backend:latest
+    pull_policy: missing
     build:
       context: .
       dockerfile: docker/backend.Dockerfile

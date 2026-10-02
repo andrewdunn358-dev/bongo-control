@@ -6,10 +6,15 @@
 # finished image, and only the layers that changed: a frontend change is
 # a couple of MB.
 #
-# FRONTEND ONLY, deliberately. The backend rarely changes, and when it
-# does only its last few cheap layers rebuild on the Pi. Moving it here
-# would make the Pi download a several-hundred-MB image the first time,
-# which over the van's 4G is hours, for little gain.
+# BACKEND TOO, since 2 Oct 2026. It used to be frontend-only on the
+# grounds that the backend rarely changes and only its last cheap layers
+# rebuild on the Pi. That held only while the Pi's build cache survived:
+# after unclean power cycles the cache was gone and a one-file backend
+# change became a 30+ minute rebuild on the Pi (apt ~10 min unpacking
+# ffmpeg's dependencies, pip, compiling lg). Over the van's 5G MiFi
+# (~66 Mbps) even a full first download of the backend image is a minute
+# or two, and after that only changed layers come down. The Pi now never
+# compiles anything: `docker compose pull` and `up -d`.
 #
 # ONLY AFTER THE SAFETY GATE PASSES. This runs when "Safety gate" finishes
 # on main, and only if it succeeded, building exactly the commit that was
@@ -75,3 +80,43 @@ jobs:
           # and the Pi never re-downloads them.
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,scope=frontend,mode=max
+
+  backend:
+    name: Backend image (linux/arm/v7)
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      # The whole backend image is ARMv7 (apt, pip from piwheels, the lg
+      # C build), so all of it runs under QEMU here. Slow on GitHub -
+      # tens of minutes on a cold cache - but that is GitHub's time, not
+      # the van's; the gha cache below makes later runs only rebuild the
+      # layers that changed.
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/backend.Dockerfile
+          platforms: linux/arm/v7
+          push: true
+          tags: |
+            ghcr.io/andrewdunn358-dev/bongo-control-backend:latest
+            ghcr.io/andrewdunn358-dev/bongo-control-backend:${{ github.event.workflow_run.head_sha || github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha || github.sha }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,scope=backend,mode=max

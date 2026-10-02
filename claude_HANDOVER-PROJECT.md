@@ -105,15 +105,32 @@ logging, 12V relay control, a pop-top roof actuator, camera, weather,
 
 ---
 
-# 2. Deploy — always say which tier applies
+# 2. Deploy — nothing is built on the Pi
 
-Handing over the slowest command every time wastes a lot of his day.
+Since 2 Oct 2026 GitHub builds **both** the backend and frontend images
+("Build Pi images" workflow, after the Safety gate passes on `main`).
+The Pi only downloads them. Never give `--build` in a deploy command: a
+lost build cache made a one-file backend change a 30+ minute compile on
+the Pi 2B. Full details: `docs/deploy.md`.
 
-| Change | Command | Time |
+Push straight to `main` - Frankie does not want PRs. Then, once "Build
+Pi images" is green:
+
+```bash
+cd ~/bongo-control
+git pull
+docker compose --profile cloudflare-tunnel pull
+docker compose stop backend
+docker compose --profile cloudflare-tunnel up -d --remove-orphans
+```
+
+| Change | Extra step | Time on the Pi |
 |---|---|---|
-| `backend/tools/` (host agent) | `git pull && sudo systemctl restart vanos-heater-agent` | seconds |
-| `backend/app/` only | `docker compose --profile cloudflare-tunnel up -d --build backend` | ~30s |
-| Frontend, or any dependency file | `docker compose --profile cloudflare-tunnel up -d --build --remove-orphans` | 5–25 min |
+| `backend/tools/` (host heater agent) | `sudo systemctl restart vanos-heater-agent` (no image needed) | seconds |
+| `backend/app/`, frontend, or dependencies | none - the sequence above | download only, ~1-2 min |
+
+`docker compose stop backend` before `up` is deliberate: it is the only
+way relay state gets saved on shutdown (see `docs/deploy.md`).
 
 **Never change `requirements.txt` or `package.json` for tidiness.**
 Removing one unused line cost a 24-minute rebuild: pip 421s, apt 542s,
