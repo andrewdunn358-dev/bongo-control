@@ -419,8 +419,8 @@ class Heater:
         # commands that silently do nothing.
         if state == STATUS_ERROR:
             raise Busy(
-                "The heater ignores fan-only while it's showing a fault. Switch its "
-                "power off and on (fuse or plug) to clear the fault, then press Start blowing."
+                "The heater won't take fan-only while it's showing a fault. It runs its "
+                "own fan to purge after a fault anyway, so the burner is being cleared."
             )
 
         if state not in (None, STATUS_OFF):
