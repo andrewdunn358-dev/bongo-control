@@ -1,6 +1,14 @@
 """
-System API — operational actions on the backend process itself, not
-any van hardware. Currently just a restart trigger.
+System API — operational actions on the backend process and the Pi
+itself, not van hardware: restart the backend, restart Raspberry Pi
+Connect, or reboot the Pi.
+
+The Pi-level actions exist so a stalled remote-access tool never means
+a drive to the van: as long as the dashboard loads over the Cloudflare
+tunnel, Pi Connect can be kicked or the whole Pi rebooted from here.
+They go over the host's system D-Bus, which the backend already has
+mounted (/var/run/dbus) for Bluetooth and WiFi, and the container runs
+as root, so systemd/logind accept the calls without extra privileges.
 """
 
 from __future__ import annotations
@@ -10,7 +18,7 @@ import logging
 import os
 import signal
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.api.routes.auth import require_app_token
 
@@ -59,6 +67,75 @@ async def _delayed_shutdown() -> None:
         "then docker-compose's restart:unless-stopped policy brings the container back up"
     )
     os.kill(os.getpid(), signal.SIGTERM)
+
+
+# The Pi user whose systemd user manager runs rpi-connect. Pi Connect
+# is a USER service (systemctl --user), which the system bus can't
+# restart on its own - restarting that user's manager (user@UID.service)
+# restarts every user service with it, rpi-connect included. SSH
+# sessions are separate scopes and survive it.
+HOST_UID = int(os.environ.get("VANOS_HOST_UID", "1000"))
+
+
+async def _system_bus_call(destination: str, path: str, interface: str, member: str, signature: str, body: list) -> None:
+    from dbus_fast import BusType, Message, MessageType
+    from dbus_fast.aio import MessageBus
+
+    bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
+    try:
+        reply = await bus.call(
+            Message(
+                destination=destination,
+                path=path,
+                interface=interface,
+                member=member,
+                signature=signature,
+                body=body,
+            )
+        )
+        if reply.message_type == MessageType.ERROR:
+            raise RuntimeError(f"{reply.error_name}: {reply.body[0] if reply.body else ''}")
+    finally:
+        bus.disconnect()
+
+
+async def _delayed_reboot() -> None:
+    # Long enough for the HTTP response to reach the browser first.
+    await asyncio.sleep(2)
+    logger.warning("System: Pi reboot requested via API")
+    try:
+        await _system_bus_call(
+            "org.freedesktop.login1", "/org/freedesktop/login1",
+            "org.freedesktop.login1.Manager", "Reboot", "b", [False],
+        )
+    except Exception as e:  # noqa: BLE001 - logged; nothing else to do
+        logger.error("System: reboot request failed: %s", e)
+
+
+@router.post("/reboot-pi")
+async def reboot_pi() -> dict:
+    """Reboot the whole Pi. A clean reboot: Docker stops this container
+    with SIGTERM first, so relay state is saved exactly as it is for
+    'Reload backend'. Expect the dashboard to be gone for 1-3 minutes
+    on a Pi 2B."""
+    asyncio.create_task(_delayed_reboot())
+    return {"rebooting": True}
+
+
+@router.post("/restart-pi-connect")
+async def restart_pi_connect() -> dict:
+    """Restart Raspberry Pi Connect (and the rest of the Pi user's
+    systemd user services) without rebooting. VanOS itself is unaffected."""
+    unit = f"user@{HOST_UID}.service"
+    try:
+        await _system_bus_call(
+            "org.freedesktop.systemd1", "/org/freedesktop/systemd1",
+            "org.freedesktop.systemd1.Manager", "RestartUnit", "ss", [unit, "replace"],
+        )
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Could not restart {unit}: {e}") from e
+    logger.warning("System: restarted %s (Raspberry Pi Connect) via API", unit)
+    return {"restarted": unit}
 
 
 @router.post("/restart-backend")

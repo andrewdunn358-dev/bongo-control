@@ -346,6 +346,8 @@ export const api = {
     request<RadioStation[]>(`/internet-radio/favorites?url=${encodeURIComponent(url)}`, { method: 'DELETE' }),
 
   restartBackend: () => request<{ restarting: boolean }>('/system/restart-backend', { method: 'POST' }),
+  rebootPi: () => request<{ rebooting: boolean }>('/system/reboot-pi', { method: 'POST' }),
+  restartPiConnect: () => request<{ restarted: string }>('/system/restart-pi-connect', { method: 'POST' }),
   /** The Pi's address on the van's own network (see lib/connection.ts). */
   localAddress: () => request<{ url: string | null; same_network: boolean }>('/system/local-address'),
 

@@ -881,6 +881,53 @@ function VoiceControlCard() {
  * So this shows the agent URL (which IS app config) and tells you
  * plainly where the rest lives and how to change it.
  */
+function PiControlCard() {
+  const reboot = useMutation({
+    mutationFn: () => api.rebootPi(),
+    onSuccess: () => toast.success('Pi rebooting — the dashboard will be back in 1–3 minutes'),
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Reboot failed'),
+  });
+  const connect = useMutation({
+    mutationFn: () => api.restartPiConnect(),
+    onSuccess: () => toast.success('Raspberry Pi Connect restarted — try the remote shell again in about 30 seconds'),
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Restart failed'),
+  });
+
+  if (isDemo) return null;
+
+  return (
+    <GlassCard className="col-span-12 lg:col-span-6 p-6">
+      <CardHeader label="Raspberry Pi" hint="remote recovery" />
+      <div className="text-[12px] text-ink-faint mb-4">
+        For when remote access is stuck but this page still loads. Try restarting Pi Connect first;
+        reboot the Pi only if that doesn&apos;t help.
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => connect.mutate()}
+          disabled={connect.isPending}
+          className="rounded-full px-4 py-2 text-xs font-medium bg-ink/[0.04] ring-1 ring-ink/10 text-ink-soft hover:bg-ink/[0.08] disabled:opacity-40"
+        >
+          {connect.isPending ? 'Restarting…' : 'Restart Pi Connect'}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (window.confirm('Reboot the Pi now? Everything — dashboard, relays, voice, telemetry — goes offline for 1–3 minutes. Relay state is saved and restored as for a normal restart.')) {
+              reboot.mutate();
+            }
+          }}
+          disabled={reboot.isPending || reboot.isSuccess}
+          className="rounded-full px-4 py-2 text-xs font-medium bg-status-red/10 ring-1 ring-status-red/30 text-status-red hover:bg-status-red/20 disabled:opacity-40"
+        >
+          {reboot.isSuccess ? 'Rebooting…' : 'Reboot Pi'}
+        </button>
+      </div>
+    </GlassCard>
+  );
+}
+
 function HeaterAgentCard() {
   const qc = useQueryClient();
   const cfg = useQuery({
@@ -1873,7 +1920,8 @@ export function Settings() {
         <InternetRadioCard />
         </CollapsibleGroup>
 
-        <CollapsibleGroup title="System & data" hint="plugin health, relay audit log, backup">
+        <CollapsibleGroup title="System & data" hint="Pi recovery, plugin health, relay audit log, backup">
+        <PiControlCard />
         <RelayEventLog />
 
         <GlassCard className="col-span-12 p-6" data-testid={SET.pluginsList}>

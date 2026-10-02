@@ -130,6 +130,10 @@ services:
       # APP_ACCESS_PASSWORD above, or set this to 1 to deliberately run
       # without a password on a trusted LAN-only setup.
       VANOS_ALLOW_INSECURE: ${VANOS_ALLOW_INSECURE:-false}
+      # Settings -> System & data -> Restart Pi Connect restarts this
+      # user's systemd user manager (Pi Connect is a user service).
+      # 1000 = the first user on Raspberry Pi OS; check with `id -u`.
+      VANOS_HOST_UID: ${VANOS_HOST_UID:-1000}
     restart: unless-stopped
     # Cap resources so a runaway process (a wedged history query, the
     # long-lived MJPEG stream) can't OOM the whole Pi.
