@@ -190,8 +190,11 @@ note said something that used to be on its way to being true.
   so the connector cost ~1V. 6mm² + ~0.5m loom should only drop ~0.1V,
   so the rest is a joint or the heater measuring after its own
   protection diode. Multimeter at the heater plug during glow will settle it.
-- **Engine-running test was void:** leisure battery stayed 12.2–12.4V and
-  discharging with the engine on — the DC-DC isn't charging. Check it.
+- **Engine-running test:** the DC-DC did charge, but only from ~18:00 —
+  about 10 min after the engine was reported running (17:49). LB then
+  13.1–13.3V at +5 to +8A net. During 17:50–17:58 the heater attempts
+  still saw ~12.2V, so that test didn't get the higher voltage either.
+  (Earlier note here wrongly said the DC-DC wasn't charging.)
 - **Leading suspect: fuel supply via the T into the vehicle fuel line**
   (lights, then starves once glow stops). Next: bottle test (feed from a
   bottle of clean diesel beside the pump). Then 12AWG + set-screw fuse.
