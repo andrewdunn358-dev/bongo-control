@@ -219,7 +219,10 @@ services:
     # under you. Bump deliberately. (armv7 users override CLOUDFLARED_IMAGE
     # in .env with a pinned unofficial multi-arch tag — see the note above.)
     image: ${CLOUDFLARED_IMAGE:-cloudflare/cloudflared:2026.1.2}
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    # http2 (TCP) + IPv4 rather than the default QUIC (UDP): the van's
+    # 5G MiFi drops UDP intermittently and has no IPv6 since the APN
+    # change, which showed up as Cloudflare 524s and half-loaded pages.
+    command: tunnel --no-autoupdate --protocol http2 --edge-ip-version 4 run --token ${CLOUDFLARE_TUNNEL_TOKEN:-}
     logging:
       driver: json-file
       options:
