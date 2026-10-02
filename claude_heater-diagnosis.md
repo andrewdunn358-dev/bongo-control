@@ -173,3 +173,25 @@ fuel line, behind a non-return valve — was never written down at all.
 
 Same failure as the stale code comments swept out on the same day: the
 note said something that used to be on its way to being true.
+
+---
+
+## 2 Oct 2026 — new Hcalory heater, evening tests
+
+- **E-codes:** on this Hcalory the code is in packet byte 21, not 22
+  (library default). Fixed in `heater_agent.py` (0df296f); faults now log
+  the real code. Heater voltage is reported in whole volts only.
+- **Six-plus attempts, same pattern every time:** glow at ~7.2–8A, then
+  it LIGHTS (step 3, body +6–14°C, audible popping), then dies within
+  about a minute of the glow plug switching off → re-glow → E08
+  (flame-out) or E10 (start failure).
+- **Voltage:** battery holds 12.2–12.3V under glow (shunt). Heater reads
+  10V with the lever connector, 11V once it was swapped for a choc block —
+  so the connector cost ~1V. 6mm² + ~0.5m loom should only drop ~0.1V,
+  so the rest is a joint or the heater measuring after its own
+  protection diode. Multimeter at the heater plug during glow will settle it.
+- **Engine-running test was void:** leisure battery stayed 12.2–12.4V and
+  discharging with the engine on — the DC-DC isn't charging. Check it.
+- **Leading suspect: fuel supply via the T into the vehicle fuel line**
+  (lights, then starves once glow stops). Next: bottle test (feed from a
+  bottle of clean diesel beside the pump). Then 12AWG + set-screw fuse.
