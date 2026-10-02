@@ -266,6 +266,13 @@ def shape_state(parsed: dict) -> dict:
 
     status = parsed.get("hcalory_status")
 
+    # On this heater the E-code is in byte 21 (the library's "set mode"
+    # byte), not byte 22 where the library looks - captured 2026-10-02:
+    # fault packet had byte 20 = 0xff, byte 21 = 0x0a (E10), byte 22 = 0.
+    error_code = parsed.get("error_code")
+    if status == STATUS_ERROR and not error_code:
+        error_code = parsed.get("hcalory_set_mode") or error_code
+
     shaped = {
         # hcalory_status: 0x0 off, 0x4 turning off, 0x8 heating,
         # 0xC ventilation, 0xF error. NOT running_state, which is only
@@ -280,7 +287,7 @@ def shape_state(parsed: dict) -> dict:
         "voltage": parsed.get("supply_voltage"),
         "body_temperature_c": parsed.get("case_temperature"),
         "cabin_temperature_c": parsed.get("cab_temperature"),
-        "error_code": parsed.get("error_code"),
+        "error_code": error_code,
         "igniting": step == STEP_IGNITION,
         "cooling_down": step == STEP_COOLDOWN,
         "ventilating": step == STEP_VENTILATION or status == STATUS_VENTILATION,
