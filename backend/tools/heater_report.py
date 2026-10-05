@@ -28,10 +28,14 @@ bat = con.execute(
 ).fetchall()
 
 battery = []
+currents = []  # (ts, amps) - negative = discharging. All sources carry the shunt's merged fields.
 for ts, src, pj in bat:
+    p = json.loads(pj).get("payload", json.loads(pj))
+    c = p.get("current_a")
+    if c is not None:
+        currents.append((ts, c))
     if "shunt" not in (src or "").lower():
         continue
-    p = json.loads(pj).get("payload", json.loads(pj))
     v = p.get("voltage")
     if v is not None:
         battery.append((ts, v))
@@ -108,3 +112,47 @@ for st in starts:
     print(f"{when:<12} {result:<8} {glows:>5} {str(st['body0']):>10} {str(bmax):>8} {ran:>5.0f}m "
           f"{(str(min(glow_v)) if glow_v else '-'):>13} {(f'{bv:.2f}' if bv else '-'):>11} {code:>5}")
 print(f"\n{len(starts)} starts in the last {DAYS:g} days")
+
+
+# ---- Glow-plug draw ----------------------------------------------------
+# The shunt measures everything leaving the leisure battery, not the heater
+# alone. So: baseline = typical current in the few minutes BEFORE the start
+# (Pi, MiFi, fridge, minus any solar), glow draw = baseline minus the
+# deepest discharge seen while the heater is in its glow phase. What is left
+# is the heater during glow: glow plug plus its slow pre-heat fan/controller.
+# Readings are 1-2 minute snapshots, so it is an estimate, not a meter.
+import statistics
+
+
+def amps_between(t0, t1):
+    return [c for ts, c in currents if t0 <= ts <= t1]
+
+
+print("\nGLOW DRAW (per glow phase)")
+print(f"{'When':<12} {'Baseline A':>10} {'Glow total A':>12} {'Heater A':>9} {'Batt V min':>10} {'Heater V':>8}")
+for st in starts:
+    ss = st["samples"]
+    # split into glow phases: consecutive samples with step 2/0 while heating
+    phases, cur_p = [], []
+    for x in ss:
+        if x["state"] == 8 and x["step"] in (2, 0):
+            cur_p.append(x)
+        elif cur_p:
+            phases.append(cur_p)
+            cur_p = []
+    if cur_p:
+        phases.append(cur_p)
+    base_vals = amps_between(st["t0"] - 300, st["t0"] - 15)
+    base = statistics.median(base_vals) if base_vals else None
+    for ph in phases:
+        a, b = ph[0]["ts"] - 30, ph[-1]["ts"] + 60
+        vals = amps_between(a, b)
+        if not vals or base is None:
+            continue
+        deepest = min(vals)
+        heater = base - deepest
+        vmin = battery_min(a, b)
+        hv = min(x["v"] for x in ph if x["v"]) if any(x["v"] for x in ph) else None
+        when = datetime.fromtimestamp(ph[0]["ts"], LONDON).strftime("%a %H:%M")
+        print(f"{when:<12} {base:>10.2f} {deepest:>12.2f} {heater:>9.2f} "
+              f"{(f'{vmin:.2f}' if vmin else '-'):>10} {str(hv):>8}")
