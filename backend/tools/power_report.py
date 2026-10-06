@@ -39,6 +39,7 @@ def rows(domain):
 
 bat = defaultdict(list)    # block -> [(amps, watts, volts)]
 sol = defaultdict(list)    # block -> [solar W]
+mifi = defaultdict(list)   # block -> [W on the MPPT load output = the MiFi]
 for ts, src, p in rows("battery"):
     if "shunt" not in src:
         continue
@@ -51,8 +52,13 @@ for ts, src, p in rows("battery"):
 for ts, src, p in rows("solar"):
     if p.get("watts") is not None:
         sol[int(ts // BLOCK)].append(p["watts"])
+    lw = p.get("load_power_w")
+    if lw is None and p.get("load_current_a") is not None:
+        lw = p["load_current_a"] * 12.2
+    if lw is not None:
+        mifi[int(ts // BLOCK)].append(lw)
 
-print(f"{'Block':<7} {'Batt A':>7} {'Batt W':>7} {'Solar W':>8} {'LOAD W':>7} {'LOAD A':>7} {'Batt V':>7}")
+print(f"{'Block':<7} {'Batt A':>7} {'Batt W':>7} {'Solar W':>8} {'LOAD W':>7} {'LOAD A':>7} {'Batt V':>7} {'MiFi W':>7} {'REST W':>7}")
 for b in sorted(set(bat) | set(sol)):
     when = datetime.fromtimestamp(b * BLOCK, LONDON).strftime("%H:%M")
     bs = bat.get(b, [])
@@ -63,7 +69,9 @@ for b in sorted(set(bat) | set(sol)):
     load = (s - w) if w is not None else None
     load_a = (load / v) if load is not None and v else None
     f = lambda x, d=1: "-" if x is None else f"{x:.{d}f}"
-    print(f"{when:<7} {f(a,2):>7} {f(w):>7} {f(s):>8} {f(load):>7} {f(load_a,2):>7} {f(v,2):>7}")
+    m = median(mifi[b]) if mifi.get(b) else None
+    rest = (load - m) if load is not None and m is not None else None
+    print(f"{when:<7} {f(a,2):>7} {f(w):>7} {f(s):>8} {f(load):>7} {f(load_a,2):>7} {f(v,2):>7} {f(m):>7} {f(rest):>7}")
 
 try:
     print("\nPi load average (1/5/15 min):", open("/proc/loadavg").read().split()[:3])
