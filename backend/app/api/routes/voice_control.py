@@ -20,6 +20,16 @@ async def status() -> dict:
     return voice_control_service.status()
 
 
+class PowerRequest(BaseModel):
+    on: bool
+
+
+@router.post("/power")
+async def power(body: PowerRequest) -> dict:
+    """On/off switch for the always-on wake-word listener."""
+    return await voice_control_service.set_switched_on(body.on)
+
+
 @router.post("/test")
 async def test() -> dict:
     """Runs the record -> transcribe -> act/think -> speak pipeline

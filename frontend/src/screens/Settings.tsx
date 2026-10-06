@@ -522,6 +522,16 @@ function VoiceControlCard() {
   // needing the wake word itself to fire. Only needs the Groq key, so
   // the actual pipeline can be proven right away rather than waiting
   // on the wake-word listener or a backend restart.
+  const power = useMutation({
+    mutationFn: (on: boolean) => api.voiceControlPower(on),
+    onSuccess: (data) => {
+      qc.setQueryData(['voice-control-status'], data);
+      toast.success(data.switched_on === false ? 'Voice control off — saves power' : 'Voice control on');
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : 'Switch failed'),
+  });
+  const switchedOff = status.data?.switched_on === false;
+
   const test = useMutation({
     mutationFn: api.voiceControlTest,
     onSuccess: (data) => qc.setQueryData(['voice-control-status'], data),
@@ -805,7 +815,9 @@ function VoiceControlCard() {
           <div className="flex items-center gap-2 flex-wrap">
             <StatusPill
               tone={
-                !status.data.configured
+                switchedOff
+                  ? 'slate'
+                  : !status.data.configured
                   ? 'slate'
                   : !status.data.enabled && status.data.last_error
                     ? 'red'
@@ -814,7 +826,9 @@ function VoiceControlCard() {
                       : 'amber'
               }
             >
-              {!status.data.configured
+              {switchedOff
+                ? 'OFF'
+                : !status.data.configured
                 ? 'NOT CONFIGURED'
                 : !status.data.enabled && status.data.last_error
                   ? 'STOPPED — SEE ERROR'
@@ -827,6 +841,14 @@ function VoiceControlCard() {
             <span className="text-[11px] text-ink-faint">
               wake word: <span className="text-ink-soft">"{status.data.wake_word}"</span>
             </span>
+            <button
+              type="button"
+              onClick={() => power.mutate(switchedOff)}
+              disabled={power.isPending}
+              className="ml-auto rounded-lg px-3 py-1.5 text-xs font-medium ring-1 ring-ink/15 bg-ink/[0.04] hover:bg-ink/[0.08] disabled:opacity-50"
+            >
+              {power.isPending ? '…' : switchedOff ? 'Turn on' : 'Turn off'}
+            </button>
           </div>
           {status.data.voice_controllable_relays.length > 0 && (
             <div className="text-[11px] text-ink-faint">

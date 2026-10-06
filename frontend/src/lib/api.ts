@@ -150,6 +150,8 @@ export const api = {
   // the wake word (or a Picovoice key) at all. Records for a few
   // seconds starting the instant this is called - the frontend should
   // prompt the person to start talking right away.
+  voiceControlPower: (on: boolean) =>
+    request<VoiceControlStatus>('/voice-control/power', { method: 'POST', body: JSON.stringify({ on }) }),
   voiceControlTest: () => request<VoiceControlStatus>('/voice-control/test', { method: 'POST' }),
   // Makes the Pi say the wake word, pause, then this command, through
   // its own speaker - two separate clips with a real gap between them,

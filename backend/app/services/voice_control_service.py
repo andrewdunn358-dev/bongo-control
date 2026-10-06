@@ -614,6 +614,7 @@ class VoiceControlService:
     def status(self) -> dict[str, Any]:
         return {
             "enabled": self._enabled,
+            "switched_on": self.wants_to_run(),
             "configured": self.is_configured(),
             "listening": self._stream is not None,
             "processing": self._processing,
@@ -2253,6 +2254,22 @@ class VoiceControlService:
         self._enabled = True
         self._task = asyncio.create_task(self._listen_loop())
         self._radio_cache_task = asyncio.create_task(self._refresh_radio_playing_cache_loop())
+
+    async def set_switched_on(self, on: bool) -> dict[str, Any]:
+        """The Settings on/off switch. Saved to config so it survives a
+        restart, and applied now: off stops the wake-word listener (the
+        mic capture + Vosk loop that keeps a Pi 2B busy all the time),
+        on starts it again. No backend restart needed either way."""
+        from app.services.configuration_service import configuration_service
+
+        section = dict(configuration_service.get("voice", {}) or {})
+        section["enabled"] = bool(on)
+        configuration_service.set("voice", section)
+        if on:
+            self.start()
+        else:
+            await self.stop()
+        return self.status()
 
     async def stop(self) -> None:
         self._enabled = False

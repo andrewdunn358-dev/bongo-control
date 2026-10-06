@@ -320,6 +320,8 @@ export interface AiRecommendationsResponse {
 /** Matches backend/app/services/voice_control_service.py's status(). */
 export interface VoiceControlStatus {
   enabled: boolean;
+  /** The Settings on/off switch (saved). Off = listener stopped to save power. */
+  switched_on?: boolean;
   configured: boolean;
   listening: boolean;
   processing: boolean;
