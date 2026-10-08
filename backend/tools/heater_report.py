@@ -84,7 +84,7 @@ for s in samples:
             cur = None
 if cur is not None:
     cur["t1"] = cur["samples"][-1]["ts"]
-    cur["end_state"] = 8
+    cur["end_state"] = None   # still going when the report ran
     cur["err"] = 0
     starts.append(cur)
 
@@ -103,6 +103,8 @@ for st in starts:
     bv = battery_min(min(glow_ts), max(glow_ts)) if glow_ts else None
     if bmax is not None and bmax >= 100:
         result = "WORKED"
+    elif st["end_state"] is None:
+        result = "RUNNING"   # in progress - not judged yet
     elif st["end_state"] == 15 or st["err"]:
         result = "FAILED"
     else:
