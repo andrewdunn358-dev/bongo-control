@@ -176,6 +176,9 @@ REPLY_TIMEOUT = 12.0
 # ceiling meant a device that reconnects readily sat unreachable for two
 # minutes at a time, and made the failure look worse than it was.
 MAX_BACKOFF = 15.0
+# Failures in a row before the agent bounces its own dongle (see
+# _reset_adapter). At ~23s per failed attempt that is about every 5 minutes.
+ADAPTER_RESET_EVERY = int(os.environ.get("VANOS_HEATER_ADAPTER_RESET_EVERY", "12"))
 
 CMD_STATUS, CMD_SET_MODE, CMD_POWER, CMD_SET_TEMPERATURE, CMD_SET_LEVEL = 1, 2, 3, 4, 5
 
@@ -529,8 +532,44 @@ class Heater:
                 else:
                     logger.debug("Link lost (%s). Retry in %.0fs", e, backoff)
 
+                if self._attempts % ADAPTER_RESET_EVERY == 0:
+                    await self._reset_adapter()
+
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 1.5, MAX_BACKOFF)
+
+    async def _reset_adapter(self) -> None:
+        """Power-cycle the heater's dongle after a run of failures.
+
+        Seen 7 Oct 2026: after ~2h of failed scans the cheap CSR dongle
+        (0a12:0001) wedged - every scan failed ("not known to BlueZ",
+        "Operation already in progress", hcitool "Set scan parameters
+        failed: Input/output error") while the heater was advertising
+        normally and the phone app connected fine. `hciconfig hciN down`
+        then `up` fixed it instantly. Doing that here means the agent
+        recovers on its own instead of failing silently until someone
+        notices. Harmless if the real cause was something else (heater
+        unpowered, phone app holding the link): it is a 2s bounce of an
+        adapter that is not connected to anything anyway.
+        """
+        adapter = resolve_adapter()
+        logger.warning(
+            "%d failed attempts in a row - resetting %s (hciconfig down/up)",
+            self._attempts, adapter,
+        )
+        for action in ("down", "up"):
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    "hciconfig", adapter, action,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                _, err = await asyncio.wait_for(proc.communicate(), timeout=10)
+                if proc.returncode != 0:
+                    logger.warning("hciconfig %s %s failed: %s", adapter, action, err.decode(errors="replace").strip())
+            except Exception as e:  # noqa: BLE001 - recovery must never kill the loop
+                logger.warning("hciconfig %s %s failed: %s", adapter, action, e)
+            await asyncio.sleep(2)
 
     async def _connect_and_poll(self) -> None:
         from bleak_retry_connector import (
