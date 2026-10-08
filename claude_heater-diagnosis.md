@@ -198,3 +198,20 @@ note said something that used to be on its way to being true.
 - **Leading suspect: fuel supply via the T into the vehicle fuel line**
   (lights, then starves once glow stops). Next: bottle test (feed from a
   bottle of clean diesel beside the pump). Then 12AWG + set-screw fuse.
+
+## 7–8 Oct 2026 — cause found: exhaust back pressure
+
+- 7 Oct: with the 2m exhaust removed, the heater fired and ran. 8 Oct: with a
+  short exhaust fitted it runs normally.
+- That fits the whole history: lights every time, dies once the glow phase ends
+  (flame choked), lots of white smoke, exhaust fumes seen coming out of the
+  combustion air intake, and only warm-burner starts succeeding.
+- The 2m pipe is new but has a bend; residue from failed starts drips out
+  overnight, so a dip collecting liquid is the likely restriction.
+- Ruled out along the way: supply wiring (new 12AWG feed, new battery clamp),
+  battery voltage (held 12.2–12.6V during failed starts), fuel line, timers.
+- Safety: the short exhaust must not discharge under the sliding door. Fit a CO
+  alarm.
+- Separate issue: the heater's CSR BT dongle wedged after ~2h of failed scans;
+  `hciconfig hci1 down/up` fixed it, and the agent now does this itself after
+  12 failed attempts (commit 8a790b6).
