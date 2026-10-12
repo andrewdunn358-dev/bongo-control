@@ -54,7 +54,8 @@ services:
     # and set WEBCAM_DEVICE=/dev/video0 (or whatever it is) in a .env file
     # next to this compose file, then `docker compose up -d`.
     devices:
-      - "${WEBCAM_DEVICE:-/dev/null}:${WEBCAM_DEVICE:-/dev/null}"
+      # (webcam and GPS are no longer listed here - see device_cgroup_rules
+      # and the /dev mount below; 12 Oct 2026)
       # Same reasoning as WEBCAM_DEVICE above: a missing devices: path
       # would take the whole backend down, not just the GPS feature, so
       # this defaults to /dev/null (always present) until opted into.
@@ -64,7 +65,6 @@ services:
       # are exactly the kind of thing that gets unplugged and moved.
       # Find it with `ls -la /dev/serial/by-id/` once it's plugged in,
       # then set GPS_DEVICE=/dev/serial/by-id/usb-... in .env.
-      - "${GPS_DEVICE:-/dev/null}:${GPS_DEVICE:-/dev/null}"
       # GPIO character device, for relay control. /dev/gpiochip0 exists
       # on every current Raspberry Pi OS install regardless of whether
       # anything uses it, so unlike the 1-Wire sysfs paths this is safe
@@ -79,7 +79,21 @@ services:
       # /dev/snd regardless of whether a USB mic is ever plugged in, so
       # this path always exists.
       - "/dev/snd:/dev/snd"
+    # HOTPLUG-SAFE webcam + GPS (12 Oct 2026). Listing them under
+    # `devices:` meant a camera that had died or dropped off USB stopped the
+    # WHOLE backend from starting after a reboot - Docker refuses to start a
+    # container whose device path is missing. Instead the host /dev is
+    # mounted and these rules allow USB video (81), USB serial (188) and
+    # ACM serial (166) devices, so WEBCAM_DEVICE / GPS_DEVICE can point at
+    # a device that is missing right now: the backend starts anyway, the
+    # camera/GPS just report unavailable, and a replugged device works
+    # without a restart.
+    device_cgroup_rules:
+      - "c 81:* rmw"
+      - "c 188:* rmw"
+      - "c 166:* rmw"
     volumes:
+      - /dev:/dev
       - vanos-data:/app/data
       - /var/run/dbus:/var/run/dbus
       # Read-only /sys, for the 1-Wire temperature sensor plugin
