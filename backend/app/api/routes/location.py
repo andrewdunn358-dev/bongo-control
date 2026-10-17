@@ -28,9 +28,13 @@ def set_manager(manager: PluginManager) -> None:
     _manager = manager
 
 
-class GpsLocationUpdate(BaseModel):
+class DeviceLocationUpdate(BaseModel):
     latitude: float
     longitude: float
+    # True when typed into Settings, false for the browser's background
+    # geolocation. Only decides whether a fresh van fix may be overridden;
+    # neither ever writes the trail.
+    manual: bool = False
 
 
 # Sync `def` handlers deliberately: they touch SQLite, so FastAPI runs
@@ -44,9 +48,21 @@ def get_location() -> dict:
     return location
 
 
+@router.post("/device")
+def set_device_location(body: DeviceLocationUpdate) -> dict:
+    """A phone/tablet position or a manual entry. Current location only -
+    the van's trail is written solely by the USB receiver, in-process,
+    never over HTTP."""
+    return location_service.set_from_device(body.latitude, body.longitude, manual=body.manual)
+
+
 @router.post("/gps")
-def set_gps_location(body: GpsLocationUpdate) -> dict:
-    return location_service.set_from_gps(body.latitude, body.longitude)
+def set_gps_location_legacy(body: DeviceLocationUpdate) -> dict:
+    """Old endpoint, kept because an installed PWA may still be running
+    the previous frontend from cache and posting here. It used to write
+    the trail - that is exactly how phone positions got into the van's
+    route - so it is now just an alias for /device."""
+    return location_service.set_from_device(body.latitude, body.longitude, manual=body.manual)
 
 
 @router.post("/ip-fallback")
@@ -84,6 +100,29 @@ def delete_location_history(
     return {"deleted": deleted}
 
 
+def _window(since: float | None, all_time: bool) -> tuple[float | None, float]:
+    marker = None if all_time else _trip_started_at()
+    start = since if since is not None else (marker or 0.0)
+    return marker, start
+
+
+@router.get("/trail")
+def get_trail(
+    since: float | None = Query(default=None, description="Unix seconds - measure from here instead of the trip marker"),
+    all_time: bool = Query(default=False, description="Ignore the trip marker and use the whole trail"),
+    max_points: int = Query(default=2000, gt=1, le=20000),
+) -> dict:
+    """What the Trips map draws: only the segments that counted towards
+    the distance, as separate runs (a rejected hop breaks the line rather
+    than being drawn), plus the same stats as /trip-stats from the same
+    walk. Decimated for drawing only after distance was measured."""
+    marker, start = _window(since, all_time)
+    out = location_service.trail(since_timestamp=start, max_points=max_points)
+    out["trip_started_at"] = marker
+    out["measured_from"] = start or None
+    return out
+
+
 @router.get("/trip-stats")
 def get_trip_stats(
     since: float | None = Query(default=None, description="Unix seconds - measure from here instead of the trip marker"),
@@ -97,8 +136,7 @@ def get_trip_stats(
     driving as drift and the total drifts as the table grows. See
     location_service.trip_stats().
     """
-    marker = None if all_time else _trip_started_at()
-    start = since if since is not None else (marker or 0.0)
+    marker, start = _window(since, all_time)
     stats = location_service.trip_stats(since_timestamp=start)
     stats["trip_started_at"] = marker
     stats["measured_from"] = start or None

@@ -611,6 +611,30 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
     ];
     return R({ satellites: demoSats, count: demoSats.length });
   }
+  if (p === '/location/trail' || p === '/location/trip-stats') {
+    // Same gentle sample trail as /location/history below, shaped like the
+    // real backend's output: one accepted run, and stats from that run.
+    const run = Array.from({ length: 24 }, (_, i) => [
+      Date.now() / 1000 - (24 - i) * 3600,
+      DEMO_LAT + Math.sin(i / 3) * 0.03 + i * 0.004,
+      DEMO_LON + Math.cos(i / 4) * 0.03 + i * 0.006,
+    ] as [number, number, number]);
+    let metres = 0;
+    for (let i = 1; i < run.length; i++) {
+      const [, la1, lo1] = run[i - 1];
+      const [, la2, lo2] = run[i];
+      const dy = (la2 - la1) * 111_320;
+      const dx = (lo2 - lo1) * 111_320 * Math.cos((la1 * Math.PI) / 180);
+      metres += Math.hypot(dx, dy);
+    }
+    const stats = {
+      distance_metres: metres, points: run.length, rejected: 0, days: 1,
+      first_timestamp: run[0][0], last_timestamp: run[run.length - 1][0],
+      by_day: [], trip_started_at: null, measured_from: null,
+    };
+    return R(p === '/location/trail' ? { ...stats, runs: [run], drawn_points: run.length } : stats);
+  }
+  if (p === '/location/device' || p === '/location/gps') return R({ applied: false });
   if (p === '/location/history' && method === 'DELETE') return R({ deleted: 0 });
   if (p === '/location/history') {
     // A gentle sample trail around the demo location so the Trips view has

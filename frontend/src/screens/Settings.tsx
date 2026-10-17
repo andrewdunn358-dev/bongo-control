@@ -156,14 +156,18 @@ function LocationCard() {
       toast.error('Enter a valid latitude (−90…90) and longitude (−180…180).');
       return;
     }
-    api.setLocation(la, lo)
+    api.setLocation(la, lo, true)
       .then(() => { toast.success('Location set manually'); setLat(''); setLng(''); refresh(); })
       .catch(() => toast.error('Could not save location.'));
   };
 
   const d = loc.data;
   const has = !!d && d.latitude != null && d.longitude != null;
-  const hint = !has ? 'none set yet' : d!.source === 'gps' ? 'from GPS' : `approx (IP)${d!.city ? ` · ${d!.city}` : ''}`;
+  const hint = !has ? 'none set yet'
+    : d!.source === 'gps' ? 'from van GPS'
+    : d!.source === 'device' ? 'from this device'
+    : d!.source === 'manual' ? 'set manually'
+    : `approx (IP)${d!.city ? ` · ${d!.city}` : ''}`;
 
   return (
     <GlassCard className="col-span-12 lg:col-span-5 p-6" data-testid={SET.location}>
@@ -172,7 +176,10 @@ function LocationCard() {
         <div className="rounded-xl bg-ink/[0.03] ring-1 ring-ink/10 px-4 py-3">
           <div className="num text-lg">{d!.latitude!.toFixed(4)}, {d!.longitude!.toFixed(4)}</div>
           <div className="text-[11px] text-ink-faint mt-1">
-            {d!.source === 'gps' ? "From this device's GPS" : `Approximate (IP-based)${d!.city ? ` — near ${d!.city}` : ''}`}
+            {d!.source === 'gps' ? "From the van's GPS receiver"
+              : d!.source === 'device' ? "From this device's location (van GPS has no fix)"
+              : d!.source === 'manual' ? 'Entered manually'
+              : `Approximate (IP-based)${d!.city ? ` — near ${d!.city}` : ''}`}
             {d!.updated_at ? ` · updated ${new Date(d!.updated_at * 1000).toLocaleString()}` : ''}
           </div>
           {d!.source === 'gps' && d!.satellites != null && (

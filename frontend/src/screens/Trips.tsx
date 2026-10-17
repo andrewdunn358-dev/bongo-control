@@ -14,27 +14,21 @@ import { MapOfflineControls } from '@/components/MapOfflineControls';
 import { MAP_STYLE_URL } from '@/lib/mapStyle';
 import type { Place, PlaceCandidate } from '@/lib/types';
 
-type Point = { timestamp: number; latitude: number; longitude: number; source: string };
-
-function haversineMetres(a: Point, b: Point): number {
-  const R = 6_371_000;
-  const p1 = (a.latitude * Math.PI) / 180;
-  const p2 = (b.latitude * Math.PI) / 180;
-  const dp = ((b.latitude - a.latitude) * Math.PI) / 180;
-  const dl = ((b.longitude - a.longitude) * Math.PI) / 180;
-  const h = Math.sin(dp / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
-}
+type Point = { timestamp: number; latitude: number; longitude: number };
+// A stretch of trail where every segment counted towards the distance.
+// The backend splits the trail wherever it rejected a hop, so a bad fix
+// is never drawn as a line - the map and the mileage are the same data.
+type Run = Point[];
 
 function fmtDay(sec: number): string {
   return new Date(sec * 1000).toLocaleDateString([], { day: 'numeric', month: 'short' });
 }
 
 /** Google Maps rendering of the trail + place pins. */
-function GoogleTripsMap({ points, places, apiKey }: { points: Point[]; places: Place[]; apiKey: string }) {
+function GoogleTripsMap({ runs, places, apiKey }: { runs: Run[]; places: Place[]; apiKey: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
-  const polylineRef = useRef<google.maps.Polyline | null>(null);
+  const polylinesRef = useRef<google.maps.Polyline[]>([]);
   const markersRef = useRef<google.maps.Marker[]>([]);
   const placeMarkersRef = useRef<google.maps.Marker[]>([]);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
@@ -79,19 +73,20 @@ function GoogleTripsMap({ points, places, apiKey }: { points: Point[]; places: P
   // Draw the trail
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || points.length === 0 || !window.google?.maps) return;
+    if (!map || runs.length === 0 || !window.google?.maps) return;
 
     const g = window.google;
-    const path = points.map((p) => ({ lat: p.latitude, lng: p.longitude }));
+    const paths = runs.map((run) => run.map((p) => ({ lat: p.latitude, lng: p.longitude })));
+    const path = paths.flat();
 
-    if (polylineRef.current) polylineRef.current.setMap(null);
-    polylineRef.current = new g.maps.Polyline({
-      path,
+    polylinesRef.current.forEach((l) => l.setMap(null));
+    polylinesRef.current = paths.map((runPath) => new g.maps.Polyline({
+      path: runPath,
       strokeColor: '#22d3ee',
       strokeOpacity: 0.9,
       strokeWeight: 3,
       map,
-    });
+    }));
 
     markersRef.current.forEach((m) => m.setMap(null));
     markersRef.current = [];
@@ -107,7 +102,7 @@ function GoogleTripsMap({ points, places, apiKey }: { points: Point[]; places: P
     const bounds = new g.maps.LatLngBounds();
     path.forEach((p) => bounds.extend(p));
     map.fitBounds(bounds, 60);
-  }, [mapReady, points]);
+  }, [mapReady, runs]);
 
   // Draw saved-place pins
   useEffect(() => {
@@ -182,7 +177,7 @@ function GoogleTripsMap({ points, places, apiKey }: { points: Point[]; places: P
 /** MapLibre/OSM rendering of the trail + place pins — the default when
  * no Google Maps key is configured, and always used in the browser demo
  * (a real Google key can't safely ship in a public static build). */
-function MapLibreTripsMap({ points, places }: { points: Point[]; places: Place[] }) {
+function MapLibreTripsMap({ runs, places }: { runs: Run[]; places: Place[] }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
@@ -212,13 +207,14 @@ function MapLibreTripsMap({ points, places }: { points: Point[]; places: Place[]
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || points.length === 0) return;
+    if (!map || runs.length === 0) return;
 
     const draw = () => {
-      const coords = points.map((p) => [p.longitude, p.latitude] as [number, number]);
+      const lines = runs.map((run) => run.map((p) => [p.longitude, p.latitude] as [number, number]));
+      const coords = lines.flat();
       const geojson = {
         type: 'FeatureCollection' as const,
-        features: [{ type: 'Feature' as const, geometry: { type: 'LineString' as const, coordinates: coords }, properties: {} }],
+        features: [{ type: 'Feature' as const, geometry: { type: 'MultiLineString' as const, coordinates: lines }, properties: {} }],
       };
 
       const existing = map.getSource('trip') as maplibregl.GeoJSONSource | undefined;
@@ -252,7 +248,7 @@ function MapLibreTripsMap({ points, places }: { points: Point[]; places: Place[]
 
     if (map.isStyleLoaded()) draw();
     else map.once('load', draw);
-  }, [points]);
+  }, [runs]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -639,8 +635,6 @@ function TripStartControl({ startedAt, onChanged }: { startedAt: number | null; 
 export function Trips() {
   const qc = useQueryClient();
 
-  const { data } = useQuery({ queryKey: ['location-history'], queryFn: api.locationHistory });
-  const allPoints = useMemo<Point[]>(() => data?.points ?? [], [data]);
 
   // Distance comes from the BACKEND now, not from summing the points
   // above. Those are strided down to 2000 before being sent, and the
@@ -675,20 +669,19 @@ export function Trips() {
     return () => io.disconnect();
   }, [mapVisible]);
 
-  // The MAP has to respect the trip marker too. Reported: distance
-  // switched to "this trip" but the map still drew the whole trail, so
-  // the two disagreed on screen - the number said one trip, the picture
-  // said every trip since the GPS was fitted.
-  //
-  // Filtered here rather than re-fetching: the trail is already in
-  // memory and a marker change should redraw instantly, not wait on a
-  // round trip. Distance still comes from the backend - this only
-  // decides what gets drawn.
-  const points = useMemo<Point[]>(() => {
-    const from = allTime ? null : remote?.trip_started_at ?? null;
-    if (from == null) return allPoints;
-    return allPoints.filter((p) => p.timestamp >= from);
-  }, [allPoints, allTime, remote?.trip_started_at]);
+  // What gets DRAWN comes from the same backend walk as the distance:
+  // only accepted segments, split into runs where a hop was rejected,
+  // already scoped to the trip marker. Previously the map drew every raw
+  // breadcrumb while the number came from a filtered walk, so a bad fix
+  // showed as a long straight line the mileage had (sometimes) dropped.
+  const trailQuery = useQuery({
+    queryKey: ['trip-trail', allTime],
+    queryFn: () => api.trail({ allTime }),
+  });
+  const runs = useMemo<Run[]>(
+    () => (trailQuery.data?.runs ?? []).map((run) => run.map(([timestamp, latitude, longitude]) => ({ timestamp, latitude, longitude }))),
+    [trailQuery.data],
+  );
 
   const placesQuery = useQuery({ queryKey: ['places'], queryFn: api.places });
   const places = useMemo<Place[]>(() => placesQuery.data?.places ?? [], [placesQuery.data]);
@@ -710,182 +703,7 @@ export function Trips() {
   // visit, for one map.
   const mapConfigReady = isDemo || !cfg.isLoading;
 
-  const stats = useMemo(() => {
-    if (points.length < 1) return { distance: 0, days: 0, points: points.length, rejected: 0, byDay: [] as { day: string; metres: number }[] };
-    let distance = 0;
-    let rejected = 0;
-    // Diagnostic breakdown, not a new filter - reported concern: 718mi
-    // over 19 days still looked implausible against an own estimate of
-    // well under that, and the map's pattern had changed shape (many
-    // crossing lines between two fixed points, not a starburst around
-    // one) - a genuinely different signature than the parked-jitter
-    // cases the four checks below target. Rather than guess at a fifth
-    // heuristic blind, surface which DAY the counted distance actually
-    // landed on, so it can be checked against memory of when real
-    // driving happened, instead of only ever seeing one opaque total.
-    const dayTotals = new Map<string, number>();
-
-    // A FOURTH failure mode, caught by none of the three checks below:
-    // GPS drift that's fast enough to look like real movement to the
-    // backend's own logging rule (>=50m within a few minutes, so it
-    // logs via the movement trigger, not the 600s keepalive), but
-    // isn't fast enough to trip the 60 m/s teleport ceiling and never
-    // gets close to the keepalive interval either - it's simply
-    // invisible to every existing filter. Reported case: a "starburst"
-    // on the map, many short lines radiating out from and back to one
-    // spot near home, 3802mi over 19 days for a van used twice. The
-    // tell is the RETURN, not any single segment's speed or size - a
-    // real trip doesn't usually snap back to within a stone's throw of
-    // where it started a few minutes later; parked GPS jitter wobbling
-    // around a stable position does exactly that, repeatedly.
-    //
-    // CORRECTED (real bug, not a guess - reproduced with an actual
-    // drive's own logged data): the first version compared each point
-    // against EVERYWHERE in the last 15 minutes, with no lower bound.
-    // For genuine continuous driving, consecutive breadcrumbs are only
-    // ~50-150m apart by construction (that's the movement-trigger
-    // threshold) - so on any road with real curvature (which is all of
-    // them), normal forward progress constantly looks like "returning
-    // near somewhere recent" purely because that's how closely-spaced
-    // route points naturally sit relative to each other. Worse, a
-    // wrongly-rejected point still got added to the comparison pool,
-    // so one false positive cascaded into rejecting most of what
-    // followed - reported case: a genuine ~14.5mi drive read as 1.24mi,
-    // 358 of 400 points rejected.
-    //
-    // Fix: only compare against points from AT LEAST
-    // MIN_LOOKBACK_SECONDS ago, not the immediate recent past. A point
-    // being near something from 3+ minutes ago is a real, specific
-    // signal of backtracking or parked drift; a point being near
-    // something from 10 seconds ago is just normal route density, not
-    // evidence of anything. Verified with a synthetic test before
-    // shipping this time, not trust-the-logic-alone: simulated both a
-    // continuous curving drive and the original starburst pattern.
-    // With no lower bound (the bug), the real drive lost 84% of its
-    // distance to false rejections. With a 120s minimum, false
-    // rejections on the real drive drop to zero, while the starburst
-    // is caught exactly as effectively as before (unaffected, since
-    // its drift-and-return cycles are naturally spaced well past 120s
-    // apart anyway).
-    //
-    // Sliding window: remember where the trail's been over the last
-    // RECENT_WINDOW_SECONDS. If a new point lands within
-    // RETURN_THRESHOLD_METRES of anywhere visited between
-    // MIN_LOOKBACK_SECONDS and RECENT_WINDOW_SECONDS ago, the
-    // intervening "trip" reads as a round-trip back to roughly the
-    // same spot - treat it as drift, not distance covered. Recent
-    // history keeps every point regardless of whether it counted, so
-    // later points can still detect "we're back near here" even
-    // through a run of already-rejected drift.
-    //
-    // Known, accepted trade-off: a genuine short there-and-back errand
-    // (drive somewhere close, park briefly, come straight home) inside
-    // the same window would also get excluded. Rare for how this van's
-    // actually used, and a small undercount on that rare case is a
-    // clearly better trade than the alternative - reported case was
-    // thousands of fake miles radiating from one real location.
-    const RECENT_WINDOW_SECONDS = 15 * 60;
-    const MIN_LOOKBACK_SECONDS = 120;
-    const RETURN_THRESHOLD_METRES = 150;
-    const recentPoints: { point: Point; timestamp: number }[] = [];
-
-    for (let i = 1; i < points.length; i++) {
-      const segment = haversineMetres(points[i - 1], points[i]);
-      // Noise floor. A point gets logged either because the van moved
-      // >=50m, or just because 10 minutes passed with the van parked
-      // (location_service.py's HISTORY_MIN_INTERVAL_SECONDS keepalive,
-      // so long stationary spells still get occasional breadcrumbs).
-      // In the parked case, "moved" is pure GPS jitter, not real
-      // distance - and summed over weeks of sitting still, that noise
-      // adds up to a genuinely enormous fake trip total (reported: an
-      // unmoved van reading 15,201km). A real movement-triggered
-      // segment is always >=50m by construction, so filtering anything
-      // under 20m can only ever drop jitter, never real driving.
-      if (segment < 20) continue;
-
-      // Speed sanity check. This is a DIFFERENT failure mode than the
-      // floor above: a real GPS receiver occasionally reports one badly
-      // wrong "teleport" fix (momentary loss of lock returning a stale
-      // or corrupted position) - a single such point creates two huge
-      // segments (jump out, jump back) that can dwarf a genuine drive.
-      // Reported case: 16 real miles logged as 1850. A distance floor
-      // can't catch this (the jump is large, not small noise) - but no
-      // van does hundreds of mph between two breadcrumb points a few
-      // seconds apart, so implied speed is the tell regardless of how
-      // big the jump is. 60 m/s (~134mph) is a generous ceiling, well
-      // above anything a real van does, with margin for GPS timestamp
-      // imprecision.
-      const elapsed = points[i].timestamp - points[i - 1].timestamp;
-      if (elapsed <= 0 || segment / elapsed > 60) {
-        rejected += 1;
-        continue;
-      }
-
-      // A THIRD failure mode, caught neither by the floor nor the
-      // teleport check: slow GPS drift while genuinely parked. Reported
-      // case: 386 teleport jumps correctly excluded, trail still read
-      // 2017mi over 18 days for a van that mostly sat still around
-      // Northumberland. Drift that's, say, 150m over several minutes
-      // implies under 1 m/s - nowhere near the 60 m/s teleport
-      // threshold, so it sailed straight through, and summed across
-      // ~2000 points over 18 days that kind of "plausible-looking slow
-      // creep" is exactly what adds up to thousands of fake miles.
-      //
-      // The fix uses the backend's own logging rule against itself:
-      // set_from_gps only logs a point at >=HISTORY_MIN_INTERVAL_SECONDS
-      // (600s) *purely because the van hasn't moved >=50m* - if it had,
-      // an earlier movement-triggered point would have fired well
-      // before 600s elapsed at any real driving speed. So a segment
-      // spanning close to (or beyond) that interval is, by the shape of
-      // the logging system itself, one where genuine movement was under
-      // 50m - meaning any larger distance it reports is GPS drift, not
-      // travel, no matter how slow and "plausible" the implied speed
-      // looks. Reuse the same 20m floor for these, not the looser
-      // 60 m/s ceiling meant for short, fast segments.
-      //
-      // Known, accepted trade-off: a genuine multi-mile drive through a
-      // long total GPS blackout (a long tunnel, dense forest) covering
-      // real ground in one gap would also get excluded here, since its
-      // average speed is usually well under the 60 m/s teleport
-      // threshold. That's a real but rare case for how this van's
-      // actually used (short local trips, not sustained motorway
-      // driving through dead zones) - worth being honest about rather
-      // than hiding, but a slight undercount on a rare edge case is a
-      // clearly better trade than the alternative: reported case was
-      // 2017mi over 18 days of mostly sitting still in Northumberland.
-      const KEEPALIVE_INTERVAL_S = 600; // location_service.py: HISTORY_MIN_INTERVAL_SECONDS
-      if (elapsed >= KEEPALIVE_INTERVAL_S * 0.9) {
-        rejected += 1;
-        continue;
-      }
-
-      // Drop old entries outside the recent window before checking -
-      // "recently" should mean recently, not "at any point in this
-      // entire multi-week trail".
-      while (recentPoints.length && points[i].timestamp - recentPoints[0].timestamp > RECENT_WINDOW_SECONDS) {
-        recentPoints.shift();
-      }
-      const returnedNearby = recentPoints.some(
-        (rp) => points[i].timestamp - rp.timestamp >= MIN_LOOKBACK_SECONDS && haversineMetres(rp.point, points[i]) < RETURN_THRESHOLD_METRES,
-      );
-      recentPoints.push({ point: points[i], timestamp: points[i].timestamp });
-      if (returnedNearby) {
-        rejected += 1;
-        continue;
-      }
-
-      distance += segment;
-      const dayKey = new Date(points[i].timestamp * 1000).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-      dayTotals.set(dayKey, (dayTotals.get(dayKey) ?? 0) + segment);
-    }
-    const spanDays = (points[points.length - 1].timestamp - points[0].timestamp) / 86400;
-    const byDay = Array.from(dayTotals.entries())
-      .map(([day, metres]) => ({ day, metres }))
-      .sort((a, b) => b.metres - a.metres);
-    return { distance, days: Math.max(1, Math.ceil(spanDays || 0)), points: points.length, rejected, byDay };
-  }, [points]);
-
-  const empty = points.length === 0;
+  const empty = (remote?.points ?? 0) === 0 && runs.length === 0;
   const refreshPlaces = () => {
     qc.invalidateQueries({ queryKey: ['places'] });
     qc.invalidateQueries({ queryKey: ['places-detected'] });
@@ -910,7 +728,7 @@ export function Trips() {
           <div className="mt-3">
             <TripStartControl
               startedAt={remote?.trip_started_at ?? null}
-              onChanged={() => qc.invalidateQueries({ queryKey: ['trip-stats'] })}
+              onChanged={() => { qc.invalidateQueries({ queryKey: ['trip-stats'] }); qc.invalidateQueries({ queryKey: ['trip-trail'] }); }}
             />
           </div>
         </div>
@@ -926,7 +744,7 @@ export function Trips() {
               {allTime ? 'All time' : 'This trip'}
             </button>
           )}
-          <StatusPill tone={empty ? 'slate' : 'teal'}>{empty ? 'NO TRAIL YET' : `${remote?.points ?? stats.points} POINTS`}</StatusPill>
+          <StatusPill tone={empty ? 'slate' : 'teal'}>{empty ? 'NO TRAIL YET' : `${remote?.points ?? 0} POINTS`}</StatusPill>
         </div>
       </div>
 
@@ -937,11 +755,11 @@ export function Trips() {
               a clipped "mi" on the next - because a 4xl number in a
               6-of-12 column has nowhere to go. Scales with the
               breakpoint and refuses to wrap. */}
-          <div className="num text-2xl sm:text-3xl lg:text-4xl font-semibold whitespace-nowrap">{empty ? DASH : fmtDistance(remote?.distance_metres ?? stats.distance)}</div>
+          <div className="num text-2xl sm:text-3xl lg:text-4xl font-semibold whitespace-nowrap">{empty ? DASH : fmtDistance(remote?.distance_metres ?? 0)}</div>
           </GlassCard>
         <GlassCard className="col-span-6 md:col-span-6 p-6">
           <CardHeader label="Days logged" hint={remote?.trip_started_at && !allTime ? "since trip start" : "first fix to now"} right={<CalendarDays size={16} className="text-aurora-teal" />} />
-          <div className="num text-4xl font-semibold">{empty ? DASH : (remote?.days ?? stats.days)}</div>
+          <div className="num text-4xl font-semibold">{empty ? DASH : (remote?.days ?? 0)}</div>
         </GlassCard>
         {/* Breadcrumb count removed. It looks like a measure of the
             trip but is really an artefact of how often the GPS happens
@@ -970,15 +788,15 @@ export function Trips() {
               </div>
             </div>
           ) : useGoogle ? (
-            <GoogleTripsMap points={points} places={places} apiKey={mapsApiKey} />
+            <GoogleTripsMap runs={runs} places={places} apiKey={mapsApiKey} />
           ) : (
-            <MapLibreTripsMap points={points} places={places} />
+            <MapLibreTripsMap runs={runs} places={places} />
           )}
           {empty && (
             <div className="px-5 py-4 flex items-start gap-3 text-sm text-ink-muted">
               <Flag size={16} className="text-aurora-purple mt-0.5 shrink-0" />
               <div>
-                No trail recorded yet. Once your phone has set the location from GPS a few times (it does this automatically),
+                No trail recorded yet. Once the van's GPS receiver has a fix and the van moves,
                 your route will start drawing here — a purple dot where you began, teal where you are now.
               </div>
             </div>
@@ -1024,7 +842,7 @@ export function Trips() {
           how you start a new trip, and it must not look like it is. */}
       <div className="pt-2 opacity-70">
         <CleanupTrailControl onDeleted={() => {
-          qc.invalidateQueries({ queryKey: ['location-history'] });
+          qc.invalidateQueries({ queryKey: ['trip-trail'] });
           qc.invalidateQueries({ queryKey: ['trip-stats'] });
         }} />
       </div>

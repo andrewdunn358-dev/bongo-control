@@ -175,8 +175,13 @@ export const api = {
     request<{ reply: string }>('/ai/chat', { method: 'POST', body: JSON.stringify({ messages }) }),
 
   location: () => request<{ latitude: number | null; longitude: number | null; source?: string; city?: string; country?: string; updated_at?: number; satellites?: number | null; hdop?: number | null }>('/location'),
-  setLocation: (latitude: number, longitude: number) =>
-    request<{ ok: boolean }>('/location/gps', { method: 'POST', body: JSON.stringify({ latitude, longitude }) }),
+  // A phone/tablet position (manual=false, the background auto-locate)
+  // or coordinates typed into Settings (manual=true). Sets the current
+  // location only - the van's trail is written solely by the USB GPS
+  // receiver, on the Pi. An automatic update is ignored while the
+  // receiver has a fresh fix (applied=false).
+  setLocation: (latitude: number, longitude: number, manual = false) =>
+    request<{ applied: boolean }>('/location/device', { method: 'POST', body: JSON.stringify({ latitude, longitude, manual }) }),
   ipFallback: () => request<{ ok: boolean }>('/location/ip-fallback', { method: 'POST' }),
   gpsSatellites: () =>
     request<{ satellites: GpsSatellite[]; count: number }>('/location/satellites'),
@@ -196,6 +201,20 @@ export const api = {
   // was hidden in the first place.
   cameraStatus: () => request<{ ustreamer: { configured: boolean; reachable: boolean; url: string | null; detail?: string | null } }>('/camera/status'),
 
+  // What the Trips map draws: only the segments that counted towards
+  // the distance, as separate runs of [timestamp, lat, lon] - a rejected
+  // hop breaks the line instead of being drawn. Same walk as tripStats.
+  trail: (opts?: { allTime?: boolean }) => {
+    const qs = new URLSearchParams();
+    if (opts?.allTime) qs.set('all_time', 'true');
+    const q = qs.toString();
+    return request<{
+      runs: [number, number, number][][]; drawn_points: number;
+      distance_metres: number; points: number; rejected: number; days: number;
+      first_timestamp: number | null; last_timestamp: number | null;
+      trip_started_at: number | null; measured_from: number | null;
+    }>(`/location/trail${q ? `?${q}` : ''}`);
+  },
   tripStats: (opts?: { allTime?: boolean }) => {
     const qs = new URLSearchParams();
     if (opts?.allTime) qs.set('all_time', 'true');
