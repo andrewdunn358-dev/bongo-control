@@ -452,27 +452,6 @@ export interface RoofStatus {
   position_is_unknown: boolean;
 }
 
-/** A named, journaled stop — matches backend/app/services/place_service.py. */
-export interface Place {
-  id: number;
-  name: string;
-  notes: string | null;
-  latitude: number;
-  longitude: number;
-  arrived_at: number;
-  departed_at: number | null;
-  created_at: number;
-}
-
-/** A detected-but-not-yet-named stop candidate, from GET /places/detected. */
-export interface PlaceCandidate {
-  latitude: number;
-  longitude: number;
-  arrived_at: number;
-  departed_at: number;
-  point_count: number;
-}
-
 /** One satellite currently known to the GPS receiver, from a real NMEA
  *  GSV sentence — matches backend/app/plugins/gps_serial/plugin.py.
  *  elevation/azimuth/snr are null when the receiver knows a satellite

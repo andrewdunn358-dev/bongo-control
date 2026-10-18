@@ -133,7 +133,6 @@ export const SET = {
 export const TRIPS = {
   root: 'trips-screen',
   map: 'trips-map',
-  places: 'trips-places',
 } as const;
 
 export const OVERVIEW = {

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import maplibregl from 'maplibre-gl';
-import { Route, MapPin, Flag, CalendarDays, BookOpen, Trash2, Check, Loader2 } from 'lucide-react';
+import { Route, MapPin, Flag, CalendarDays, Trash2, Loader2 } from 'lucide-react';
 import { GlassCard, CardHeader } from '@/components/primitives/GlassCard';
 import { StatusPill } from '@/components/primitives/StatusPill';
 import { api } from '@/lib/api';
@@ -12,7 +12,6 @@ import { fmtDistance, DASH } from '@/lib/format';
 import { TRIPS } from '@/constants/testIds';
 import { MapOfflineControls } from '@/components/MapOfflineControls';
 import { MAP_STYLE_URL } from '@/lib/mapStyle';
-import type { Place, PlaceCandidate } from '@/lib/types';
 
 type Point = { timestamp: number; latitude: number; longitude: number };
 // A stretch of trail where every segment counted towards the distance.
@@ -20,24 +19,18 @@ type Point = { timestamp: number; latitude: number; longitude: number };
 // is never drawn as a line - the map and the mileage are the same data.
 type Run = Point[];
 
-function fmtDay(sec: number): string {
-  return new Date(sec * 1000).toLocaleDateString([], { day: 'numeric', month: 'short' });
-}
-
-/** Google Maps rendering of the trail + place pins. */
-function GoogleTripsMap({ runs, places, apiKey }: { runs: Run[]; places: Place[]; apiKey: string }) {
+/** Google Maps rendering of the trail. */
+function GoogleTripsMap({ runs, apiKey }: { runs: Run[]; apiKey: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const polylinesRef = useRef<google.maps.Polyline[]>([]);
   const markersRef = useRef<google.maps.Marker[]>([]);
-  const placeMarkersRef = useRef<google.maps.Marker[]>([]);
-  const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mapType, setMapType] = useState<'roadmap' | 'hybrid'>('roadmap');
   // See the identical comment in GoogleNearbyMap (Nearby.tsx) - setting
   // mapRef.current alone doesn't cause a re-render, so without this any
   // drawing effect that ran (and bailed out) before the async map load
-  // finished would never get a second chance unless points/places
+  // finished would never get a second chance unless the trail
   // happened to change again afterward.
   const [mapReady, setMapReady] = useState(false);
 
@@ -54,7 +47,6 @@ function GoogleTripsMap({ runs, places, apiKey }: { runs: Run[]; places: Place[]
           mapTypeControl: false,
           fullscreenControl: false,
         });
-        infoWindowRef.current = new g.maps.InfoWindow();
         setMapReady(true);
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load Google Maps'));
@@ -104,30 +96,6 @@ function GoogleTripsMap({ runs, places, apiKey }: { runs: Run[]; places: Place[]
     map.fitBounds(bounds, 60);
   }, [mapReady, runs]);
 
-  // Draw saved-place pins
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !window.google?.maps) return;
-    const g = window.google;
-
-    placeMarkersRef.current.forEach((m) => m.setMap(null));
-    placeMarkersRef.current = places.map((place) => {
-      const marker = new g.maps.Marker({
-        position: { lat: place.latitude, lng: place.longitude },
-        map,
-        icon: { path: g.maps.SymbolPath.CIRCLE, scale: 8, fillColor: '#fbbf24', fillOpacity: 1, strokeColor: '#0a1628', strokeWeight: 3 },
-        title: place.name,
-      });
-      marker.addListener('click', () => {
-        infoWindowRef.current?.setContent(
-          `<div style="font:13px system-ui;color:#0a1628"><strong>${place.name}</strong>${place.notes ? `<br/>${place.notes}` : ''}</div>`,
-        );
-        infoWindowRef.current?.open(map, marker);
-      });
-      return marker;
-    });
-  }, [mapReady, places]);
-
   if (error) {
     return (
       <div className="w-full h-[60vh] min-h-[360px] grid place-items-center text-sm text-status-amber px-6 text-center">
@@ -174,14 +142,13 @@ function GoogleTripsMap({ runs, places, apiKey }: { runs: Run[]; places: Place[]
   );
 }
 
-/** MapLibre/OSM rendering of the trail + place pins — the default when
+/** MapLibre/OSM rendering of the trail — the default when
  * no Google Maps key is configured, and always used in the browser demo
  * (a real Google key can't safely ship in a public static build). */
-function MapLibreTripsMap({ runs, places }: { runs: Run[]; places: Place[] }) {
+function MapLibreTripsMap({ runs }: { runs: Run[] }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
-  const placeMarkersRef = useRef<maplibregl.Marker[]>([]);
   // A ref alone can't tell the offline controls that the map now
   // exists - mutating it doesn't re-render. This does.
   const [map, setMap] = useState<maplibregl.Map | null>(null);
@@ -250,186 +217,11 @@ function MapLibreTripsMap({ runs, places }: { runs: Run[]; places: Place[] }) {
     else map.once('load', draw);
   }, [runs]);
 
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    const draw = () => {
-      placeMarkersRef.current.forEach((m) => m.remove());
-      placeMarkersRef.current = [];
-      places.forEach((place) => {
-        const el = document.createElement('div');
-        el.style.cssText =
-          'width:16px;height:16px;border-radius:4px;transform:rotate(45deg);background:#fbbf24;' +
-          'box-shadow:0 0 0 3px rgba(10,22,40,0.7),0 0 10px rgba(251,191,36,0.6);cursor:pointer;';
-        const popup = new maplibregl.Popup({ offset: 14, closeButton: false }).setText(
-          place.notes ? `${place.name} — ${place.notes}` : place.name,
-        );
-        placeMarkersRef.current.push(
-          new maplibregl.Marker({ element: el }).setLngLat([place.longitude, place.latitude]).setPopup(popup).addTo(map),
-        );
-      });
-    };
-
-    if (map.isStyleLoaded()) draw();
-    else map.once('load', draw);
-  }, [places]);
 
   return (
     <div className="relative w-full h-[60vh] min-h-[360px]">
       <div data-testid={TRIPS.map} ref={mapContainerRef} className="w-full h-full" />
       <MapOfflineControls map={map} />
-    </div>
-  );
-}
-
-/** A detected stay that hasn't been named yet — the "name this stop" card. */
-function CandidateCard({ candidate, onSaved }: { candidate: PlaceCandidate; onSaved: () => void }) {
-  const [name, setName] = useState('');
-  const [notes, setNotes] = useState('');
-
-  const save = useMutation({
-    mutationFn: () =>
-      api.createPlace({
-        name: name.trim() || 'Unnamed stop',
-        notes: notes.trim() || undefined,
-        latitude: candidate.latitude,
-        longitude: candidate.longitude,
-        arrived_at: candidate.arrived_at,
-        departed_at: candidate.departed_at,
-      }),
-    onSuccess: () => {
-      toast.success('Place saved');
-      onSaved();
-    },
-    onError: () => toast.error('Could not save place'),
-  });
-
-  const hours = Math.max(0, Math.round((candidate.departed_at - candidate.arrived_at) / 3600));
-
-  return (
-    <div className="rounded-2xl p-4 bg-aurora-purple/[0.05] ring-1 ring-inset ring-aurora-purple/25">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-sm text-ink-soft">
-          Parked here {fmtDay(candidate.arrived_at)} for about {hours < 1 ? '<1' : hours}h
-        </div>
-        <span className="text-[11px] text-ink-faint num">{candidate.point_count} fixes</span>
-      </div>
-      <div className="mt-3 flex flex-col sm:flex-row gap-2">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Name this place…"
-          className="flex-1 rounded-lg px-3 py-2 text-sm bg-ink/[0.06] border border-ink/10 outline-none focus:border-aurora-teal/50"
-        />
-        <input
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Notes (optional)"
-          className="flex-1 rounded-lg px-3 py-2 text-sm bg-ink/[0.06] border border-ink/10 outline-none focus:border-aurora-teal/50"
-        />
-        <button
-          type="button"
-          onClick={() => save.mutate()}
-          disabled={save.isPending || !name.trim()}
-          className="inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium bg-aurora-teal/15 text-aurora-teal ring-1 ring-inset ring-aurora-teal/40 hover:bg-aurora-teal/20 disabled:opacity-40 disabled:cursor-not-allowed transition"
-        >
-          <Check size={14} /> Save
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/** A saved, named place — click the name or notes to edit either. */
-function PlaceCard({ place }: { place: Place }) {
-  const qc = useQueryClient();
-  const [editingField, setEditingField] = useState<'name' | 'notes' | null>(null);
-  const [draft, setDraft] = useState('');
-
-  const update = useMutation({
-    mutationFn: (patch: { name?: string; notes?: string }) => api.updatePlace(place.id, patch),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['places'] });
-      setEditingField(null);
-    },
-    onError: () => toast.error('Could not save changes'),
-  });
-
-  const del = useMutation({
-    mutationFn: () => api.deletePlace(place.id),
-    onSuccess: () => {
-      toast.success('Place removed');
-      qc.invalidateQueries({ queryKey: ['places'] });
-    },
-    onError: () => toast.error('Could not remove place'),
-  });
-
-  const commit = (field: 'name' | 'notes') => {
-    const value = draft.trim();
-    if (field === 'name' && !value) { setEditingField(null); return; }
-    update.mutate({ [field]: value } as { name?: string; notes?: string });
-  };
-
-  const dateLabel = place.departed_at
-    ? `${fmtDay(place.arrived_at)}${fmtDay(place.departed_at) !== fmtDay(place.arrived_at) ? ` – ${fmtDay(place.departed_at)}` : ''}`
-    : fmtDay(place.arrived_at);
-
-  return (
-    <div className="rounded-2xl p-4 bg-ink/[0.03] ring-1 ring-inset ring-ink/10">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          {editingField === 'name' ? (
-            <input
-              autoFocus
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={() => commit('name')}
-              onKeyDown={(e) => { if (e.key === 'Enter') commit('name'); if (e.key === 'Escape') setEditingField(null); }}
-              className="w-full rounded-lg px-2 py-1 text-base font-semibold bg-ink/[0.06] border border-aurora-teal/50 outline-none"
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={() => { setEditingField('name'); setDraft(place.name); }}
-              title="Click to rename"
-              className="text-base font-semibold truncate text-left hover:text-aurora-teal transition"
-            >
-              {place.name}
-            </button>
-          )}
-          <div className="text-[11px] text-ink-faint num mt-0.5">{dateLabel}</div>
-        </div>
-        <button
-          type="button"
-          onClick={() => del.mutate()}
-          disabled={del.isPending}
-          aria-label={`Remove ${place.name}`}
-          className="shrink-0 h-7 w-7 grid place-items-center rounded-lg text-ink-faint hover:text-status-red hover:bg-status-red/10 transition disabled:opacity-40"
-        >
-          <Trash2 size={14} />
-        </button>
-      </div>
-
-      {editingField === 'notes' ? (
-        <textarea
-          autoFocus
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => commit('notes')}
-          onKeyDown={(e) => { if (e.key === 'Escape') setEditingField(null); }}
-          rows={2}
-          className="mt-2 w-full rounded-lg px-2 py-1.5 text-sm bg-ink/[0.06] border border-aurora-teal/50 outline-none resize-none"
-        />
-      ) : (
-        <button
-          type="button"
-          onClick={() => { setEditingField('notes'); setDraft(place.notes ?? ''); }}
-          className="mt-2 w-full text-left text-sm text-ink-muted hover:text-ink-soft transition"
-        >
-          {place.notes || 'Add a note…'}
-        </button>
-      )}
     </div>
   );
 }
@@ -683,12 +475,6 @@ export function Trips() {
     [trailQuery.data],
   );
 
-  const placesQuery = useQuery({ queryKey: ['places'], queryFn: api.places });
-  const places = useMemo<Place[]>(() => placesQuery.data?.places ?? [], [placesQuery.data]);
-
-  const candidatesQuery = useQuery({ queryKey: ['places-detected'], queryFn: api.detectedPlaces, refetchInterval: 60_000 });
-  const candidates = useMemo<PlaceCandidate[]>(() => candidatesQuery.data?.candidates ?? [], [candidatesQuery.data]);
-
   // A real Google key can't safely ship in the public static demo build,
   // so the demo always uses the built-in MapLibre/OSM map regardless of
   // this setting.
@@ -704,10 +490,6 @@ export function Trips() {
   const mapConfigReady = isDemo || !cfg.isLoading;
 
   const empty = (remote?.points ?? 0) === 0 && runs.length === 0;
-  const refreshPlaces = () => {
-    qc.invalidateQueries({ queryKey: ['places'] });
-    qc.invalidateQueries({ queryKey: ['places-detected'] });
-  };
 
   return (
     <div data-testid={TRIPS.root} className="mx-auto max-w-[1500px] px-4 sm:px-6 lg:px-10 py-6 lg:py-10">
@@ -788,9 +570,9 @@ export function Trips() {
               </div>
             </div>
           ) : useGoogle ? (
-            <GoogleTripsMap runs={runs} places={places} apiKey={mapsApiKey} />
+            <GoogleTripsMap runs={runs} apiKey={mapsApiKey} />
           ) : (
-            <MapLibreTripsMap runs={runs} places={places} />
+            <MapLibreTripsMap runs={runs} />
           )}
           {empty && (
             <div className="px-5 py-4 flex items-start gap-3 text-sm text-ink-muted">
@@ -803,37 +585,6 @@ export function Trips() {
           )}
         </GlassCard>
         </div>
-
-        <GlassCard className="col-span-12 p-6" data-testid={TRIPS.places}>
-          <CardHeader
-            label="Places & journal"
-            hint={places.length ? `${places.length} saved` : undefined}
-            right={<BookOpen size={16} className="text-aurora-teal" />}
-          />
-
-          {candidates.length > 0 && (
-            <div className="mt-4 space-y-3">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-ink-faint">New stops to name</div>
-              {candidates.map((c) => (
-                <CandidateCard key={`${c.latitude}-${c.arrived_at}`} candidate={c} onSaved={refreshPlaces} />
-              ))}
-            </div>
-          )}
-
-          <div className={candidates.length > 0 ? 'mt-6' : 'mt-4'}>
-            {places.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {places.map((p) => (
-                  <PlaceCard key={p.id} place={p} />
-                ))}
-              </div>
-            ) : candidates.length === 0 ? (
-              <div className="text-sm text-ink-muted">
-                Once the van's parked somewhere for a while (25+ minutes), it'll show up here to name and journal.
-              </div>
-            ) : null}
-          </div>
-        </GlassCard>
       </div>
 
       {/* Destructive, so it lives at the very bottom, visually quiet,

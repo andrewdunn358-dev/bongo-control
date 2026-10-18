@@ -22,33 +22,6 @@ export const isDemo = import.meta.env.VITE_DEMO === 'true';
 const DEMO_LAT = 54.4609;
 const DEMO_LON = -3.0886;
 
-// Places — Trips & Memories Phase 2. A couple of seeded saved places so
-// the showcase has something to look at, plus mutable state so the
-// create/edit/delete flow actually works in the browser demo.
-let nextPlaceId = 3;
-const demoPlaces: { id: number; name: string; notes: string | null; latitude: number; longitude: number; arrived_at: number; departed_at: number | null; created_at: number }[] = [
-  {
-    id: 1,
-    name: 'Ashness Bridge',
-    notes: 'Parked up in the little layby — sunrise over the fells was worth the early start.',
-    latitude: DEMO_LAT + 0.018,
-    longitude: DEMO_LON + 0.02,
-    arrived_at: Date.now() / 1000 - 3 * 86400,
-    departed_at: Date.now() / 1000 - 3 * 86400 + 14 * 3600,
-    created_at: Date.now() / 1000 - 3 * 86400,
-  },
-  {
-    id: 2,
-    name: 'Fellside Farm Shop',
-    notes: 'Filled up on water and picked up local cheese. Opens 09:00.',
-    latitude: DEMO_LAT - 0.01,
-    longitude: DEMO_LON + 0.035,
-    arrived_at: Date.now() / 1000 - 1 * 86400,
-    departed_at: Date.now() / 1000 - 1 * 86400 + 3600,
-    created_at: Date.now() / 1000 - 1 * 86400,
-  },
-];
-
 // --- simulation state ---
 const sim = {
   soc: 82, // internal %, drives voltage; never shown as a % in the UI
@@ -646,48 +619,6 @@ export async function demoRequest<T>(path: string, init: RequestInit = {}): Prom
       source: 'demo',
     }));
     return R({ points, count: points.length });
-  }
-  if (p === '/places' && method === 'POST') {
-    const place = {
-      id: nextPlaceId++,
-      name: String(body.name || 'Unnamed stop'),
-      notes: body.notes ?? null,
-      latitude: body.latitude,
-      longitude: body.longitude,
-      arrived_at: body.arrived_at,
-      departed_at: body.departed_at ?? null,
-      created_at: Date.now() / 1000,
-    };
-    demoPlaces.unshift(place);
-    return R(place);
-  }
-  if (p === '/places') return R({ places: demoPlaces });
-  if (p === '/places/detected')
-    return R({
-      candidates: [
-        {
-          latitude: DEMO_LAT + Math.sin(20 / 3) * 0.03 + 20 * 0.004,
-          longitude: DEMO_LON + Math.cos(20 / 4) * 0.03 + 20 * 0.006,
-          arrived_at: Date.now() / 1000 - 4 * 3600,
-          departed_at: Date.now() / 1000 - 3 * 3600,
-          point_count: 6,
-        },
-      ],
-    });
-  if (p.startsWith('/places/') && method === 'PUT') {
-    const id = Number(p.split('/')[2]);
-    const place = demoPlaces.find((x) => x.id === id);
-    if (place) {
-      if (body.name !== undefined) place.name = body.name;
-      if (body.notes !== undefined) place.notes = body.notes;
-    }
-    return R(place ?? {});
-  }
-  if (p.startsWith('/places/') && method === 'DELETE') {
-    const id = Number(p.split('/')[2]);
-    const idx = demoPlaces.findIndex((x) => x.id === id);
-    if (idx >= 0) demoPlaces.splice(idx, 1);
-    return R({ ok: true });
   }
   if (p === '/backup/restore') return R({ ok: true, message: "Backups aren't available in the browser demo — this is real on your Pi." });
   if (p === '/poi/nearby') {

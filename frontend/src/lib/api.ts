@@ -14,8 +14,6 @@ import type {
   HistoryResponse,
   InternetRadioStatus,
   MissionBrief,
-  Place,
-  PlaceCandidate,
   PluginInfo,
   PoiResponse,
   RadioStation,
@@ -246,17 +244,6 @@ export const api = {
     if (bounds.before != null) qs.set('before', String(bounds.before));
     return request<{ deleted: number }>(`/location/history?${qs.toString()}`, { method: 'DELETE' });
   },
-
-  // Places — Trips & Memories Phase 2. "Detected" candidates are computed
-  // on demand from the breadcrumb trail and never stored; saving one
-  // (naming it) is what creates a Place row.
-  places: () => request<{ places: Place[] }>('/places'),
-  detectedPlaces: () => request<{ candidates: PlaceCandidate[] }>('/places/detected'),
-  createPlace: (place: { name: string; notes?: string; latitude: number; longitude: number; arrived_at: number; departed_at?: number | null }) =>
-    request<Place>('/places', { method: 'POST', body: JSON.stringify(place) }),
-  updatePlace: (id: number, patch: { name?: string; notes?: string }) =>
-    request<Place>(`/places/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(patch) }),
-  deletePlace: (id: number) => request<{ ok: boolean }>(`/places/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
   relays: () => request<RelayResponse>('/relays'),
   roofStatus: () => request<RoofStatus>('/roof'),

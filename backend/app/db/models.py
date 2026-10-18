@@ -144,11 +144,9 @@ class LocationHistory(Base):
 
 
 class Place(Base):
-    """A named, journaled stop — the layer on top of the raw breadcrumb
-    trail (LocationHistory). Detection of *candidate* stops (parked a
-    while vs still driving) is computed on demand from LocationHistory
-    and never stored - a cluster only becomes a row here once someone
-    actually names it. See PlaceService.detect_stays.
+    """RETIRED (Oct 2026). The Places & journal feature was removed from
+    the app - never used. The model stays only so the existing table and
+    its saved rows are left intact; nothing reads or writes it now.
     """
 
     __tablename__ = "places"
